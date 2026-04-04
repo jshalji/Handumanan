@@ -12,7 +12,7 @@ export interface HeritageSite {
 }
 
 export const HERITAGE_SITES: HeritageSite[] = [
-  // CEBU CITY
+  // --- CEBU CITY ---
   {
     id: '1',
     name: "Magellan's Cross",
@@ -104,7 +104,7 @@ export const HERITAGE_SITES: HeritageSite[] = [
     category: "Ancestral House",
     location: "Zulueta St, Cebu City",
     city: "Cebu City",
-    visitingHours: "8:30 AM - 12:00 PM, 1:00 PM - 5:00 PM",
+    visitingHours: "8:30 AM - 5:00 PM",
     imageUrl: "https://picsum.photos/seed/jesuit/800/600",
     rating: 4.7,
     tags: ["hidden-gem", "jesuit", "parian"]
@@ -128,129 +128,37 @@ export const HERITAGE_SITES: HeritageSite[] = [
     category: "Public Space",
     location: "Colon St, Cebu City",
     city: "Cebu City",
-    visitingHours: "24 Hours (Business hours vary)",
+    visitingHours: "24 Hours",
     imageUrl: "https://picsum.photos/seed/colon/800/600",
     rating: 4.2,
     tags: ["oldest-street", "downtown", "commerce"]
   },
-
-  // LAPU-LAPU CITY
   {
     id: '11',
-    name: "Mactan Shrine (Lapu-Lapu Monument)",
-    description: "A memorial shrine marking the site of the Battle of Mactan in 1521. It features a 20-meter bronze statue of Datu Lapu-Lapu, the first Filipino hero to resist foreign rule.",
-    category: "National Monument",
-    location: "Punta Engaño, Lapu-Lapu City",
-    city: "Lapu-Lapu City",
+    name: "Plaza Independencia",
+    description: "A historic park located in front of Fort San Pedro. It has served as a center for social and political gatherings since the Spanish era.",
+    category: "Public Space",
+    location: "M.J. Cuenco Ave, Cebu City",
+    city: "Cebu City",
     visitingHours: "24 Hours",
-    imageUrl: "https://picsum.photos/seed/lapulapu/800/600",
-    rating: 4.8,
-    tags: ["hero", "battle", "mactan"]
+    imageUrl: "https://picsum.photos/seed/plaza/800/600",
+    rating: 4.4,
+    tags: ["park", "recreation", "plaza"]
   },
   {
     id: '12',
-    name: "Magellan Shrine",
-    description: "A large coral stone monument erected in 1866 to mark the spot where the explorer Ferdinand Magellan was killed during the Battle of Mactan.",
-    category: "Spanish Colonial",
-    location: "Punta Engaño, Lapu-Lapu City",
-    city: "Lapu-Lapu City",
-    visitingHours: "24 Hours",
-    imageUrl: "https://picsum.photos/seed/magellanshrine/800/600",
-    rating: 4.6,
-    tags: ["explorer", "history", "monument"]
+    name: "San Nicolas de Tolentino Church",
+    description: "The second oldest parish in Cebu, located in the original site of Legazpi's first settlement. It is historically known as the cradle of the Cebuano resistance.",
+    category: "Religious",
+    location: "Tupas St, San Nicolas, Cebu City",
+    city: "Cebu City",
+    visitingHours: "6:00 AM - 7:00 PM",
+    imageUrl: "https://picsum.photos/seed/sannicolas/800/600",
+    rating: 4.5,
+    tags: ["parish", "revolution", "history"]
   },
   {
     id: '13',
-    name: "Virgen de la Regla National Shrine",
-    description: "A historic church dedicated to Our Lady of the Rule, the patroness of Opon (now Lapu-Lapu City). The devotion began in the 18th century and remains a central part of local culture.",
-    category: "Religious",
-    location: "B.M. Dimataga St, Lapu-Lapu City",
-    city: "Lapu-Lapu City",
-    visitingHours: "5:00 AM - 9:00 PM",
-    imageUrl: "https://picsum.photos/seed/regla/800/600",
-    rating: 4.7,
-    tags: ["devotion", "patroness", "church"]
-  },
-
-  // MANDAUE CITY
-  {
-    id: '14',
-    name: "National Shrine of Saint Joseph",
-    description: "The center of Mandaue's spiritual life, this church features unique Life-Size statues of the Last Supper, locally known as 'Señor de la Cena'.",
-    category: "Religious",
-    location: "P. Burgos St, Mandaue City",
-    city: "Mandaue City",
-    visitingHours: "6:00 AM - 8:00 PM",
-    imageUrl: "https://picsum.photos/seed/joseph/800/600",
-    rating: 4.5,
-    tags: ["last-supper", "shrine", "mandaue"]
-  },
-  {
-    id: '15',
-    name: "Bantayan sa Hari (Watchtower)",
-    description: "A Spanish-era watchtower located at the Mactan-Mandaue bridge base, used to warn the local population of incoming pirate raids.",
-    category: "Spanish Colonial",
-    location: "Brgy. Looc, Mandaue City",
-    city: "Mandaue City",
-    visitingHours: "Viewing from outside",
-    imageUrl: "https://picsum.photos/seed/watchtower/800/600",
-    rating: 4.1,
-    tags: ["defensive", "ruins", "coastal"]
-  },
-  {
-    id: '16',
-    name: "Mandaue City Public Library (Heritage Section)",
-    description: "A repository of Mandaue's local history and cultural artifacts, documenting the city's transformation from a salt-making village to an industrial hub.",
-    category: "Arts & Culture",
-    location: "Mandaue City Hall Compound",
-    city: "Mandaue City",
-    visitingHours: "8:00 AM - 5:00 PM",
-    imageUrl: "https://picsum.photos/seed/mandaue_library/800/600",
-    rating: 4.3,
-    tags: ["education", "archives", "mandaue"]
-  },
-
-  // TALISAY CITY
-  {
-    id: '17',
-    name: "Talisay Liberation Park",
-    description: "A historical park commemorating the landing of American forces in 1945, which began the liberation of Cebu from Japanese occupation during WWII.",
-    category: "Modern History",
-    location: "Larawan Beach, Talisay City",
-    city: "Talisay City",
-    visitingHours: "6:00 AM - 10:00 PM",
-    imageUrl: "https://picsum.photos/seed/talisay_liberation/800/600",
-    rating: 4.4,
-    tags: ["ww2", "beach", "liberation"]
-  },
-  {
-    id: '18',
-    name: "Archdiocesan Shrine of Sta. Teresa de Avila",
-    description: "A majestic Greco-Roman style church built in the mid-19th century, serving as the spiritual heart of Talisay City.",
-    category: "Religious",
-    location: "Poblacion, Talisay City",
-    city: "Talisay City",
-    visitingHours: "5:30 AM - 8:30 PM",
-    imageUrl: "https://picsum.photos/seed/avila/800/600",
-    rating: 4.7,
-    tags: ["greco-roman", "shrine", "architecture"]
-  },
-  {
-    id: '19',
-    name: "Talisay City College Museum",
-    description: "A local educational museum that houses artifacts related to Talisay's pre-colonial and colonial past, including agricultural tools used in the past.",
-    category: "Museum",
-    location: "Talisay City College, Talisay City",
-    city: "Talisay City",
-    visitingHours: "9:00 AM - 4:00 PM (By appointment)",
-    imageUrl: "https://picsum.photos/seed/talisay_museum/800/600",
-    rating: 4.0,
-    tags: ["local-history", "education", "agriculture"]
-  },
-
-  // MORE SITES (UNDERRATED & HIDDEN)
-  {
-    id: '20',
     name: "Jose R. Gullas Halad Museum",
     description: "A musically-themed museum dedicated to Cebuano composers and artists, showcasing the rich musical heritage of the Visayas.",
     category: "Arts & Culture",
@@ -262,9 +170,329 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["music", "composers", "culture"]
   },
   {
+    id: '14',
+    name: "Fuente Osmeña Circle",
+    description: "A park and fountain dedicated to President Sergio Osmeña. It is the center of many of Cebu's social activities and festivals, particularly during Sinulog.",
+    category: "Public Space",
+    location: "Fuente Osmeña, Cebu City",
+    city: "Cebu City",
+    visitingHours: "24 Hours",
+    imageUrl: "https://picsum.photos/seed/fuente/800/600",
+    rating: 4.4,
+    tags: ["landmark", "park", "osmeña"]
+  },
+  {
+    id: '15',
+    name: "Cebu Provincial Capitol",
+    description: "An iconic Neo-Classical building that serves as the seat of the provincial government. It was designed by Juan Arellano and is considered one of the most beautiful capitols in the Philippines.",
+    category: "Modern History",
+    location: "Escario St, Cebu City",
+    city: "Cebu City",
+    visitingHours: "8:00 AM - 5:00 PM (Exterior viewing 24h)",
+    imageUrl: "https://picsum.photos/seed/capitol/800/600",
+    rating: 4.7,
+    tags: ["architecture", "government", "heritage"]
+  },
+  {
+    id: '16',
+    name: "University of San Carlos (Main Library)",
+    description: "One of the oldest educational institutions in Asia, the main campus houses significant archives and a museum of natural history and anthropology.",
+    category: "Arts & Culture",
+    location: "P. del Rosario St, Cebu City",
+    city: "Cebu City",
+    visitingHours: "8:00 AM - 5:00 PM",
+    imageUrl: "https://picsum.photos/seed/usc/800/600",
+    rating: 4.5,
+    tags: ["education", "archives", "academic"]
+  },
+  {
+    id: '17',
+    name: "Gotiaoco Building",
+    description: "A historic building in front of Cebu City Hall, once the first skyscraper in Cebu. It has been restored into the Sugbo Chinese Heritage Museum.",
+    category: "Spanish Colonial",
+    location: "M.C. Briones St, Cebu City",
+    city: "Cebu City",
+    visitingHours: "9:00 AM - 5:00 PM",
+    imageUrl: "https://picsum.photos/seed/gotiaoco/800/600",
+    rating: 4.3,
+    tags: ["chinese-heritage", "architecture", "restored"]
+  },
+  {
+    id: '18',
+    name: "Parian District",
+    description: "The historic district of Cebu where the Chinese community lived during the Spanish era. It was the center of wealth and political influence in old Cebu.",
+    category: "Arts & Culture",
+    location: "Parian, Cebu City",
+    city: "Cebu City",
+    visitingHours: "24 Hours",
+    imageUrl: "https://picsum.photos/seed/parian/800/600",
+    rating: 4.4,
+    tags: ["district", "chinese", "colonial"]
+  },
+  {
+    id: '19',
+    name: "Freedom Park",
+    description: "Formerly the site of a railway station, it became a space for political rallies and public discourse. Today it is part of the historic Carbon Market area revitalization.",
+    category: "Public Space",
+    location: "Carbon, Cebu City",
+    city: "Cebu City",
+    visitingHours: "24 Hours",
+    imageUrl: "https://picsum.photos/seed/freedom/800/600",
+    rating: 4.0,
+    tags: ["political", "market", "history"]
+  },
+  {
+    id: '20',
+    name: "Carbon Market",
+    description: "The oldest and largest farmer's market in Cebu City. Its name derives from the coal (carbon) depot that used to exist on the railway site.",
+    category: "Public Space",
+    location: "MC Briones St, Cebu City",
+    city: "Cebu City",
+    visitingHours: "24 Hours",
+    imageUrl: "https://picsum.photos/seed/carbon/800/600",
+    rating: 4.3,
+    tags: ["market", "livelihood", "culture"]
+  },
+
+  // --- LAPU-LAPU CITY ---
+  {
     id: '21',
+    name: "Mactan Shrine (Lapu-Lapu Monument)",
+    description: "A memorial shrine marking the site of the Battle of Mactan in 1521. It features a 20-meter bronze statue of Datu Lapu-Lapu, the first Filipino hero.",
+    category: "National Monument",
+    location: "Punta Engaño, Lapu-Lapu City",
+    city: "Lapu-Lapu City",
+    visitingHours: "24 Hours",
+    imageUrl: "https://picsum.photos/seed/lapulapu/800/600",
+    rating: 4.8,
+    tags: ["hero", "battle", "mactan"]
+  },
+  {
+    id: '22',
+    name: "Magellan Shrine",
+    description: "A monument built in 1866 to mark the spot where Ferdinand Magellan was killed. It stands in the same compound as the Lapu-Lapu monument, representing a dual historical perspective.",
+    category: "Spanish Colonial",
+    location: "Punta Engaño, Lapu-Lapu City",
+    city: "Lapu-Lapu City",
+    visitingHours: "24 Hours",
+    imageUrl: "https://picsum.photos/seed/magellanshrine/800/600",
+    rating: 4.6,
+    tags: ["explorer", "history", "monument"]
+  },
+  {
+    id: '23',
+    name: "Virgen de la Regla National Shrine",
+    description: "A historic church dedicated to Our Lady of the Rule. The devotion is a central part of Oponganon culture and attracts thousands of pilgrims.",
+    category: "Religious",
+    location: "B.M. Dimataga St, Lapu-Lapu City",
+    city: "Lapu-Lapu City",
+    visitingHours: "5:00 AM - 9:00 PM",
+    imageUrl: "https://picsum.photos/seed/regla/800/600",
+    rating: 4.7,
+    tags: ["devotion", "patroness", "church"]
+  },
+  {
+    id: '24',
+    name: "Olango Island Wildlife Sanctuary",
+    description: "A natural heritage site critical for migratory birds. It represents the ecological heritage and traditional coastal living of the region.",
+    category: "Arts & Culture",
+    location: "Olango Island, Lapu-Lapu City",
+    city: "Lapu-Lapu City",
+    visitingHours: "8:00 AM - 5:00 PM",
+    imageUrl: "https://picsum.photos/seed/olango/800/600",
+    rating: 4.8,
+    tags: ["nature", "birds", "island"]
+  },
+  {
+    id: '25',
+    name: "Opon Mercado (Old Public Market)",
+    description: "The traditional commercial heart of Lapu-Lapu City, reflecting the city's growth from a small town (Opon) to a major urban center.",
+    category: "Public Space",
+    location: "Lapu-Lapu City Proper",
+    city: "Lapu-Lapu City",
+    visitingHours: "24 Hours",
+    imageUrl: "https://picsum.photos/seed/oponmarket/800/600",
+    rating: 4.2,
+    tags: ["commerce", "local", "history"]
+  },
+  {
+    id: '26',
+    name: "Marcelo Fernan Bridge",
+    description: "The second bridge connecting Cebu and Mactan, an engineering marvel that has become a symbol of the city's modernity and connectivity.",
+    category: "Modern History",
+    location: "Mandaue-Lapu Lapu City",
+    city: "Lapu-Lapu City",
+    visitingHours: "24 Hours",
+    imageUrl: "https://picsum.photos/seed/fernan/800/600",
+    rating: 4.5,
+    tags: ["bridge", "skyline", "progress"]
+  },
+  {
+    id: '27',
+    name: "Dona Maria House (Heritage Hub)",
+    description: "A lesser-known ancestral structure that serves as a reminder of the residential heritage of old Opon families.",
+    category: "Ancestral House",
+    location: "Poblacion, Lapu-Lapu City",
+    city: "Lapu-Lapu City",
+    visitingHours: "By appointment",
+    imageUrl: "https://picsum.photos/seed/donamaria/800/600",
+    rating: 4.1,
+    tags: ["ancestral", "private", "hidden"]
+  },
+
+  // --- MANDAUE CITY ---
+  {
+    id: '28',
+    name: "National Shrine of Saint Joseph",
+    description: "The spiritual center of Mandaue, featuring life-size statues of the Last Supper used during Holy Week processions.",
+    category: "Religious",
+    location: "P. Burgos St, Mandaue City",
+    city: "Mandaue City",
+    visitingHours: "6:00 AM - 8:00 PM",
+    imageUrl: "https://picsum.photos/seed/joseph/800/600",
+    rating: 4.5,
+    tags: ["shrine", "mandaue", "religious"]
+  },
+  {
+    id: '29',
+    name: "Bantayan sa Hari",
+    description: "A Spanish-era watchtower used to guard against pirate raids. It is one of the few remaining coastal fortifications in Mandaue.",
+    category: "Spanish Colonial",
+    location: "Brgy. Looc, Mandaue City",
+    city: "Mandaue City",
+    visitingHours: "Exterior viewing",
+    imageUrl: "https://picsum.photos/seed/watchtower/800/600",
+    rating: 4.1,
+    tags: ["defensive", "ruins", "coastal"]
+  },
+  {
+    id: '30',
+    name: "Mandaue City Public Library",
+    description: "Housed in a historic building, it serves as the repository of local history and documents the city's industrial evolution.",
+    category: "Arts & Culture",
+    location: "Mandaue City Hall Compound",
+    city: "Mandaue City",
+    visitingHours: "8:00 AM - 5:00 PM",
+    imageUrl: "https://picsum.photos/seed/mandaue_library/800/600",
+    rating: 4.3,
+    tags: ["education", "archives", "mandaue"]
+  },
+  {
+    id: '31',
+    name: "Monkey Tree (Historical Site)",
+    description: "A legendary tree in Mandaue that has survived generations, associated with many local myths and historical anecdotes of the town.",
+    category: "Public Space",
+    location: "Mandaue City",
+    city: "Mandaue City",
+    visitingHours: "24 Hours",
+    imageUrl: "https://picsum.photos/seed/monkeytree/800/600",
+    rating: 3.9,
+    tags: ["myth", "nature", "landmark"]
+  },
+  {
+    id: '32',
+    name: "Eversley Childs Sanitarium (Heritage Wing)",
+    description: "Founded in 1930, this medical facility has a rich history of serving the community and contains buildings of architectural significance from the American period.",
+    category: "Modern History",
+    location: "Jagobiao, Mandaue City",
+    city: "Mandaue City",
+    visitingHours: "8:00 AM - 4:00 PM",
+    imageUrl: "https://picsum.photos/seed/eversley/800/600",
+    rating: 4.2,
+    tags: ["medical", "american-era", "history"]
+  },
+  {
+    id: '33',
+    name: "Mandaue Heritage Plaza",
+    description: "A newly renovated plaza that integrates modern public space with elements highlighting Mandaue's industrial and cultural past.",
+    category: "Public Space",
+    location: "Centro, Mandaue City",
+    city: "Mandaue City",
+    visitingHours: "24 Hours",
+    imageUrl: "https://picsum.photos/seed/mandaueplaza/800/600",
+    rating: 4.4,
+    tags: ["plaza", "centro", "recreation"]
+  },
+
+  // --- TALISAY CITY ---
+  {
+    id: '34',
+    name: "Talisay Liberation Park",
+    description: "Marks the site where American forces landed in 1945 to liberate Cebu from Japanese occupation. It features statues of the soldiers landing on the beach.",
+    category: "National Monument",
+    location: "Larawan Beach, Talisay City",
+    city: "Talisay City",
+    visitingHours: "24 Hours",
+    imageUrl: "https://picsum.photos/seed/talisay_liberation/800/600",
+    rating: 4.4,
+    tags: ["ww2", "liberation", "beach"]
+  },
+  {
+    id: '35',
+    name: "Archdiocesan Shrine of Sta. Teresa de Avila",
+    description: "A majestic Greco-Roman church built in 1836, known for its architectural elegance and spiritual significance to Talisaynons.",
+    category: "Religious",
+    location: "Poblacion, Talisay City",
+    city: "Talisay City",
+    visitingHours: "5:30 AM - 8:30 PM",
+    imageUrl: "https://picsum.photos/seed/avila/800/600",
+    rating: 4.7,
+    tags: ["shrine", "architecture", "heritage"]
+  },
+  {
+    id: '36',
+    name: "Talisay City College Museum",
+    description: "A small but significant museum showcasing artifacts from Talisay's agricultural and colonial past.",
+    category: "Museum",
+    location: "Talisay City College, Talisay City",
+    city: "Talisay City",
+    visitingHours: "9:00 AM - 4:00 PM",
+    imageUrl: "https://picsum.photos/seed/talisay_museum/800/600",
+    rating: 4.0,
+    tags: ["local-history", "education", "museum"]
+  },
+  {
+    id: '37',
+    name: "Tabunok Market (Cultural Hub)",
+    description: "The bustling public market of Talisay, serving as a hub for local trades and reflecting the vibrant commercial culture of the city.",
+    category: "Public Space",
+    location: "Tabunok, Talisay City",
+    city: "Talisay City",
+    visitingHours: "24 Hours",
+    imageUrl: "https://picsum.photos/seed/tabunok/800/600",
+    rating: 4.1,
+    tags: ["market", "commerce", "local"]
+  },
+  {
+    id: '38',
+    name: "Lagundi Reef (Natural Heritage)",
+    description: "A marine sanctuary that represents the natural heritage providing livelihood to Talisay's coastal communities for generations.",
+    category: "Arts & Culture",
+    location: "Poblacion Beach, Talisay City",
+    city: "Talisay City",
+    visitingHours: "8:00 AM - 5:00 PM",
+    imageUrl: "https://picsum.photos/seed/lagundi/800/600",
+    rating: 4.3,
+    tags: ["nature", "marine", "heritage"]
+  },
+
+  // --- ADDITIONAL SITES ---
+  {
+    id: '39',
+    name: "Senior Citizens Park",
+    description: "A waterfront park in Cebu City featuring a modern chapel and views of the Mactan channel and the new CCLEX bridge.",
+    category: "Public Space",
+    location: "Waterfront, Cebu City",
+    city: "Cebu City",
+    visitingHours: "6:00 AM - 10:00 PM",
+    imageUrl: "https://picsum.photos/seed/senior_park/800/600",
+    rating: 4.3,
+    tags: ["waterfront", "park", "cclex"]
+  },
+  {
+    id: '40',
     name: "Archdiocesan Museum of Cebu",
-    description: "Located within the Cathedral compound, this museum exhibits ecclesiastical art and artifacts from the early Spanish period.",
+    description: "Exhibits ecclesiastical art and historical items from the early Spanish period, located within the Cathedral compound.",
     category: "Museum",
     location: "Mabini St, Cebu City",
     city: "Cebu City",
@@ -274,52 +502,124 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["religious-art", "ecclesiastical", "cathedral"]
   },
   {
-    id: '22',
-    name: "Senior Citizens Park",
-    description: "A newly developed public space in the waterfront area of Cebu City, offering views of the Mactan channel and featuring a modern chapel dedicated to Sto. Niño.",
-    category: "Public Space",
-    location: "Waterfront, Cebu City",
-    city: "Cebu City",
-    visitingHours: "6:00 AM - 10:00 PM",
-    imageUrl: "https://picsum.photos/seed/senior_park/800/600",
-    rating: 4.3,
-    tags: ["waterfront", "park", "modern"]
-  },
-  {
-    id: '23',
-    name: "Marcelo Fernan Bridge (2nd Bridge)",
-    description: "An engineering feat connecting Mandaue and Lapu-Lapu. While modern, it has become a symbol of Metro Cebu's progress and unity.",
-    category: "Modern History",
-    location: "Mandaue-Lapu Lapu City",
-    city: "Mandaue City",
-    visitingHours: "24 Hours",
-    imageUrl: "https://picsum.photos/seed/fernan/800/600",
-    rating: 4.5,
-    tags: ["bridge", "engineering", "skyline"]
-  },
-  {
-    id: '24',
-    name: "Olango Island Wildlife Sanctuary",
-    description: "A critical habitat for migratory birds, representing the natural heritage that has sustained the island's coastal communities for generations.",
+    id: '41',
+    name: "Cebu City Public Library",
+    description: "The first public library in the Philippines to be open 24/7, serving as a modern landmark for education and community heritage.",
     category: "Arts & Culture",
-    location: "Olango Island, Lapu-Lapu City",
-    city: "Lapu-Lapu City",
-    visitingHours: "9:00 AM - 5:00 PM",
-    imageUrl: "https://picsum.photos/seed/olango/800/600",
-    rating: 4.8,
-    tags: ["nature", "birds", "island"]
-  },
-  {
-    id: '25',
-    name: "Plaza Independencia",
-    description: "A historic park located in front of Fort San Pedro. It has served as a center for social and political gatherings since the Spanish era.",
-    category: "Public Space",
-    location: "M.J. Cuenco Ave, Cebu City",
+    location: "Osmeña Blvd, Cebu City",
     city: "Cebu City",
     visitingHours: "24 Hours",
-    imageUrl: "https://picsum.photos/seed/plaza/800/600",
-    rating: 4.4,
-    tags: ["park", "recreation", "plaza"]
+    imageUrl: "https://picsum.photos/seed/cebulibrary/800/600",
+    rating: 4.6,
+    tags: ["education", "community", "landmark"]
+  },
+  {
+    id: '42',
+    name: "Gaisano Main (Old Building)",
+    description: "A classic example of commercial architecture in downtown Cebu, representing the retail heritage of the Colon area.",
+    category: "Modern History",
+    location: "Colon St, Cebu City",
+    city: "Cebu City",
+    visitingHours: "9:00 AM - 8:00 PM",
+    imageUrl: "https://picsum.photos/seed/gaisano/800/600",
+    rating: 4.1,
+    tags: ["commerce", "downtown", "landmark"]
+  },
+  {
+    id: '43',
+    name: "USJ-R Recoletos Museum",
+    description: "Houses religious artifacts and historical documents from the Order of Augustinian Recollects' mission in Cebu.",
+    category: "Museum",
+    location: "Magallanes St, Cebu City",
+    city: "Cebu City",
+    visitingHours: "By appointment",
+    imageUrl: "https://picsum.photos/seed/usjr/800/600",
+    rating: 4.3,
+    tags: ["recoletos", "museum", "religious"]
+  },
+  {
+    id: '44',
+    name: "Chu Un Temple",
+    description: "A Buddhist temple representing the Chinese-Cebuano religious diversity and cultural integration in the hills of Banawa.",
+    category: "Religious",
+    location: "Banawa, Cebu City",
+    city: "Cebu City",
+    visitingHours: "8:00 AM - 5:00 PM",
+    imageUrl: "https://picsum.photos/seed/chuun/800/600",
+    rating: 4.7,
+    tags: ["buddhist", "temple", "peaceful"]
+  },
+  {
+    id: '45',
+    name: "Cebu Eastern College (Heritage Wing)",
+    description: "The oldest Chinese school in Cebu, reflecting the educational heritage of the Chinese-Filipino community.",
+    category: "Arts & Culture",
+    location: "Leon Kilat St, Cebu City",
+    city: "Cebu City",
+    visitingHours: "School hours",
+    imageUrl: "https://picsum.photos/seed/cec/800/600",
+    rating: 4.2,
+    tags: ["school", "chinese-heritage", "education"]
+  },
+  {
+    id: '46',
+    name: "Rizal Memorial Library and Museum",
+    description: "A historic building that houses the city library and a museum featuring Cebuano history and the life of Dr. Jose Rizal.",
+    category: "Museum",
+    location: "Osmeña Blvd, Cebu City",
+    city: "Cebu City",
+    visitingHours: "8:00 AM - 5:00 PM",
+    imageUrl: "https://picsum.photos/seed/rizalmuseum/800/600",
+    rating: 4.5,
+    tags: ["rizal", "library", "museum"]
+  },
+  {
+    id: '47',
+    name: "Talisay Central School (Gabaldon Building)",
+    description: "A heritage school building from the American era, part of the Gabaldon school system designed to improve public education.",
+    category: "Spanish Colonial",
+    location: "Talisay City",
+    city: "Talisay City",
+    visitingHours: "School hours",
+    imageUrl: "https://picsum.photos/seed/gabaldon/800/600",
+    rating: 4.0,
+    tags: ["american-era", "school", "architecture"]
+  },
+  {
+    id: '48',
+    name: "Shamrock Building (Liloan heritage roots)",
+    description: "While commercial, it is a landmark of Cebu's snack heritage (otap and rosquillos), rooted in the traditional baking culture of the region.",
+    category: "Modern History",
+    location: "Fuente Osmeña, Cebu City",
+    city: "Cebu City",
+    visitingHours: "8:00 AM - 9:00 PM",
+    imageUrl: "https://picsum.photos/seed/shamrock/800/600",
+    rating: 4.3,
+    tags: ["food-heritage", "commercial", "landmark"]
+  },
+  {
+    id: '49',
+    name: "Taboan Dried Fish Market",
+    description: "A cultural and culinary landmark known for 'danggit'. It is the center of Cebu's traditional food preservation heritage.",
+    category: "Public Space",
+    location: "San Nicolas, Cebu City",
+    city: "Cebu City",
+    visitingHours: "6:00 AM - 8:00 PM",
+    imageUrl: "https://picsum.photos/seed/taboan/800/600",
+    rating: 4.5,
+    tags: ["culinary", "market", "tradition"]
+  },
+  {
+    id: '50',
+    name: "The Cebu Zoo (Heritage of Conservation)",
+    description: "A space that has served as an educational hub for local wildlife for decades, reflecting the city's early efforts in natural heritage education.",
+    category: "Public Space",
+    location: "Capitol Hills, Cebu City",
+    city: "Cebu City",
+    visitingHours: "9:00 AM - 5:00 PM",
+    imageUrl: "https://picsum.photos/seed/cebuzoo/800/600",
+    rating: 3.8,
+    tags: ["wildlife", "education", "legacy"]
   }
 ];
 
