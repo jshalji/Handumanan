@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
+import { Badge } from '@/components/ui/badge';
 import { Sparkles, Calendar, Clock, MapPin, Loader2, ArrowRight } from 'lucide-react';
 
 const INTERESTS_OPTIONS = [
