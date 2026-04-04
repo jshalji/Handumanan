@@ -1,4 +1,3 @@
-
 'use client';
 
 import { use } from 'react';
@@ -9,7 +8,7 @@ import { getSiteById } from '@/lib/heritage-data';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare } from 'lucide-react';
+import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Images } from 'lucide-react';
 
 export default function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -38,6 +37,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
           fill
           className="object-cover brightness-75"
           priority
+          data-ai-hint="heritage landmark"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
         <div className="absolute bottom-0 left-0 w-full p-8 md:p-16">
@@ -79,12 +79,42 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-12">
             <section>
-              <h2 className="font-headline text-3xl font-bold mb-6 flex items-center gap-3">
-                <Info className="text-primary" /> About this Site
+              <h2 className="font-headline text-3xl font-bold mb-6 flex items-center gap-3 text-primary">
+                <Info size={28} /> Overview
               </h2>
-              <p className="text-lg leading-relaxed text-muted-foreground whitespace-pre-line">
-                {site.description}
+              <div className="prose prose-slate max-w-none">
+                <p className="text-lg leading-relaxed text-slate-700">
+                  {site.description}
+                </p>
+              </div>
+            </section>
+
+            <section className="bg-slate-50 p-8 rounded-3xl border border-slate-200">
+              <h2 className="font-headline text-2xl font-bold mb-4 flex items-center gap-3 text-primary">
+                <Landmark size={24} /> Historical Significance
+              </h2>
+              <p className="text-slate-600 leading-relaxed italic">
+                "{site.significance}"
               </p>
+            </section>
+
+            <section>
+              <h2 className="font-headline text-3xl font-bold mb-8 flex items-center gap-3 text-primary">
+                <Images size={28} /> Visual Gallery
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {site.galleryImages.map((img, index) => (
+                  <div key={index} className="relative h-64 rounded-2xl overflow-hidden group">
+                    <Image
+                      src={img}
+                      alt={`${site.name} gallery ${index + 1}`}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      data-ai-hint="heritage detail"
+                    />
+                  </div>
+                ))}
+              </div>
             </section>
 
             <Separator />
@@ -94,7 +124,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                 <MessageSquare className="text-primary" /> User Feedback
               </h2>
               <div className="bg-muted/30 p-8 rounded-3xl text-center space-y-4 border-2 border-dashed">
-                <p className="text-muted-foreground italic">"One of the most meaningful historical landmarks I've visited in Cebu. The architectural details are stunning and the atmosphere is very solemn."</p>
+                <p className="text-muted-foreground italic">"One of the most meaningful historical landmarks I've visited in Metro Cebu. The architectural details are stunning and the atmosphere is very solemn."</p>
                 <div className="flex justify-center gap-1 text-yellow-500">
                   <Star fill="currentColor" size={16} />
                   <Star fill="currentColor" size={16} />
@@ -102,7 +132,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   <Star fill="currentColor" size={16} />
                   <Star fill="currentColor" size={16} />
                 </div>
-                <p className="text-xs font-bold uppercase tracking-widest text-primary">— Local Tourist, July 2023</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-primary">— Local Tourist, August 2024</p>
               </div>
             </section>
           </div>

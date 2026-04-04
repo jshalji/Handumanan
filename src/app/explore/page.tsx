@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -10,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, MapPin, Filter, X } from 'lucide-react';
+import { Search, MapPin, X } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -26,7 +25,7 @@ export default function ExplorePage() {
 
   const filteredSites = searchSites(query, city, category);
 
-  const categories = ["All", "Religious", "Spanish Colonial", "National Monument", "Arts & Culture", "Modern History"];
+  const categories = ["All", "Religious", "Spanish Colonial", "National Monument", "Arts & Culture", "Modern History", "Ancestral House", "Museum", "Public Space"];
   const cities = ["All", "Cebu City", "Lapu-Lapu City", "Mandaue City", "Talisay City"];
 
   const resetFilters = () => {
@@ -51,7 +50,7 @@ export default function ExplorePage() {
             <div className="relative md:col-span-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
               <Input
-                placeholder="Search by name, tags, or description..."
+                placeholder="Search by name, significance, or tags..."
                 className="pl-10 h-12"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -93,36 +92,37 @@ export default function ExplorePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredSites.length > 0 ? (
             filteredSites.map((site) => (
-              <Card key={site.id} className="group overflow-hidden hover:ring-2 hover:ring-primary/20 transition-all duration-300">
+              <Card key={site.id} className="group overflow-hidden hover:ring-2 hover:ring-primary/20 transition-all duration-300 border-none shadow-md">
                 <Link href={`/site/${site.id}`}>
                   <div className="relative h-56">
                     <Image
                       src={site.imageUrl}
                       alt={site.name}
                       fill
-                      className="object-cover"
+                      className="object-cover group-hover:scale-110 transition-transform duration-500"
+                      data-ai-hint="heritage site"
                     />
                     <div className="absolute top-4 left-4">
-                      <Badge variant="secondary" className="bg-white/90 backdrop-blur text-primary border-none">
+                      <Badge variant="secondary" className="bg-white/90 backdrop-blur text-primary border-none shadow-sm">
                         {site.category}
                       </Badge>
                     </div>
                   </div>
                   <CardHeader>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                      <MapPin size={14} /> {site.city}
+                      <MapPin size={14} className="text-primary" /> {site.city}
                     </div>
                     <CardTitle className="font-headline text-xl group-hover:text-primary transition-colors">
                       {site.name}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-3 mb-4">
+                    <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
                       {site.description}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {site.tags.map(tag => (
-                        <span key={tag} className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                        <span key={tag} className="text-[10px] uppercase tracking-wider font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
                           #{tag}
                         </span>
                       ))}
