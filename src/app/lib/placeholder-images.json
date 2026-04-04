@@ -1,0 +1,41 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "magellans-cross",
+      "description": "Magellan's Cross in Cebu City",
+      "imageUrl": "https://picsum.photos/seed/magellan/800/600",
+      "imageHint": "historical monument cross"
+    },
+    {
+      "id": "fort-san-pedro",
+      "description": "Fort San Pedro, a military defense structure",
+      "imageUrl": "https://picsum.photos/seed/fort/800/600",
+      "imageHint": "stone fort"
+    },
+    {
+      "id": "santo-nino",
+      "description": "Basilica Minore del Santo Niño de Cebu",
+      "imageUrl": "https://picsum.photos/seed/basilica/800/600",
+      "imageHint": "spanish church"
+    },
+    {
+      "id": "lapu-lapu-shrine",
+      "description": "Mactan Shrine in Lapu-Lapu City",
+      "imageUrl": "https://picsum.photos/seed/lapulapu/800/600",
+      "imageHint": "statue monument"
+    },
+    {
+      "id": "taoist-temple",
+      "description": "Cebu Taoist Temple in Beverly Hills",
+      "imageUrl": "https://picsum.photos/seed/temple/800/600",
+      "imageHint": "chinese temple"
+    },
+    {
+      "id": "talisay-landing",
+      "description": "Talisay City Liberation Monument",
+      "imageUrl": "https://picsum.photos/seed/talisay/800/600",
+      "imageHint": "beach monument"
+    }
+  ]
+}
