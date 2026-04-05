@@ -1,9 +1,8 @@
-
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Landmark, Compass, Calendar, Settings, Menu } from 'lucide-react';
+import { Landmark, Compass, Calendar, Settings, Menu, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +15,7 @@ import {
 
 const NAV_ITEMS = [
   { label: 'Explore', href: '/explore', icon: Compass },
+  { label: 'Discover', href: '/discover', icon: MapPin },
   { label: 'AI Planner', href: '/itinerary', icon: Calendar },
   { label: 'Admin', href: '/admin', icon: Settings },
 ];

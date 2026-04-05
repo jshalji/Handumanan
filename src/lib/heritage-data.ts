@@ -11,6 +11,10 @@ export interface HeritageSite {
   galleryImages: string[];
   rating: number;
   tags: string[];
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
 }
 
 export const HERITAGE_SITES: HeritageSite[] = [
@@ -30,7 +34,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/magellan3/800/600"
     ],
     rating: 4.8,
-    tags: ["history", "christianity", "landmark"]
+    tags: ["history", "christianity", "landmark"],
+    coordinates: { lat: 10.2936, lng: 123.9019 }
   },
   {
     id: '2',
@@ -47,7 +52,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/fort3/800/600"
     ],
     rating: 4.6,
-    tags: ["military", "architecture", "fort"]
+    tags: ["military", "architecture", "fort"],
+    coordinates: { lat: 10.2924, lng: 123.9056 }
   },
   {
     id: '3',
@@ -64,7 +70,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/basilica3/800/600"
     ],
     rating: 4.9,
-    tags: ["church", "pilgrimage", "heritage"]
+    tags: ["church", "pilgrimage", "heritage"],
+    coordinates: { lat: 10.2942, lng: 123.9021 }
   },
   {
     id: '4',
@@ -81,7 +88,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/yap3/800/600"
     ],
     rating: 4.5,
-    tags: ["parian", "chinese-heritage", "lifestyle"]
+    tags: ["parian", "chinese-heritage", "lifestyle"],
+    coordinates: { lat: 10.2987, lng: 123.9034 }
   },
   {
     id: '5',
@@ -98,7 +106,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/gorordo3/800/600"
     ],
     rating: 4.7,
-    tags: ["bishop", "museum", "antiques"]
+    tags: ["bishop", "museum", "antiques"],
+    coordinates: { lat: 10.2995, lng: 123.9042 }
   },
   {
     id: '6',
@@ -115,7 +124,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/sugbo3/800/600"
     ],
     rating: 4.6,
-    tags: ["history", "jail", "provincial"]
+    tags: ["history", "jail", "provincial"],
+    coordinates: { lat: 10.3021, lng: 123.9068 }
   },
   {
     id: '7',
@@ -132,7 +142,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/monument3/800/600"
     ],
     rating: 4.5,
-    tags: ["sculpture", "parian", "history"]
+    tags: ["sculpture", "parian", "history"],
+    coordinates: { lat: 10.2985, lng: 123.9038 }
   },
   {
     id: '8',
@@ -148,7 +159,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/jesuit2/800/600"
     ],
     rating: 4.7,
-    tags: ["hidden-gem", "jesuit", "parian"]
+    tags: ["hidden-gem", "jesuit", "parian"],
+    coordinates: { lat: 10.2982, lng: 123.9031 }
   },
   {
     id: '9',
@@ -164,7 +176,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/cathedral2/800/600"
     ],
     rating: 4.6,
-    tags: ["archdiocese", "cathedral", "church"]
+    tags: ["archdiocese", "cathedral", "church"],
+    coordinates: { lat: 10.2954, lng: 123.9028 }
   },
   {
     id: '10',
@@ -180,7 +193,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/colon2/800/600"
     ],
     rating: 4.2,
-    tags: ["oldest-street", "downtown", "commerce"]
+    tags: ["oldest-street", "downtown", "commerce"],
+    coordinates: { lat: 10.2965, lng: 123.9015 }
   },
   {
     id: '11',
@@ -196,7 +210,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/plaza2/800/600"
     ],
     rating: 4.4,
-    tags: ["park", "recreation", "plaza"]
+    tags: ["park", "recreation", "plaza"],
+    coordinates: { lat: 10.2928, lng: 123.9052 }
   },
   {
     id: '12',
@@ -212,7 +227,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/sannicolas2/800/600"
     ],
     rating: 4.5,
-    tags: ["parish", "revolution", "history"]
+    tags: ["parish", "revolution", "history"],
+    coordinates: { lat: 10.2915, lng: 123.8955 }
   },
   {
     id: '13',
@@ -228,7 +244,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/halad2/800/600"
     ],
     rating: 4.6,
-    tags: ["music", "composers", "culture"]
+    tags: ["music", "composers", "culture"],
+    coordinates: { lat: 10.2958, lng: 123.9008 }
   },
   {
     id: '14',
@@ -244,7 +261,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/fuente2/800/600"
     ],
     rating: 4.4,
-    tags: ["landmark", "park", "osmeña"]
+    tags: ["landmark", "park", "osmeña"],
+    coordinates: { lat: 10.3111, lng: 123.8915 }
   },
   {
     id: '15',
@@ -260,7 +278,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/capitol2/800/600"
     ],
     rating: 4.7,
-    tags: ["architecture", "government", "heritage"]
+    tags: ["architecture", "government", "heritage"],
+    coordinates: { lat: 10.3168, lng: 123.8906 }
   },
   {
     id: '16',
@@ -276,7 +295,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/gotiaoco2/800/600"
     ],
     rating: 4.3,
-    tags: ["chinese-heritage", "architecture", "restored"]
+    tags: ["chinese-heritage", "architecture", "restored"],
+    coordinates: { lat: 10.2932, lng: 123.9012 }
   },
   {
     id: '17',
@@ -292,7 +312,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/parian2/800/600"
     ],
     rating: 4.4,
-    tags: ["district", "chinese", "colonial"]
+    tags: ["district", "chinese", "colonial"],
+    coordinates: { lat: 10.2991, lng: 123.9039 }
   },
   {
     id: '18',
@@ -308,7 +329,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/carbon2/800/600"
     ],
     rating: 4.3,
-    tags: ["market", "livelihood", "culture"]
+    tags: ["market", "livelihood", "culture"],
+    coordinates: { lat: 10.2925, lng: 123.9005 }
   },
   {
     id: '19',
@@ -324,7 +346,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/chuun2/800/600"
     ],
     rating: 4.7,
-    tags: ["buddhist", "temple", "peaceful"]
+    tags: ["buddhist", "temple", "peaceful"],
+    coordinates: { lat: 10.3155, lng: 123.8785 }
   },
   {
     id: '20',
@@ -340,7 +363,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/taboan2/800/600"
     ],
     rating: 4.5,
-    tags: ["culinary", "market", "tradition"]
+    tags: ["culinary", "market", "tradition"],
+    coordinates: { lat: 10.2945, lng: 123.8928 }
   },
 
   // --- LAPU-LAPU CITY ---
@@ -359,7 +383,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/lapulapu3/800/600"
     ],
     rating: 4.8,
-    tags: ["hero", "battle", "mactan"]
+    tags: ["hero", "battle", "mactan"],
+    coordinates: { lat: 10.3115, lng: 123.9585 }
   },
   {
     id: '22',
@@ -375,7 +400,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/magellanshrine2/800/600"
     ],
     rating: 4.6,
-    tags: ["explorer", "history", "monument"]
+    tags: ["explorer", "history", "monument"],
+    coordinates: { lat: 10.3112, lng: 123.9582 }
   },
   {
     id: '23',
@@ -391,7 +417,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/regla2/800/600"
     ],
     rating: 4.7,
-    tags: ["devotion", "patroness", "church"]
+    tags: ["devotion", "patroness", "church"],
+    coordinates: { lat: 10.3155, lng: 123.9442 }
   },
   {
     id: '24',
@@ -407,7 +434,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/olango2/800/600"
     ],
     rating: 4.8,
-    tags: ["nature", "birds", "island"]
+    tags: ["nature", "birds", "island"],
+    coordinates: { lat: 10.2642, lng: 124.0325 }
   },
   {
     id: '25',
@@ -423,7 +451,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/fernan2/800/600"
     ],
     rating: 4.5,
-    tags: ["bridge", "skyline", "progress"]
+    tags: ["bridge", "skyline", "progress"],
+    coordinates: { lat: 10.3255, lng: 123.9485 }
   },
   {
     id: '26',
@@ -439,7 +468,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/caohagan2/800/600"
     ],
     rating: 4.4,
-    tags: ["island", "livelihood", "nature"]
+    tags: ["island", "livelihood", "nature"],
+    coordinates: { lat: 10.2015, lng: 124.0185 }
   },
 
   // --- MANDAUE CITY ---
@@ -457,7 +487,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/joseph2/800/600"
     ],
     rating: 4.5,
-    tags: ["shrine", "mandaue", "religious"]
+    tags: ["shrine", "mandaue", "religious"],
+    coordinates: { lat: 10.3295, lng: 123.9392 }
   },
   {
     id: '28',
@@ -473,7 +504,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/watchtower2/800/600"
     ],
     rating: 4.1,
-    tags: ["defensive", "ruins", "coastal"]
+    tags: ["defensive", "ruins", "coastal"],
+    coordinates: { lat: 10.3205, lng: 123.9425 }
   },
   {
     id: '29',
@@ -489,7 +521,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/mandaueplaza2/800/600"
     ],
     rating: 4.4,
-    tags: ["plaza", "centro", "recreation"]
+    tags: ["plaza", "centro", "recreation"],
+    coordinates: { lat: 10.3302, lng: 123.9388 }
   },
   {
     id: '30',
@@ -505,7 +538,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/eversley2/800/600"
     ],
     rating: 4.2,
-    tags: ["medical", "american-era", "history"]
+    tags: ["medical", "american-era", "history"],
+    coordinates: { lat: 10.3685, lng: 123.9315 }
   },
   {
     id: '31',
@@ -521,7 +555,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/ouano2/800/600"
     ],
     rating: 4.0,
-    tags: ["ancestral", "private", "mandaue"]
+    tags: ["ancestral", "private", "mandaue"],
+    coordinates: { lat: 10.3245, lng: 123.9485 }
   },
 
   // --- TALISAY CITY ---
@@ -540,7 +575,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/talisay_liberation3/800/600"
     ],
     rating: 4.4,
-    tags: ["ww2", "liberation", "beach"]
+    tags: ["ww2", "liberation", "beach"],
+    coordinates: { lat: 10.2525, lng: 123.8445 }
   },
   {
     id: '33',
@@ -556,7 +592,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/avila2/800/600"
     ],
     rating: 4.7,
-    tags: ["shrine", "architecture", "heritage"]
+    tags: ["shrine", "architecture", "heritage"],
+    coordinates: { lat: 10.2515, lng: 123.8438 }
   },
   {
     id: '34',
@@ -572,7 +609,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/talisay_museum2/800/600"
     ],
     rating: 4.0,
-    tags: ["local-history", "education", "museum"]
+    tags: ["local-history", "education", "museum"],
+    coordinates: { lat: 10.2555, lng: 123.8485 }
   },
   {
     id: '35',
@@ -588,7 +626,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/lagundi2/800/600"
     ],
     rating: 4.3,
-    tags: ["nature", "marine", "heritage"]
+    tags: ["nature", "marine", "heritage"],
+    coordinates: { lat: 10.2485, lng: 123.8415 }
   },
   {
     id: '36',
@@ -604,7 +643,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
       "https://picsum.photos/seed/gabaldon2/800/600"
     ],
     rating: 4.0,
-    tags: ["american-era", "school", "architecture"]
+    tags: ["american-era", "school", "architecture"],
+    coordinates: { lat: 10.2535, lng: 123.8455 }
   },
 
   // --- ADDITIONAL SITES TO REACH 50 ---
@@ -620,7 +660,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/senior_park1/800/600",
     galleryImages: ["https://picsum.photos/seed/senior_park2/800/600"],
     rating: 4.3,
-    tags: ["waterfront", "park", "cclex"]
+    tags: ["waterfront", "park", "cclex"],
+    coordinates: { lat: 10.2921, lng: 123.9015 }
   },
   {
     id: '38',
@@ -634,7 +675,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/arch_museum1/800/600",
     galleryImages: ["https://picsum.photos/seed/arch_museum2/800/600"],
     rating: 4.4,
-    tags: ["religious-art", "ecclesiastical", "cathedral"]
+    tags: ["religious-art", "ecclesiastical", "cathedral"],
+    coordinates: { lat: 10.2951, lng: 123.9025 }
   },
   {
     id: '39',
@@ -648,7 +690,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/gaisano1/800/600",
     galleryImages: ["https://picsum.photos/seed/gaisano2/800/600"],
     rating: 4.1,
-    tags: ["commerce", "downtown", "landmark"]
+    tags: ["commerce", "downtown", "landmark"],
+    coordinates: { lat: 10.2971, lng: 123.9018 }
   },
   {
     id: '40',
@@ -662,7 +705,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/cebulibrary1/800/600",
     galleryImages: ["https://picsum.photos/seed/cebulibrary2/800/600"],
     rating: 4.6,
-    tags: ["education", "community", "landmark"]
+    tags: ["education", "community", "landmark"],
+    coordinates: { lat: 10.3088, lng: 123.8932 }
   },
   {
     id: '41',
@@ -676,7 +720,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/rizalmuseum1/800/600",
     galleryImages: ["https://picsum.photos/seed/rizalmuseum2/800/600"],
     rating: 4.5,
-    tags: ["rizal", "library", "museum"]
+    tags: ["rizal", "library", "museum"],
+    coordinates: { lat: 10.3085, lng: 123.8935 }
   },
   {
     id: '42',
@@ -690,7 +735,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/lighthouse1/800/600",
     galleryImages: ["https://picsum.photos/seed/lighthouse2/800/600"],
     rating: 4.6,
-    tags: ["maritime", "navigation", "landmark"]
+    tags: ["maritime", "navigation", "landmark"],
+    coordinates: { lat: 10.4015, lng: 124.0085 }
   },
   {
     id: '43',
@@ -704,7 +750,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/cec1/800/600",
     galleryImages: ["https://picsum.photos/seed/cec2/800/600"],
     rating: 4.2,
-    tags: ["school", "chinese-heritage", "education"]
+    tags: ["school", "chinese-heritage", "education"],
+    coordinates: { lat: 10.2985, lng: 123.8985 }
   },
   {
     id: '44',
@@ -718,7 +765,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/brewery1/800/600",
     galleryImages: ["https://picsum.photos/seed/brewery2/800/600"],
     rating: 4.1,
-    tags: ["industrial", "commerce", "mandaue"]
+    tags: ["industrial", "commerce", "mandaue"],
+    coordinates: { lat: 10.3285, lng: 123.9355 }
   },
   {
     id: '45',
@@ -732,7 +780,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/talisay_school1/800/600",
     galleryImages: ["https://picsum.photos/seed/talisay_school2/800/600"],
     rating: 4.0,
-    tags: ["school", "american-era", "talisay"]
+    tags: ["school", "american-era", "talisay"],
+    coordinates: { lat: 10.2511, lng: 123.8425 }
   },
   {
     id: '46',
@@ -746,7 +795,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/freedom1/800/600",
     galleryImages: ["https://picsum.photos/seed/freedom2/800/600"],
     rating: 4.0,
-    tags: ["political", "market", "history"]
+    tags: ["political", "market", "history"],
+    coordinates: { lat: 10.2938, lng: 123.9001 }
   },
   {
     id: '47',
@@ -760,7 +810,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/usc_museum1/800/600",
     galleryImages: ["https://picsum.photos/seed/usc_museum2/800/600"],
     rating: 4.6,
-    tags: ["academic", "anthropology", "museum"]
+    tags: ["academic", "anthropology", "museum"],
+    coordinates: { lat: 10.3005, lng: 123.8982 }
   },
   {
     id: '48',
@@ -774,7 +825,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/zoo1/800/600",
     galleryImages: ["https://picsum.photos/seed/zoo2/800/600"],
     rating: 3.8,
-    tags: ["nature", "legacy", "education"]
+    tags: ["nature", "legacy", "education"],
+    coordinates: { lat: 10.3345, lng: 123.8885 }
   },
   {
     id: '49',
@@ -788,7 +840,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/shamrock1/800/600",
     galleryImages: ["https://picsum.photos/seed/shamrock2/800/600"],
     rating: 4.3,
-    tags: ["food-heritage", "commercial", "fuente"]
+    tags: ["food-heritage", "commercial", "fuente"],
+    coordinates: { lat: 10.3115, lng: 123.8918 }
   },
   {
     id: '50',
@@ -802,7 +855,8 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/rizal_mon1/800/600",
     galleryImages: ["https://picsum.photos/seed/rizal_mon2/800/600"],
     rating: 4.5,
-    tags: ["rizal", "monument", "national"]
+    tags: ["rizal", "monument", "national"],
+    coordinates: { lat: 10.2925, lng: 123.9055 }
   }
 ];
 
