@@ -1,16 +1,25 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Navbar } from '@/components/layout/Navbar';
 import { HERITAGE_SITES, type HeritageSite } from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation } from '@/lib/location-utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Navigation, Loader2, Sparkles, Clock, ArrowRight, Info } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { MapPin, Navigation, Loader2, Sparkles, Clock, ArrowRight, Info, Plus, Check } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// Dynamic import for Map to avoid SSR issues with Leaflet
+const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), { 
+  ssr: false,
+  loading: () => <div className="h-full w-full bg-slate-100 flex items-center justify-center">Loading Map Interface...</div>
+});
 
 interface SiteWithDistance extends HeritageSite {
   distance: number;
@@ -20,6 +29,7 @@ export default function DiscoverPage() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [itineraryIds, setItineraryIds] = useState<string[]>([]);
 
   // Default to Cebu City Hall if location isn't detected
   const defaultLocation = { lat: 10.2936, lng: 123.9019 };
@@ -38,7 +48,7 @@ export default function DiscoverPage() {
     }
   };
 
-  // Calculate distances for all sites based on user location
+  // Calculate distances for all sites based on current location
   const sortedSites = useMemo(() => {
     const loc = userLocation || defaultLocation;
     return HERITAGE_SITES.map(site => ({
@@ -47,16 +57,26 @@ export default function DiscoverPage() {
     })).sort((a, b) => a.distance - b.distance);
   }, [userLocation]);
 
-  const nearbySites = sortedSites.slice(0, 5);
-  const recommendedSites = [...sortedSites].sort((a, b) => (b.rating / (a.distance + 1)) - (a.rating / (b.distance + 1))).slice(0, 4);
+  const nearbySites = sortedSites.slice(0, 10);
 
-  // Generate a simple distance-based itinerary
+  // Manual itinerary management
+  const toggleItinerary = (id: string) => {
+    setItineraryIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const manualItinerary = useMemo(() => {
+    return sortedSites.filter(site => itineraryIds.includes(site.id));
+  }, [itineraryIds, sortedSites]);
+
+  // Smart optimized itinerary (Nearest Neighbor)
   const smartItinerary = useMemo(() => {
     const itinerary: SiteWithDistance[] = [];
     const pool = [...sortedSites];
     let currentPoint = userLocation || defaultLocation;
 
-    // Pick 5 stops using a greedy nearest-neighbor approach
+    // Pick 5 stops using a greedy approach
     for (let i = 0; i < 5; i++) {
       if (pool.length === 0) break;
       
@@ -71,194 +91,152 @@ export default function DiscoverPage() {
       currentPoint = nextSite.coordinates;
     }
     return itinerary;
-  }, [userLocation]);
+  }, [userLocation, sortedSites]);
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="flex flex-col h-screen bg-background overflow-hidden">
       <Navbar />
       
-      <div className="bg-primary/5 py-16 border-b">
-        <div className="container mx-auto px-4">
-          <div className="max-w-3xl">
-            <h1 className="font-headline text-5xl font-bold text-primary mb-4">Discover Nearby</h1>
-            <p className="text-xl text-muted-foreground mb-8">
-              Explore Metro Cebu's heritage based on your current location. We'll help you find the closest treasures and plan the perfect route.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <Button size="lg" onClick={detectLocation} disabled={loading} className="rounded-full px-8">
-                {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Navigation className="mr-2 h-5 w-5" />}
-                {userLocation ? 'Relocate Me' : 'Detect My Location'}
+      <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
+        {/* Left Side: Sidebar for list and itinerary */}
+        <div className="w-full md:w-1/3 border-r bg-white flex flex-col z-10 shadow-lg">
+          <div className="p-6 border-b bg-primary/5">
+            <h1 className="font-headline text-2xl font-bold text-primary flex items-center gap-2">
+              <Navigation size={24} /> Discover Nearby
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">Explore Metro Cebu heritage from your position.</p>
+            
+            <div className="mt-4 space-y-3">
+              <Button 
+                onClick={detectLocation} 
+                disabled={loading} 
+                className="w-full rounded-full shadow-md"
+              >
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />}
+                {userLocation ? 'Update My Location' : 'Detect My Location'}
               </Button>
-              {userLocation && (
-                <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full border shadow-sm">
-                  <MapPin className="text-primary" size={18} />
-                  <span className="text-sm font-medium">Location Active: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}</span>
-                </div>
-              )}
+              {error && <p className="text-[10px] text-amber-600 font-bold bg-amber-50 p-2 rounded border border-amber-100">{error}</p>}
             </div>
-            {error && <p className="mt-4 text-sm text-amber-600 font-medium">{error}</p>}
           </div>
-        </div>
-      </div>
 
-      <div className="container mx-auto px-4 mt-12">
-        <Tabs defaultValue="nearby" className="space-y-12">
-          <div className="flex justify-center">
-            <TabsList className="grid w-full max-w-md grid-cols-2 h-12 rounded-full p-1 bg-muted/50 border">
-              <TabsTrigger value="nearby" className="rounded-full data-[state=active]:bg-primary data-[state=active]:text-white">Nearby Sites</TabsTrigger>
-              <TabsTrigger value="itinerary" className="rounded-full data-[state=active]:bg-primary data-[state=active]:text-white">Smart Route</TabsTrigger>
+          <Tabs defaultValue="nearby" className="flex-1 flex flex-col overflow-hidden">
+            <TabsList className="grid grid-cols-2 mx-6 mt-4 h-10">
+              <TabsTrigger value="nearby">Nearby Sites</TabsTrigger>
+              <TabsTrigger value="itinerary">Itinerary ({itineraryIds.length})</TabsTrigger>
             </TabsList>
-          </div>
 
-          <TabsContent value="nearby" className="space-y-12 animate-in fade-in duration-500">
-            {/* Recommendations Grid */}
-            <section>
-              <div className="flex items-center gap-3 mb-8">
-                <div className="p-2 bg-accent/10 rounded-xl text-accent">
-                  <Sparkles size={24} />
-                </div>
-                <h2 className="font-headline text-3xl font-bold text-slate-800">Smart Recommendations</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {recommendedSites.map((site) => (
-                  <Card key={site.id} className="group overflow-hidden border-none shadow-md hover:shadow-xl transition-all">
-                    <Link href={`/site/${site.id}`}>
-                      <div className="relative h-48">
-                        <Image src={site.imageUrl} alt={site.name} fill className="object-cover" data-ai-hint="heritage" />
-                        <div className="absolute top-3 left-3">
-                          <Badge variant="secondary" className="bg-white/90 backdrop-blur text-primary border-none shadow-sm">
-                            {site.distance.toFixed(1)} km
-                          </Badge>
+            <TabsContent value="nearby" className="flex-1 overflow-hidden p-0 m-0">
+              <ScrollArea className="h-full px-6 py-4">
+                <div className="space-y-4">
+                  {nearbySites.map((site) => (
+                    <Card key={site.id} className="group overflow-hidden border-none shadow-sm hover:shadow-md transition-all">
+                      <div className="flex">
+                        <div className="relative w-24 h-24 flex-shrink-0">
+                          <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                          <div className="absolute top-1 left-1">
+                            <Badge className="bg-white/90 text-primary text-[10px] px-1.5 h-4">{site.distance.toFixed(1)} km</Badge>
+                          </div>
+                        </div>
+                        <div className="p-3 flex-1 flex flex-col justify-between">
+                          <div>
+                            <h3 className="font-bold text-sm line-clamp-1 group-hover:text-primary transition-colors">{site.name}</h3>
+                            <p className="text-[10px] text-muted-foreground uppercase font-bold">{site.category}</p>
+                          </div>
+                          <div className="flex justify-between items-center mt-2">
+                            <Link href={`/site/${site.id}`} className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-0.5">
+                              Details <ArrowRight size={10} />
+                            </Link>
+                            <Button 
+                              size="sm" 
+                              variant={itineraryIds.includes(site.id) ? "default" : "outline"} 
+                              className="h-6 px-2 text-[10px] rounded-full"
+                              onClick={() => toggleItinerary(site.id)}
+                            >
+                              {itineraryIds.includes(site.id) ? <Check size={10} className="mr-1" /> : <Plus size={10} className="mr-1" />}
+                              {itineraryIds.includes(site.id) ? "Added" : "Add to Trip"}
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                      <CardHeader className="p-4">
-                        <CardTitle className="text-lg font-headline group-hover:text-primary transition-colors line-clamp-1">{site.name}</CardTitle>
-                        <CardDescription className="flex items-center gap-1 text-xs">
-                           <MapPin size={12} className="text-primary" /> {site.city}
-                        </CardDescription>
-                      </CardHeader>
-                    </Link>
-                  </Card>
-                ))}
-              </div>
-            </section>
-
-            {/* List View */}
-            <section>
-              <div className="flex items-center gap-3 mb-8">
-                <div className="p-2 bg-primary/10 rounded-xl text-primary">
-                  <Info size={24} />
-                </div>
-                <h2 className="font-headline text-3xl font-bold text-slate-800">Closest Sites from You</h2>
-              </div>
-              <div className="space-y-4">
-                {sortedSites.slice(0, 10).map((site) => (
-                  <Card key={site.id} className="border-none shadow-sm hover:bg-slate-50 transition-colors">
-                    <Link href={`/site/${site.id}`} className="flex flex-col md:flex-row items-center">
-                      <div className="relative w-full md:w-48 h-32 flex-shrink-0">
-                        <Image src={site.imageUrl} alt={site.name} fill className="object-cover md:rounded-l-lg" />
-                      </div>
-                      <div className="p-6 flex-1 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                          <h3 className="text-xl font-bold font-headline mb-1">{site.name}</h3>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1"><MapPin size={14} /> {site.city}</span>
-                            <span className="flex items-center gap-1"><Clock size={14} /> {site.visitingHours}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="text-2xl font-bold text-primary">{site.distance.toFixed(1)}</p>
-                            <p className="text-[10px] uppercase font-bold text-slate-400">Kilometers</p>
-                          </div>
-                          <Button size="icon" variant="ghost" className="text-primary">
-                            <ArrowRight size={20} />
-                          </Button>
-                        </div>
-                      </div>
-                    </Link>
-                  </Card>
-                ))}
-              </div>
-            </section>
-          </TabsContent>
-
-          <TabsContent value="itinerary" className="animate-in fade-in duration-500">
-            <div className="max-w-4xl mx-auto">
-              <Card className="bg-primary text-primary-foreground border-none shadow-xl mb-12 overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 opacity-10">
-                  <Navigation size={120} />
-                </div>
-                <CardHeader className="p-8">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Sparkles size={20} className="text-accent" />
-                    <span className="font-bold text-accent uppercase tracking-widest text-xs">Optimized Exploration</span>
-                  </div>
-                  <CardTitle className="text-4xl font-headline font-bold">Your Proximity-Based Path</CardTitle>
-                  <CardDescription className="text-primary-foreground/80 text-lg mt-2">
-                    We've calculated the shortest route starting from your location to visit these 5 major sites.
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-
-              <div className="space-y-6 relative">
-                {/* Visual Line */}
-                <div className="absolute left-6 top-8 bottom-8 w-0.5 bg-slate-200 hidden md:block"></div>
-
-                <div className="flex gap-6 items-start">
-                   <div className="flex-shrink-0 w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center z-10">
-                    <MapPin size={24} className="text-slate-500" />
-                  </div>
-                  <div className="flex-1 pt-2">
-                    <h4 className="font-bold text-slate-400 uppercase tracking-widest text-xs mb-1">Start Point</h4>
-                    <p className="font-bold">Your Current Location</p>
-                  </div>
-                </div>
-
-                {smartItinerary.map((site, idx) => (
-                  <div key={site.id} className="flex gap-6 items-start group">
-                    <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center font-bold text-lg z-10 shadow-lg group-hover:scale-110 transition-transform">
-                      {idx + 1}
-                    </div>
-                    <Card className="flex-1 border-none shadow-md group-hover:shadow-lg transition-shadow">
-                      <Link href={`/site/${site.id}`} className="flex flex-col md:flex-row">
-                        <div className="p-6 flex-1">
-                          <div className="flex justify-between items-start mb-2">
-                            <h3 className="text-2xl font-bold font-headline">{site.name}</h3>
-                            <Badge variant="outline">{site.distance.toFixed(1)} km from last stop</Badge>
-                          </div>
-                          <p className="text-muted-foreground text-sm line-clamp-2 mb-4">{site.description}</p>
-                          <div className="flex items-center gap-4">
-                            <span className="flex items-center gap-1 text-xs font-medium bg-slate-100 px-3 py-1 rounded-full text-slate-600">
-                              <Clock size={12} /> Sug. visit: 45m
-                            </span>
-                            <span className="flex items-center gap-1 text-xs font-medium bg-slate-100 px-3 py-1 rounded-full text-slate-600">
-                              <Navigation size={12} /> ~{(site.distance * 3).toFixed(0)}m drive
-                            </span>
-                          </div>
-                        </div>
-                        <div className="relative w-full md:w-32 h-32 md:h-auto overflow-hidden">
-                           <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
-                        </div>
-                      </Link>
                     </Card>
-                  </div>
-                ))}
-
-                <div className="flex gap-6 items-start mt-8">
-                   <div className="flex-shrink-0 w-12 h-12 rounded-full bg-accent text-white flex items-center justify-center z-10 shadow-lg">
-                    <Sparkles size={24} />
-                  </div>
-                  <div className="flex-1 pt-2">
-                    <h4 className="font-bold text-accent uppercase tracking-widest text-xs mb-1">Journey Complete</h4>
-                    <p className="font-medium text-slate-600">Total Route Distance: {smartItinerary.reduce((acc, curr) => acc + curr.distance, 0).toFixed(1)} km</p>
-                  </div>
+                  ))}
                 </div>
-              </div>
+              </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="itinerary" className="flex-1 overflow-hidden p-0 m-0">
+              <ScrollArea className="h-full px-6 py-4">
+                {itineraryIds.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-center opacity-50">
+                    <Sparkles size={48} className="mb-4 text-slate-300" />
+                    <p className="text-sm font-medium">Your itinerary is empty.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Add sites from the list or map.</p>
+                    <Button 
+                      variant="link" 
+                      className="mt-4 text-primary text-xs" 
+                      onClick={() => setItineraryIds(smartItinerary.map(s => s.id))}
+                    >
+                      Generate Auto Route
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-6 relative">
+                    <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-slate-100" />
+                    {manualItinerary.map((site, idx) => (
+                      <div key={site.id} className="flex gap-4 relative">
+                        <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold z-10 shadow-sm">
+                          {idx + 1}
+                        </div>
+                        <Card className="flex-1 border-none shadow-sm p-4 hover:bg-slate-50 transition-colors">
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-bold text-sm">{site.name}</h4>
+                            <button onClick={() => toggleItinerary(site.id)} className="text-slate-400 hover:text-red-500">
+                              <Info size={14} />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                            <span className="flex items-center gap-1"><Clock size={10} /> 45m visit</span>
+                            <span className="flex items-center gap-1"><Navigation size={10} /> {site.distance.toFixed(1)} km away</span>
+                          </div>
+                        </Card>
+                      </div>
+                    ))}
+                    <div className="pt-4 border-t">
+                      <div className="flex justify-between items-center text-sm font-bold">
+                        <span>Total Distance</span>
+                        <span className="text-primary">{manualItinerary.reduce((acc, curr) => acc + curr.distance, 0).toFixed(1)} km</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1 italic">Est. travel time: ~{Math.round(manualItinerary.reduce((acc, curr) => acc + curr.distance, 0) * 4)} minutes driving</p>
+                    </div>
+                  </div>
+                )}
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        {/* Right Side: Real-time Map */}
+        <div className="flex-1 h-full relative">
+          <HeritageMap 
+            userLocation={userLocation} 
+            sites={nearbySites} 
+            itinerary={manualItinerary} 
+          />
+          
+          {/* Map Overlay Controls */}
+          <div className="absolute bottom-6 right-6 z-[1000] flex flex-col gap-2">
+            <Button size="icon" className="bg-white text-slate-800 hover:bg-slate-100 shadow-xl border" onClick={detectLocation}>
+              <Navigation size={20} />
+            </Button>
+          </div>
+          
+          {!userLocation && (
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] bg-primary text-white px-4 py-2 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 animate-bounce">
+              <Info size={14} /> Click "Detect My Location" to start tracking
             </div>
-          </TabsContent>
-        </Tabs>
-      </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }

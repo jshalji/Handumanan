@@ -60,3 +60,22 @@
     @apply font-headline;
   }
 }
+
+/* Custom Leaflet Styling */
+.leaflet-container {
+  font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 1rem !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+}
+
+.leaflet-popup-tip-container {
+  display: none;
+}
