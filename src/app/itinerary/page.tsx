@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -12,7 +11,11 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Calendar, Clock, MapPin, Loader2, ArrowRight } from 'lucide-react';
+import { useUser, useFirestore } from '@/firebase';
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { Sparkles, Calendar, Clock, MapPin, Loader2, ArrowRight, Save } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const INTERESTS_OPTIONS = [
   "History", "Architecture", "Religious Sites", "Photography", "Spanish Heritage", "Parks", "WWII History"
@@ -21,10 +24,15 @@ const INTERESTS_OPTIONS = [
 export default function ItineraryPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GeneratePersonalizedItineraryOutput | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
   const [startLocation, setStartLocation] = useState('Cebu City Center');
   const [timeHours, setTimeHours] = useState([4]);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+
+  const { user } = useUser();
+  const db = useFirestore();
+  const { toast } = useToast();
 
   const handleToggleInterest = (interest: string) => {
     setSelectedInterests(prev => 
@@ -49,6 +57,30 @@ export default function ItineraryPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSaveItinerary = () => {
+    if (!user || !db || !result) {
+      toast({
+        title: "Login Required",
+        description: "Please login to save your itineraries.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    const itineraryRef = doc(collection(db, 'users', user.uid, 'itineraries'));
+    
+    setDocumentNonBlocking(itineraryRef, {
+      userId: user.uid,
+      itineraryData: JSON.stringify(result),
+      summary: result.summary,
+      createdAt: serverTimestamp()
+    }, { merge: true });
+
+    setIsSaving(false);
+    toast({ title: "Itinerary Saved", description: "You can view this in your profile anytime." });
   };
 
   return (
@@ -160,14 +192,26 @@ export default function ItineraryPage() {
 
             {result && !loading && (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                <Card className="bg-primary text-primary-foreground border-none overflow-hidden">
+                <Card className="bg-primary text-primary-foreground border-none overflow-hidden relative">
                   <CardContent className="p-8">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Clock size={20} className="opacity-80" />
-                      <span className="font-medium">Total Duration: {Math.round(result.totalEstimatedDurationMinutes / 60 * 10) / 10} hours</span>
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 mb-4">
+                          <Clock size={20} className="opacity-80" />
+                          <span className="font-medium">Total Duration: {Math.round(result.totalEstimatedDurationMinutes / 60 * 10) / 10} hours</span>
+                        </div>
+                        <h2 className="font-headline text-3xl font-bold">Your Custom Metro Cebu Tour</h2>
+                        <p className="opacity-90 italic">"{result.summary}"</p>
+                      </div>
+                      <Button 
+                        onClick={handleSaveItinerary}
+                        disabled={isSaving}
+                        className="bg-white/20 hover:bg-white/30 backdrop-blur rounded-full px-6 gap-2"
+                      >
+                        {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                        Save Trip
+                      </Button>
                     </div>
-                    <h2 className="font-headline text-3xl font-bold mb-4">Your Custom Metro Cebu Tour</h2>
-                    <p className="opacity-90 italic">"{result.summary}"</p>
                   </CardContent>
                 </Card>
 
@@ -190,22 +234,13 @@ export default function ItineraryPage() {
                           </Badge>
                         </CardHeader>
                         <CardContent className="px-6 pb-4">
-                          <p className="text-muted-foreground text-sm flex items-start gap-2">
+                          <p className="text-muted-foreground text-sm">
                              {item.notes}
                           </p>
                         </CardContent>
                       </Card>
                     </div>
                   ))}
-                </div>
-
-                <div className="bg-accent/10 p-6 rounded-2xl border border-accent/20">
-                  <h4 className="font-bold text-accent mb-2 flex items-center gap-2">
-                    <MapPin size={18} /> Pro Tip
-                  </h4>
-                  <p className="text-sm text-accent-foreground">
-                    Traffic in Metro Cebu can be unpredictable. We recommend starting early and using local ride-hailing apps for efficient travel between these sites.
-                  </p>
                 </div>
               </div>
             )}

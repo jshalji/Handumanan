@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
@@ -8,11 +8,38 @@ import { getSiteById } from '@/lib/heritage-data';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Images, ExternalLink } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, serverTimestamp, doc } from 'firebase/firestore';
+import { setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Images, ExternalLink, Heart, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const site = getSiteById(id);
+  const { user } = useUser();
+  const db = useFirestore();
+  const { toast } = useToast();
+
+  const [comment, setComment] = useState('');
+  const [rating, setRating] = useState(5);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch reviews for this site
+  const reviewsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'heritageSites', id, 'reviews'));
+  }, [db, id]);
+  const { data: reviews, isLoading: isReviewsLoading } = useCollection(reviewsQuery);
+
+  // Check if site is favorited
+  const favoritesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(collection(db, 'users', user.uid, 'favorites'), where('siteId', '==', id));
+  }, [db, user, id]);
+  const { data: userFavorites } = useCollection(favoritesQuery);
+  const isFavorited = (userFavorites?.length || 0) > 0;
 
   if (!site) {
     return (
@@ -24,6 +51,53 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
       </div>
     );
   }
+
+  const handleToggleFavorite = () => {
+    if (!user || !db) {
+      toast({
+        title: "Login Required",
+        description: "Please login to save sites to your favorites.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (isFavorited) {
+      // Logic to remove from favorites could go here, but for MVP we'll just toggle creation
+      toast({ title: "Already in Favorites", description: "This site is already in your collection." });
+    } else {
+      const favRef = doc(collection(db, 'users', user.uid, 'favorites'));
+      setDocumentNonBlocking(favRef, {
+        userId: user.uid,
+        siteId: id,
+        siteName: site.name,
+        imageUrl: site.imageUrl,
+        createdAt: serverTimestamp()
+      }, { merge: true });
+      toast({ title: "Added to Favorites", description: `${site.name} has been saved.` });
+    }
+  };
+
+  const handleSubmitReview = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !db) return;
+
+    setIsSubmitting(true);
+    const reviewRef = doc(collection(db, 'heritageSites', id, 'reviews'));
+    
+    setDocumentNonBlocking(reviewRef, {
+      userId: user.uid,
+      userName: user.displayName || user.email?.split('@')[0],
+      siteId: id,
+      rating: rating,
+      comment: comment,
+      createdAt: serverTimestamp()
+    }, { merge: true });
+
+    setComment('');
+    setIsSubmitting(false);
+    toast({ title: "Review Submitted", description: "Thank you for your feedback!" });
+  };
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -37,7 +111,6 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
           fill
           className="object-cover brightness-75"
           priority
-          data-ai-hint="heritage landmark"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
         <div className="absolute bottom-0 left-0 w-full p-8 md:p-16">
@@ -62,9 +135,18 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                 <span className="text-sm font-bold">{site.rating}</span>
               </div>
             </div>
-            <h1 className="font-headline text-4xl md:text-6xl font-bold text-white mb-4">
-              {site.name}
-            </h1>
+            <div className="flex justify-between items-end gap-4">
+              <h1 className="font-headline text-4xl md:text-6xl font-bold text-white mb-4">
+                {site.name}
+              </h1>
+              <Button 
+                onClick={handleToggleFavorite}
+                variant={isFavorited ? "default" : "outline"}
+                className={cn("rounded-full h-12 w-12 p-0 border-white/20", isFavorited ? "bg-accent hover:bg-accent/90" : "bg-white/10 backdrop-blur text-white hover:bg-white/20")}
+              >
+                <Heart size={24} className={isFavorited ? "fill-white" : ""} />
+              </Button>
+            </div>
             <div className="flex flex-wrap items-center gap-6 text-white/90">
               <div className="flex items-center gap-2">
                 <MapPin size={20} className="text-primary" />
@@ -103,41 +185,77 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
               </p>
             </section>
 
-            <section>
-              <h2 className="font-headline text-3xl font-bold mb-8 flex items-center gap-3 text-primary">
-                <Images size={28} /> Visual Gallery
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {site.galleryImages.map((img, index) => (
-                  <div key={index} className="relative h-64 rounded-2xl overflow-hidden group">
-                    <Image
-                      src={img}
-                      alt={`${site.name} gallery ${index + 1}`}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
-                      data-ai-hint="heritage detail"
-                    />
-                  </div>
-                ))}
-              </div>
-            </section>
-
             <Separator />
 
             <section>
               <h2 className="font-headline text-3xl font-bold mb-6 flex items-center gap-3">
-                <MessageSquare className="text-primary" /> User Feedback
+                <MessageSquare className="text-primary" /> Community Feedback
               </h2>
-              <div className="bg-muted/30 p-8 rounded-3xl text-center space-y-4 border-2 border-dashed">
-                <p className="text-muted-foreground italic">"One of the most meaningful historical landmarks I've visited in Metro Cebu. The architectural details are stunning and the atmosphere is very solemn."</p>
-                <div className="flex justify-center gap-1 text-yellow-500">
-                  <Star fill="currentColor" size={16} />
-                  <Star fill="currentColor" size={16} />
-                  <Star fill="currentColor" size={16} />
-                  <Star fill="currentColor" size={16} />
-                  <Star fill="currentColor" size={16} />
+              
+              {user ? (
+                <form onSubmit={handleSubmitReview} className="mb-8 p-6 bg-slate-50 rounded-2xl border">
+                  <h4 className="font-bold mb-4">Leave a Review</h4>
+                  <div className="flex gap-2 mb-4">
+                    {[1, 2, 3, 4, 5].map(s => (
+                      <button 
+                        key={s} 
+                        type="button" 
+                        onClick={() => setRating(s)}
+                        className={cn("p-1 transition-colors", rating >= s ? "text-yellow-500" : "text-slate-300")}
+                      >
+                        <Star fill="currentColor" size={24} />
+                      </button>
+                    ))}
+                  </div>
+                  <Textarea 
+                    placeholder="Share your experience..." 
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    required
+                    className="mb-4"
+                  />
+                  <Button type="submit" disabled={isSubmitting} className="rounded-full px-8">
+                    {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : null}
+                    Submit Review
+                  </Button>
+                </form>
+              ) : (
+                <div className="mb-8 p-6 bg-primary/5 border border-dashed border-primary/20 rounded-2xl text-center">
+                  <p className="text-sm text-muted-foreground mb-4">You must be logged in to leave a review.</p>
+                  <Button asChild variant="outline" size="sm" className="rounded-full">
+                    <Link href="/auth">Login to Review</Link>
+                  </Button>
                 </div>
-                <p className="text-xs font-bold uppercase tracking-widest text-primary">— Local Tourist, August 2024</p>
+              )}
+
+              <div className="space-y-4">
+                {isReviewsLoading ? (
+                  <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary" /></div>
+                ) : reviews && reviews.length > 0 ? (
+                  reviews.map((rev: any) => (
+                    <div key={rev.id} className="p-6 bg-white rounded-2xl border shadow-sm">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-bold text-sm">{rev.userName}</p>
+                          <div className="flex gap-0.5 text-yellow-500 mt-1">
+                            {Array.from({ length: rev.rating }).map((_, i) => (
+                              <Star key={i} fill="currentColor" size={12} />
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          {rev.createdAt?.toDate().toLocaleDateString() || 'Just now'}
+                        </p>
+                      </div>
+                      <p className="text-sm text-slate-600">{rev.comment}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground opacity-50">
+                    <MessageSquare size={48} className="mx-auto mb-4" />
+                    <p>No reviews yet. Be the first to share your experience!</p>
+                  </div>
+                )}
               </div>
             </section>
           </div>
@@ -179,21 +297,14 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   <Share2 size={18} className="mr-2" /> Share Site
                 </Button>
               </div>
-
-              <div className="mt-8 p-4 bg-muted/50 rounded-2xl">
-                <h4 className="font-bold text-sm mb-2 text-primary">Heritage Tags</h4>
-                <div className="flex flex-wrap gap-2">
-                  {site.tags.map(tag => (
-                    <Badge key={tag} variant="secondary" className="bg-white text-[10px] uppercase font-bold text-muted-foreground">
-                      #{tag}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+function cn(...classes: any[]) {
+  return classes.filter(Boolean).join(' ');
 }

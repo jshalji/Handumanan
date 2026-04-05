@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Landmark, Compass, Calendar, Settings, Menu, MapPin } from 'lucide-react';
+import { Landmark, Compass, Calendar, Settings, Menu, MapPin, User as UserIcon, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useUser, useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
 import {
   Sheet,
   SheetContent,
@@ -12,16 +14,29 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const NAV_ITEMS = [
   { label: 'Explore', href: '/explore', icon: Compass },
   { label: 'Discover', href: '/discover', icon: MapPin },
   { label: 'AI Planner', href: '/itinerary', icon: Calendar },
-  { label: 'Admin', href: '/admin', icon: Settings },
 ];
 
 export function Navbar() {
   const pathname = usePathname();
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+
+  const handleLogout = () => {
+    signOut(auth);
+  };
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md">
@@ -52,10 +67,51 @@ export function Navbar() {
               </Link>
             );
           })}
+
+          <div className="ml-4 flex items-center gap-2">
+            {!isUserLoading && (
+              user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="rounded-full gap-2">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                        <UserIcon size={16} />
+                      </div>
+                      <span className="text-xs font-bold truncate max-w-[100px]">
+                        {user.displayName || user.email?.split('@')[0]}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/profile" className="cursor-pointer">
+                        <UserIcon size={16} className="mr-2" /> Profile
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin" className="cursor-pointer">
+                        <Settings size={16} className="mr-2" /> Admin
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
+                      <LogOut size={16} className="mr-2" /> Logout
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button asChild size="sm" className="rounded-full px-6">
+                  <Link href="/auth">Login</Link>
+                </Button>
+              )
+            )}
+          </div>
         </div>
 
         {/* Mobile Nav */}
-        <div className="md:hidden">
+        <div className="md:hidden flex items-center gap-2">
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -80,6 +136,22 @@ export function Navbar() {
                     </Link>
                   );
                 })}
+                <div className="pt-4 border-t mt-4">
+                  {user ? (
+                    <div className="space-y-4">
+                      <Link href="/profile" className="flex items-center gap-3 text-lg font-medium p-2">
+                        <UserIcon size={20} className="text-primary" /> Profile
+                      </Link>
+                      <Button onClick={handleLogout} variant="outline" className="w-full rounded-full">
+                        Logout
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button asChild className="w-full rounded-full">
+                      <Link href="/auth">Login</Link>
+                    </Button>
+                  )}
+                </div>
               </div>
             </SheetContent>
           </Sheet>
