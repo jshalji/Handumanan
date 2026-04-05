@@ -1,94 +1,52 @@
 {
   "placeholderImages": [
     {
-      "id": "magellans-cross",
+      "id": "magellan",
       "description": "Magellan's Cross in Cebu City",
       "imageUrl": "https://picsum.photos/seed/magellan/800/600",
       "imageHint": "historical monument cross"
     },
     {
-      "id": "fort-san-pedro",
-      "description": "Fort San Pedro, a military defense structure",
-      "imageUrl": "https://picsum.photos/seed/fort/800/600",
-      "imageHint": "stone fort"
-    },
-    {
-      "id": "santo-nino",
+      "id": "basilica",
       "description": "Basilica Minore del Santo Niño de Cebu",
       "imageUrl": "https://picsum.photos/seed/basilica/800/600",
       "imageHint": "spanish church"
     },
     {
-      "id": "lapu-lapu-shrine",
-      "description": "Mactan Shrine in Lapu-Lapu City",
-      "imageUrl": "https://picsum.photos/seed/lapulapu/800/600",
-      "imageHint": "statue monument hero"
+      "id": "fort",
+      "description": "Fort San Pedro in Cebu City",
+      "imageUrl": "https://picsum.photos/seed/fort/800/600",
+      "imageHint": "stone fort"
     },
     {
-      "id": "yap-sandiego",
+      "id": "yap",
       "description": "Yap-Sandiego Ancestral House",
       "imageUrl": "https://picsum.photos/seed/yap/800/600",
-      "imageHint": "old house parian"
+      "imageHint": "ancestral house"
     },
     {
-      "id": "casa-gorordo",
+      "id": "gorordo",
       "description": "Casa Gorordo Museum",
       "imageUrl": "https://picsum.photos/seed/gorordo/800/600",
-      "imageHint": "mansion museum bishop"
+      "imageHint": "mansion museum"
     },
     {
-      "id": "museo-sugbo",
-      "description": "Museo Sugbo Provincial Museum",
-      "imageUrl": "https://picsum.photos/seed/sugbo/800/600",
-      "imageHint": "prison building museum"
+      "id": "mactan_shrine",
+      "description": "Mactan Shrine Lapu-Lapu Monument",
+      "imageUrl": "https://picsum.photos/seed/mactan/800/600",
+      "imageHint": "hero statue"
     },
     {
-      "id": "cebu-cathedral",
-      "description": "Cebu Metropolitan Cathedral",
-      "imageUrl": "https://picsum.photos/seed/cathedral/800/600",
-      "imageHint": "cathedral church white"
-    },
-    {
-      "id": "jesuit-house",
-      "description": "Jesuit House of 1730",
-      "imageUrl": "https://picsum.photos/seed/jesuit/800/600",
-      "imageHint": "stone house jesuit"
-    },
-    {
-      "id": "talisay-liberation",
-      "description": "Talisay Liberation Park",
-      "imageUrl": "https://picsum.photos/seed/talisay_liberation/800/600",
-      "imageHint": "beach statues soldiers"
-    },
-    {
-      "id": "bantayan-mandaue",
-      "description": "Bantayan sa Hari Watchtower",
-      "imageUrl": "https://picsum.photos/seed/watchtower/800/600",
-      "imageHint": "old watchtower coastal"
-    },
-    {
-      "id": "olango-island",
-      "description": "Olango Island Wildlife Sanctuary",
-      "imageUrl": "https://picsum.photos/seed/olango/800/600",
-      "imageHint": "nature bird sanctuary"
+      "id": "taoist",
+      "description": "Cebu Taoist Temple",
+      "imageUrl": "https://picsum.photos/seed/taoist/800/600",
+      "imageHint": "chinese temple"
     },
     {
       "id": "capitol",
-      "description": "Cebu Provincial Capitol",
+      "description": "Cebu Provincial Capitol Building",
       "imageUrl": "https://picsum.photos/seed/capitol/800/600",
-      "imageHint": "government building dome"
-    },
-    {
-      "id": "monument",
-      "description": "Heritage of Cebu Monument",
-      "imageUrl": "https://picsum.photos/seed/monument/800/600",
-      "imageHint": "statue monument group"
-    },
-    {
-      "id": "carbon",
-      "description": "Carbon Market Cebu",
-      "imageUrl": "https://picsum.photos/seed/carbon/800/600",
-      "imageHint": "market public crowd"
+      "imageHint": "capitol building"
     }
   ]
 }

@@ -8,7 +8,7 @@ import { getSiteById } from '@/lib/heritage-data';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Images } from 'lucide-react';
+import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Images, ExternalLink } from 'lucide-react';
 
 export default function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -17,7 +17,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   if (!site) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center">
-        <h2 className="text-2xl font-bold mb-4">Site not found</h2>
+        <h2 className="text-2xl font-bold mb-4 text-primary">Site not found</h2>
         <Button asChild>
           <Link href="/explore">Back to Explore</Link>
         </Button>
@@ -52,6 +52,11 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
               <Badge className="bg-primary hover:bg-primary text-white border-none px-3 py-1">
                 {site.category}
               </Badge>
+              {site.isMustVisit && (
+                <Badge variant="secondary" className="bg-accent text-white border-none px-3 py-1">
+                  Must Visit
+                </Badge>
+              )}
               <div className="flex items-center gap-1 text-yellow-400 bg-black/20 backdrop-blur px-2 py-1 rounded">
                 <Star size={14} fill="currentColor" />
                 <span className="text-sm font-bold">{site.rating}</span>
@@ -165,8 +170,10 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
               </div>
 
               <div className="flex flex-col gap-3">
-                <Button className="w-full h-12 bg-primary hover:bg-primary/90 rounded-full font-bold">
-                  Get Directions
+                <Button className="w-full h-12 bg-primary hover:bg-primary/90 rounded-full font-bold shadow-lg" asChild>
+                  <a href={site.googleMapsUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink size={18} className="mr-2" /> Open in Google Maps
+                  </a>
                 </Button>
                 <Button variant="outline" className="w-full h-12 rounded-full font-bold">
                   <Share2 size={18} className="mr-2" /> Share Site
@@ -174,7 +181,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
               </div>
 
               <div className="mt-8 p-4 bg-muted/50 rounded-2xl">
-                <h4 className="font-bold text-sm mb-2">Heritage Tags</h4>
+                <h4 className="font-bold text-sm mb-2 text-primary">Heritage Tags</h4>
                 <div className="flex flex-wrap gap-2">
                   {site.tags.map(tag => (
                     <Badge key={tag} variant="secondary" className="bg-white text-[10px] uppercase font-bold text-muted-foreground">
