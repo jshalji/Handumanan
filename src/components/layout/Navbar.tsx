@@ -25,8 +25,7 @@ import {
 
 const NAV_ITEMS = [
   { label: 'Explore', href: '/explore', icon: Compass },
-  { label: 'Discover', href: '/discover', icon: MapPin },
-  { label: 'AI Planner', href: '/itinerary', icon: Calendar },
+  { label: 'Explore & Route', href: '/discover', icon: MapPin },
 ];
 
 export function Navbar() {
