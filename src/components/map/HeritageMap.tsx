@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -26,19 +25,20 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 interface HeritageMapProps {
   userLocation: { lat: number; lng: number } | null;
-  sites: (HeritageSite & { distance: number })[];
-  itinerary: HeritageSite[];
+  sites: any[];
+  itinerary: any[];
+  routeCoordinates?: [number, number][];
 }
 
 function ChangeView({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, 14);
+    map.setView(center, map.getZoom());
   }, [center, map]);
   return null;
 }
 
-export default function HeritageMap({ userLocation, sites, itinerary }: HeritageMapProps) {
+export default function HeritageMap({ userLocation, sites, itinerary, routeCoordinates }: HeritageMapProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -49,11 +49,6 @@ export default function HeritageMap({ userLocation, sites, itinerary }: Heritage
 
   const defaultCenter: [number, number] = [10.2936, 123.9019]; // Cebu City Hall
   const center: [number, number] = userLocation ? [userLocation.lat, userLocation.lng] : defaultCenter;
-
-  // Polyline for itinerary route
-  const routePositions: [number, number][] = userLocation 
-    ? [[userLocation.lat, userLocation.lng], ...itinerary.map(s => [s.coordinates.lat, s.coordinates.lng] as [number, number])]
-    : itinerary.map(s => [s.coordinates.lat, s.coordinates.lng] as [number, number]);
 
   return (
     <div className="h-full w-full relative z-0">
@@ -74,14 +69,14 @@ export default function HeritageMap({ userLocation, sites, itinerary }: Heritage
         )}
 
         {sites.map((site) => (
-          <Marker key={site.id} position={[site.coordinates.lat, site.coordinates.lng]}>
+          <Marker key={site.id} position={[site.coordinates?.lat || 0, site.coordinates?.lng || 0]}>
             <Popup>
               <div className="w-48 p-3">
                 <img src={site.imageUrl} alt={site.name} className="w-full h-24 object-cover rounded-md mb-2" />
                 <h3 className="font-bold text-sm mb-1">{site.name}</h3>
                 <p className="text-xs text-slate-500 line-clamp-2 mb-1">{site.description}</p>
                 <div className="flex justify-between items-center mt-2">
-                  <span className="text-[10px] font-bold text-primary uppercase">{site.distance.toFixed(1)} km away</span>
+                  <span className="text-[10px] font-bold text-primary uppercase">{site.distance?.toFixed(1)} km away</span>
                   <a href={`/site/${site.id}`} className="text-[10px] font-bold text-blue-600 hover:underline">Details</a>
                 </div>
               </div>
@@ -89,8 +84,9 @@ export default function HeritageMap({ userLocation, sites, itinerary }: Heritage
           </Marker>
         ))}
 
-        {itinerary.length > 0 && (
-          <Polyline positions={routePositions} color="blue" weight={3} opacity={0.5} dashArray="10, 10" />
+        {/* Dynamic Route Line */}
+        {routeCoordinates && routeCoordinates.length > 0 && (
+          <Polyline positions={routeCoordinates} color="#f97316" weight={5} opacity={0.7} dashArray="10, 5" />
         )}
       </MapContainer>
     </div>
