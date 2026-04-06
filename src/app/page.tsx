@@ -1,9 +1,11 @@
 
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
 import { Navbar } from '@/components/layout/Navbar';
 import { HERITAGE_SITES } from '@/lib/heritage-data';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Compass, MapPin, ArrowRight, Landmark } from 'lucide-react';
 
@@ -61,7 +63,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {featuredSites.map((site) => (
-              <Card key={site.id} className="group overflow-hidden border-none shadow-xl hover:shadow-2xl transition-all duration-300">
+              <Card key={site.id} className="group overflow-hidden border-none shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col h-full bg-white">
                 <div className="relative h-64 overflow-hidden">
                   <Image
                     src={site.imageUrl}
@@ -81,14 +83,16 @@ export default function Home() {
                     {site.name}
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground line-clamp-2 text-sm mb-4">
+                <CardContent className="flex-1 pb-4">
+                  <p className="text-muted-foreground line-clamp-3 text-sm">
                     {site.description}
                   </p>
-                  <Button variant="link" asChild className="p-0 h-auto text-primary font-bold">
-                    <Link href={`/site/${site.id}`}>Learn more &rarr;</Link>
-                  </Button>
                 </CardContent>
+                <CardFooter className="pt-4 border-t border-primary/5">
+                  <Button variant="link" asChild className="p-0 h-auto text-primary font-bold group-hover:translate-x-1 transition-transform">
+                    <Link href={`/site/${site.id}`}>Learn more <ArrowRight size={14} className="ml-1" /></Link>
+                  </Button>
+                </CardFooter>
               </Card>
             ))}
           </div>
