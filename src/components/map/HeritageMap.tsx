@@ -68,7 +68,7 @@ export default function HeritageMap({ userLocation, sites, itinerary }: Heritage
         {userLocation && (
           <Marker position={[userLocation.lat, userLocation.lng]} icon={UserIcon}>
             <Popup>
-              <div className="font-bold">You are here</div>
+              <div className="font-bold p-1">You are here</div>
             </Popup>
           </Marker>
         )}
@@ -76,7 +76,7 @@ export default function HeritageMap({ userLocation, sites, itinerary }: Heritage
         {sites.map((site) => (
           <Marker key={site.id} position={[site.coordinates.lat, site.coordinates.lng]}>
             <Popup>
-              <div className="w-48">
+              <div className="w-48 p-3">
                 <img src={site.imageUrl} alt={site.name} className="w-full h-24 object-cover rounded-md mb-2" />
                 <h3 className="font-bold text-sm mb-1">{site.name}</h3>
                 <p className="text-xs text-slate-500 line-clamp-2 mb-1">{site.description}</p>
