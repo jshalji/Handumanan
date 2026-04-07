@@ -3,7 +3,7 @@
 import { calculateDistance } from './location-utils';
 
 /**
- * Service to interact with OpenRouteService API for generating driving routes.
+ * Service to interact with OpenRouteService API for generating routing data.
  */
 
 const ORS_API_KEY = '5b3ce3597851110001cf6248383c2738a956426786851610443e06a3'; 
@@ -23,7 +23,7 @@ export interface RouteData {
 
 /**
  * Fetches a route between two points using OpenRouteService.
- * Supports driving-car and foot-walking profiles.
+ * Supports multiple profiles like driving and walking.
  */
 export async function getRoute(
   start: { lat: number; lng: number }, 
@@ -47,13 +47,11 @@ export async function getRoute(
     }]
   };
 
-  if (!ORS_API_KEY) return fallbackData;
-
   try {
     const query = `https://api.openrouteservice.org/v2/directions/${profile}?api_key=${ORS_API_KEY}&start=${start.lng},${start.lat}&end=${end.lng},${end.lat}`;
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     const response = await fetch(query, { signal: controller.signal });
     clearTimeout(timeoutId);
@@ -83,6 +81,7 @@ export async function getRoute(
     
     return fallbackData;
   } catch (error) {
+    console.error("Routing error:", error);
     return fallbackData;
   }
 }
