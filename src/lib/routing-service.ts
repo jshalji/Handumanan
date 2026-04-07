@@ -26,8 +26,8 @@ export interface RouteData {
  * Supports multiple profiles like driving and walking.
  */
 export async function getRoute(
-  start: { lat: number; lng: number }, 
-  end: { lat: number; lng: number },
+  start: { lat: number; lng: number } | null, 
+  end: { lat: number; lng: number } | null,
   profile: 'driving-car' | 'foot-walking' = 'driving-car'
 ): Promise<RouteData | null> {
   // Validate coordinates
@@ -36,6 +36,8 @@ export async function getRoute(
   }
 
   const directDistance = calculateDistance(start.lat, start.lng, end.lat, end.lng);
+  
+  // Standard fallback data to return on failure
   const fallbackData: RouteData = {
     coordinates: [[start.lat, start.lng], [end.lat, end.lng]],
     distance: directDistance,
@@ -53,10 +55,12 @@ export async function getRoute(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    const response = await fetch(query, { signal: controller.signal });
+    // Using a more robust fetch with signal and catching potential TypeError
+    const response = await fetch(query, { signal: controller.signal }).catch(() => null);
+    
     clearTimeout(timeoutId);
     
-    if (!response.ok) return fallbackData;
+    if (!response || !response.ok) return fallbackData;
 
     const data = await response.json();
 
@@ -81,7 +85,7 @@ export async function getRoute(
     
     return fallbackData;
   } catch (error) {
-    console.error("Routing error:", error);
+    // Silently return fallback data instead of letting the error propagate
     return fallbackData;
   }
 }

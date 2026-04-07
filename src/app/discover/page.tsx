@@ -24,9 +24,6 @@ import {
   Map as MapIcon, 
   ChevronRight, 
   Search,
-  Fuel,
-  Hotel,
-  Utensils,
   Maximize2,
   LocateFixed,
   Car,
@@ -40,12 +37,6 @@ const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), {
   ssr: false,
   loading: () => <div className="h-full w-full bg-slate-50 flex items-center justify-center">Loading Maps...</div>
 });
-
-const QUICK_FILTERS = [
-  { label: 'Gas', icon: Fuel },
-  { label: 'Hotels', icon: Hotel },
-  { label: 'Food', icon: Utensils },
-];
 
 export default function ExploreRoutePage() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -147,28 +138,19 @@ export default function ExploreRoutePage() {
       
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         
-        {/* TOP OVERLAY: Google Maps Style Search & Filter Bar */}
+        {/* TOP OVERLAY: Google Maps Style Search Bar */}
         <div className="absolute top-6 left-4 right-4 md:left-[35%] md:right-8 z-[1000] pointer-events-none flex flex-col gap-4">
           <div className="flex gap-3 pointer-events-auto max-w-2xl">
             <div className="flex-1 relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={20} />
               <Input 
-                placeholder="Search along the route..." 
+                placeholder="Search heritage sites..." 
                 className="pl-12 h-14 rounded-2xl shadow-2xl border-none bg-white/95 backdrop-blur-xl w-full text-base font-medium focus:ring-2 ring-primary/30"
               />
             </div>
             <Button size="icon" className="h-14 w-14 rounded-2xl shadow-2xl bg-white text-slate-600 hover:bg-slate-50 border-none transition-all active:scale-95" onClick={detectLocation}>
               {loading ? <Loader2 className="animate-spin" size={24} /> : <LocateFixed size={24} />}
             </Button>
-          </div>
-          
-          <div className="flex gap-2 pointer-events-auto overflow-x-auto pb-4 scrollbar-hide">
-            {QUICK_FILTERS.map((filter) => (
-              <Button key={filter.label} variant="secondary" className="rounded-full bg-white/95 backdrop-blur-md border shadow-lg hover:shadow-xl h-10 px-5 text-sm font-bold gap-2 text-slate-700 hover:bg-white transition-all">
-                <filter.icon size={16} className="text-primary" />
-                {filter.label}
-              </Button>
-            ))}
           </div>
         </div>
 
