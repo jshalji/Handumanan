@@ -90,7 +90,7 @@ export default function HeritageMap({
           <>
             <Circle 
               center={[userLocation.lat, userLocation.lng]} 
-              radius={150} 
+              radius={200} 
               pathOptions={{ fillColor: '#3b82f6', fillOpacity: 0.1, color: '#3b82f6', weight: 1 }} 
             />
             <Marker position={[userLocation.lat, userLocation.lng]} icon={userPulse}>
@@ -115,7 +115,7 @@ export default function HeritageMap({
                   <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{site.description}</p>
                   <div className="flex justify-between items-center pt-3 border-t">
                     <span className="text-xs font-bold text-primary">{site.distance?.toFixed(1)} km</span>
-                    <a href={`/site/${site.id}`} className="text-xs font-bold text-blue-600 hover:text-blue-700">View Site</a>
+                    <a href={`/site/${site.id}`} className="text-xs font-bold text-blue-600 hover:text-blue-700">View Details</a>
                   </div>
                 </div>
               </div>
@@ -131,7 +131,7 @@ export default function HeritageMap({
               positions={routeCoordinates} 
               color="#1e1b4b" 
               weight={12} 
-              opacity={0.2} 
+              opacity={0.15} 
               lineCap="round"
               lineJoin="round"
             />
@@ -147,7 +147,7 @@ export default function HeritageMap({
               {totalTime && totalDist && (
                 <Tooltip direction="top" offset={[0, -20]} permanent className="route-info-tooltip">
                   <div className="flex flex-col items-center">
-                    <span className="text-primary font-black text-xs uppercase tracking-tighter mb-0.5">Fastest Route</span>
+                    <span className="text-primary font-black text-[10px] uppercase tracking-tighter mb-0.5">Recommended Path</span>
                     <div className="flex items-center gap-2">
                       <span className="text-slate-900 font-bold">{Math.round(totalTime)} min</span>
                       <span className="text-slate-500 text-xs">({totalDist.toFixed(1)} km)</span>

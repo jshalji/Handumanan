@@ -38,13 +38,13 @@ import { collection } from 'firebase/firestore';
 
 const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), { 
   ssr: false,
-  loading: () => <div className="h-full w-full bg-slate-50 flex items-center justify-center">Loading Navigation...</div>
+  loading: () => <div className="h-full w-full bg-slate-50 flex items-center justify-center">Loading Maps...</div>
 });
 
 const QUICK_FILTERS = [
   { label: 'Gas', icon: Fuel },
   { label: 'Hotels', icon: Hotel },
-  { label: 'Restaurants', icon: Utensils },
+  { label: 'Food', icon: Utensils },
 ];
 
 export default function ExploreRoutePage() {
@@ -179,9 +179,9 @@ export default function ExploreRoutePage() {
               <h1 className="font-headline text-2xl font-black text-slate-900 flex items-center gap-3">
                 <Navigation size={28} className="text-primary" /> Handumanan Nav
               </h1>
-              <Badge variant="outline" className="border-primary/20 text-primary font-bold">Beta</Badge>
+              <Badge variant="outline" className="border-primary/20 text-primary font-bold">Live</Badge>
             </div>
-            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Cultural Heritage Routing Engine</p>
+            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Optimized Heritage Routing</p>
             
             <div className="mt-6 flex bg-slate-100 p-1.5 rounded-2xl">
               <button 
@@ -201,21 +201,21 @@ export default function ExploreRoutePage() {
 
           <Tabs defaultValue="discovery" className="flex-1 flex flex-col overflow-hidden">
             <TabsList className="grid grid-cols-2 mx-8 mt-6 h-12 bg-slate-100 rounded-2xl p-1.5">
-              <TabsTrigger value="discovery" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-black text-xs uppercase tracking-tighter">Explore</TabsTrigger>
-              <TabsTrigger value="navigation" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-black text-xs uppercase tracking-tighter">Route {itineraryIds.length > 0 && `(${itineraryIds.length})`}</TabsTrigger>
+              <TabsTrigger value="discovery" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-black text-xs uppercase tracking-tighter">Nearby</TabsTrigger>
+              <TabsTrigger value="navigation" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-black text-xs uppercase tracking-tighter">Itinerary {itineraryIds.length > 0 && `(${itineraryIds.length})`}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="discovery" className="flex-1 overflow-hidden p-0 m-0">
               <ScrollArea className="h-full px-8 py-6">
                 <div className="space-y-5">
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Heritage nearby</h3>
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Nearby Heritage</h3>
                   {nearbySites.map((site) => (
                     <Card key={site.id} className="group overflow-hidden border-none shadow-sm hover:shadow-xl transition-all duration-500 rounded-2xl bg-slate-50/50">
                       <div className="flex">
                         <div className="relative w-32 h-32 flex-shrink-0">
                           <Image src={site.imageUrl} alt={site.name} fill className="object-cover group-hover:scale-110 transition-transform duration-700" sizes="128px" />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                          <Badge className="absolute bottom-3 left-3 bg-white/95 text-primary text-[10px] px-2 h-5 border-none font-black shadow-lg">
+                          <Badge className="absolute bottom-3 left-3 bg-white/90 text-primary text-[10px] px-2 h-5 border-none font-black shadow-lg">
                             {site.distance.toFixed(1)} km
                           </Badge>
                         </div>
@@ -225,8 +225,8 @@ export default function ExploreRoutePage() {
                             <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter opacity-70 mt-1">{site.category}</p>
                           </div>
                           <div className="flex justify-between items-center mt-4">
-                            <Link href={`/site/${site.id}`} className="text-[10px] font-black text-blue-600 flex items-center gap-1 hover:gap-2 transition-all group-hover:text-primary">
-                              DETAILS <ArrowRight size={12} />
+                            <Link href={`/site/${site.id}`} className="text-[10px] font-black text-blue-600 flex items-center gap-1 hover:gap-2 transition-all">
+                              INFO <ArrowRight size={12} />
                             </Link>
                             <Button 
                               size="sm" 
@@ -234,7 +234,7 @@ export default function ExploreRoutePage() {
                               className={`h-8 px-4 text-[10px] rounded-full font-black shadow-sm transition-all ${itineraryIds.includes(site.id) ? 'bg-primary border-none scale-105' : 'border-primary/20 hover:bg-primary/5 text-primary'}`}
                               onClick={() => toggleItinerary(site.id)}
                             >
-                              {itineraryIds.includes(site.id) ? "ADDED" : "ADD ROUTE"}
+                              {itineraryIds.includes(site.id) ? "ADDED" : "ADD STOP"}
                             </Button>
                           </div>
                         </div>
@@ -253,8 +253,8 @@ export default function ExploreRoutePage() {
                       <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-6">
                         <MapIcon size={32} className="text-slate-300" />
                       </div>
-                      <p className="text-base font-black text-slate-800">No destinations yet</p>
-                      <p className="text-xs text-muted-foreground mt-2 max-w-[220px] mx-auto leading-relaxed">Add cultural heritage sites from the Explore tab to start your journey through Metro Cebu.</p>
+                      <p className="text-base font-black text-slate-800">Your trip is empty</p>
+                      <p className="text-xs text-muted-foreground mt-2 max-w-[220px] mx-auto leading-relaxed">Add cultural heritage sites from the Discovery tab to start mapping your journey through Cebu.</p>
                     </div>
                   ) : routeSteps.length > 0 ? (
                     <div className="space-y-8">
@@ -263,23 +263,23 @@ export default function ExploreRoutePage() {
                           <Navigation size={120} />
                         </div>
                         <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest opacity-80 mb-4">
-                          <span className="flex items-center gap-1.5"><Car size={14} /> LIVE NAVIGATION</span>
+                          <span className="flex items-center gap-1.5"><Car size={14} /> ACTIVE ROUTE</span>
                           <span className="bg-white/20 px-3 py-1 rounded-full">{Math.round(totalTime)} MIN</span>
                         </div>
-                        <h4 className="text-2xl font-black leading-tight mb-2">{itineraryIds.length} STOPS PLANNED</h4>
-                        <p className="text-sm opacity-90 font-bold">{totalDist.toFixed(1)} KM TOTAL JOURNEY</p>
+                        <h4 className="text-2xl font-black leading-tight mb-2">{itineraryIds.length} STOPS SELECTED</h4>
+                        <p className="text-sm opacity-90 font-bold">{totalDist.toFixed(1)} KM TOTAL DISTANCE</p>
                         
                         <Button 
                           variant="ghost" 
                           className="w-full mt-6 h-10 text-[10px] font-black uppercase text-white bg-white/10 hover:bg-white/20 border-none rounded-xl tracking-widest"
                           onClick={() => { setRouteCoords([]); setRouteSteps([]); }}
                         >
-                          RESET NAVIGATION
+                          EDIT TRIP
                         </Button>
                       </div>
                       
                       <div className="space-y-5">
-                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Maneuvers</h4>
+                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Directions</h4>
                         <div className="relative pl-3">
                           <div className="absolute left-[13px] top-4 bottom-4 w-0.5 bg-slate-100" />
                           {routeSteps.map((step, idx) => (
@@ -305,7 +305,7 @@ export default function ExploreRoutePage() {
                   ) : (
                     <div className="space-y-8">
                       <div className="bg-slate-50/80 p-6 rounded-3xl border-2 border-dashed border-slate-200">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Stop sequence</h4>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Planned Sequence</h4>
                         <div className="space-y-4">
                           {manualItinerary.map((site, idx) => (
                             <div key={site.id} className="flex gap-5 items-center group animate-in slide-in-from-left-2 duration-300" style={{ animationDelay: `${idx * 100}ms` }}>
@@ -325,9 +325,9 @@ export default function ExploreRoutePage() {
                         disabled={isPlanningRoute}
                       >
                         {isPlanningRoute ? (
-                          <><Loader2 className="animate-spin" size={24} /> ANALYZING...</>
+                          <><Loader2 className="animate-spin" size={24} /> CALCULATING...</>
                         ) : (
-                          <><RouteIcon size={24} className="group-hover:rotate-12 transition-transform" /> START JOURNEY</>
+                          <><RouteIcon size={24} className="group-hover:rotate-12 transition-transform" /> GENERATE ROUTE</>
                         )}
                       </Button>
                     </div>
