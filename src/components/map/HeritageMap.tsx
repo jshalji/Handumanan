@@ -41,11 +41,24 @@ interface HeritageMapProps {
   totalDist?: number;
 }
 
-function ChangeView({ center, zoom }: { center: [number, number], zoom?: number }) {
+function MapController({ 
+  center, 
+  routeCoordinates 
+}: { 
+  center: [number, number], 
+  routeCoordinates?: [number, number][] 
+}) {
   const map = useMap();
+
   useEffect(() => {
-    map.setView(center, zoom || map.getZoom(), { animate: true, duration: 1 });
-  }, [center, zoom, map]);
+    if (routeCoordinates && routeCoordinates.length > 1) {
+      const bounds = L.polyline(routeCoordinates).getBounds();
+      map.fitBounds(bounds, { padding: [50, 50], animate: true });
+    } else {
+      map.setView(center, map.getZoom(), { animate: true, duration: 1 });
+    }
+  }, [center, routeCoordinates, map]);
+
   return null;
 }
 
@@ -84,7 +97,7 @@ export default function HeritageMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
-        <ChangeView center={center} />
+        <MapController center={center} routeCoordinates={routeCoordinates} />
 
         {userLocation && (
           <>
@@ -94,69 +107,61 @@ export default function HeritageMap({
               pathOptions={{ fillColor: '#3b82f6', fillOpacity: 0.1, color: '#3b82f6', weight: 1 }} 
             />
             <Marker position={[userLocation.lat, userLocation.lng]} icon={userPulse}>
-              <Popup>Your current location</Popup>
+              <Popup>Your starting point</Popup>
             </Marker>
           </>
         )}
 
-        {sites.map((site) => (
-          <Marker 
-            key={site.id} 
-            position={[site.coordinates?.lat || 0, site.coordinates?.lng || 0]}
-            icon={itinerary.some(i => i.id === site.id) ? destIcon : DefaultIcon}
-          >
-            <Popup className="custom-map-popup">
-              <div className="w-56 overflow-hidden rounded-2xl bg-white">
-                <div className="relative h-32 w-full">
-                  <img src={site.imageUrl} alt={site.name} className="h-full w-full object-cover" />
-                </div>
-                <div className="p-4">
-                  <h3 className="font-bold text-base mb-1 leading-tight text-slate-900">{site.name}</h3>
-                  <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{site.description}</p>
-                  <div className="flex justify-between items-center pt-3 border-t">
-                    <span className="text-xs font-bold text-primary">{site.distance?.toFixed(1)} km</span>
-                    <a href={`/site/${site.id}`} className="text-xs font-bold text-blue-600 hover:text-blue-700">View Details</a>
-                  </div>
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-
-        {/* Modern Bold Polyline with Floating Tooltip */}
-        {routeCoordinates && routeCoordinates.length > 1 && (
-          <>
-            {/* Outline for bold effect */}
-            <Polyline 
-              positions={routeCoordinates} 
-              color="#1e1b4b" 
-              weight={12} 
-              opacity={0.15} 
-              lineCap="round"
-              lineJoin="round"
-            />
-            {/* Main Path */}
-            <Polyline 
-              positions={routeCoordinates} 
-              color="#4f46e5" 
-              weight={7} 
-              opacity={1} 
-              lineCap="round"
-              lineJoin="round"
+        {sites.map((site) => {
+          const isDestination = itinerary.length > 0 && itinerary[itinerary.length - 1].id === site.id;
+          const isInItinerary = itinerary.some(i => i.id === site.id);
+          
+          return (
+            <Marker 
+              key={site.id} 
+              position={[site.coordinates?.lat || 0, site.coordinates?.lng || 0]}
+              icon={isDestination ? destIcon : isInItinerary ? DefaultIcon : DefaultIcon}
             >
-              {totalTime && totalDist && (
-                <Tooltip direction="top" offset={[0, -20]} permanent className="route-info-tooltip">
-                  <div className="flex flex-col items-center">
-                    <span className="text-primary font-black text-[10px] uppercase tracking-tighter mb-0.5">Recommended Path</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-900 font-bold">{Math.round(totalTime)} min</span>
-                      <span className="text-slate-500 text-xs">({totalDist.toFixed(1)} km)</span>
+              <Popup className="custom-map-popup">
+                <div className="w-56 overflow-hidden rounded-2xl bg-white p-2">
+                  <div className="relative h-32 w-full rounded-xl overflow-hidden mb-2">
+                    <img src={site.imageUrl} alt={site.name} className="h-full w-full object-cover" />
+                  </div>
+                  <div className="px-1">
+                    <h3 className="font-bold text-sm mb-1 leading-tight text-slate-900">{site.name}</h3>
+                    <p className="text-[10px] text-muted-foreground line-clamp-2 mb-3">{site.description}</p>
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                      <span className="text-[10px] font-black text-primary">{site.distance?.toFixed(1)} km</span>
+                      <a href={`/site/${site.id}`} className="text-[10px] font-black text-blue-600 hover:text-blue-700">DETAILS</a>
                     </div>
                   </div>
-                </Tooltip>
-              )}
-            </Polyline>
-          </>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
+
+        {routeCoordinates && routeCoordinates.length > 1 && (
+          <Polyline 
+            positions={routeCoordinates} 
+            color="#3b82f6" 
+            weight={6} 
+            opacity={0.8} 
+            lineCap="round"
+            lineJoin="round"
+          >
+            {totalTime && totalDist && (
+              <Tooltip direction="top" offset={[0, -20]} permanent className="route-info-tooltip">
+                <div className="flex flex-col items-center">
+                  <span className="text-primary font-black text-[10px] uppercase tracking-tighter mb-0.5">Route to Destination</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-900 font-bold">{Math.round(totalTime)} min</span>
+                    <span className="text-slate-500 text-xs">({totalDist.toFixed(1)} km)</span>
+                  </div>
+                </div>
+              </Tooltip>
+            )}
+          </Polyline>
         )}
       </MapContainer>
     </div>
