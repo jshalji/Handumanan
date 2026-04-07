@@ -7,17 +7,16 @@ import Image from 'next/image';
 import { Navbar } from '@/components/layout/Navbar';
 import { HERITAGE_SITES } from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation } from '@/lib/location-utils';
-import { getRoute } from '@/lib/routing-service';
+import { getRoute, type RouteData, type RouteStep } from '@/lib/routing-service';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MapPin, Navigation, Loader2, Sparkles, Clock, ArrowRight, Info, Plus, Check, Route, Map as MapIcon } from 'lucide-react';
+import { MapPin, Navigation, Loader2, Sparkles, Clock, ArrowRight, Route as RouteIcon, Map as MapIcon, ChevronRight, ListOrdered } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
 
-// Dynamic import for Map to avoid SSR issues with Leaflet
 const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), { 
   ssr: false,
   loading: () => <div className="h-full w-full bg-slate-100 flex items-center justify-center">Loading Interactive Map...</div>
@@ -29,13 +28,15 @@ export default function ExploreRoutePage() {
   const [error, setError] = useState<string | null>(null);
   const [itineraryIds, setItineraryIds] = useState<string[]>([]);
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
+  const [routeSteps, setRouteSteps] = useState<RouteStep[]>([]);
   const [isPlanningRoute, setIsPlanningRoute] = useState(false);
+  const [totalDist, setTotalDist] = useState(0);
+  const [totalTime, setTotalTime] = useState(0);
 
   const db = useFirestore();
   const sitesRef = useMemoFirebase(() => collection(db, 'heritageSites'), [db]);
   const { data: dbSites } = useCollection(sitesRef);
 
-  // Fallback to static data if Firestore is empty during prototype
   const allSites = useMemo(() => {
     if (dbSites && dbSites.length > 0) {
       return dbSites.map(s => ({
@@ -46,7 +47,6 @@ export default function ExploreRoutePage() {
     return HERITAGE_SITES;
   }, [dbSites]);
 
-  // Default to Cebu City Hall if location isn't detected
   const defaultLocation = { lat: 10.2936, lng: 123.9019 };
 
   const detectLocation = async () => {
@@ -63,7 +63,6 @@ export default function ExploreRoutePage() {
     }
   };
 
-  // Detect location on mount
   useEffect(() => {
     detectLocation();
   }, []);
@@ -79,60 +78,47 @@ export default function ExploreRoutePage() {
   const nearbySites = sortedSites.slice(0, 10);
 
   const toggleItinerary = (id: string) => {
-    setItineraryIds(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setItineraryIds(prev => {
+      const newIds = prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id];
+      // Reset routing state when selection changes
+      setRouteCoords([]);
+      setRouteSteps([]);
+      return newIds;
+    });
   };
 
   const manualItinerary = useMemo(() => {
-    // Keep the order the user added them, or sort by distance if auto-planned
     return itineraryIds.map(id => sortedSites.find(site => site.id === id)).filter(Boolean) as any[];
   }, [itineraryIds, sortedSites]);
 
-  // Auto Planner Logic: Select 3-5 nearest sites and order by proximity
-  const generateSmartItinerary = () => {
-    const itinerary = [];
-    const pool = [...sortedSites];
-    let currentPoint = userLocation || defaultLocation;
-
-    // Pick top 5 nearest sequentially (Greedy Nearest Neighbor)
-    for (let i = 0; i < 5; i++) {
-      if (pool.length === 0) break;
-      pool.sort((a, b) => {
-        const distA = calculateDistance(currentPoint.lat, currentPoint.lng, a.coordinates.lat, a.coordinates.lng);
-        const distB = calculateDistance(currentPoint.lat, currentPoint.lng, b.coordinates.lat, b.coordinates.lng);
-        return distA - distB;
-      });
-      const nextSite = pool.shift()!;
-      itinerary.push(nextSite);
-      currentPoint = nextSite.coordinates;
-    }
-    setItineraryIds(itinerary.map(s => s.id));
-    setRouteCoords([]); // Reset route when itinerary changes
-  };
-
-  // Real-time Street Route Generation
   const handleGenerateRoute = async () => {
     if (manualItinerary.length === 0 || !userLocation) return;
     
     setIsPlanningRoute(true);
     let fullRoute: [number, number][] = [];
+    let allSteps: RouteStep[] = [];
+    let cumulativeDist = 0;
+    let cumulativeTime = 0;
     let start = userLocation;
 
-    // Build the sequential route: User -> Site 1 -> Site 2 -> ...
     for (const site of manualItinerary) {
       const routeData = await getRoute(start, site.coordinates);
       if (routeData) {
         fullRoute = [...fullRoute, ...routeData.coordinates];
-        start = site.coordinates; // Next leg starts from current site
+        allSteps = [...allSteps, { instruction: `Arriving at ${site.name}`, distance: 0, duration: 0 } as any, ...routeData.steps];
+        cumulativeDist += routeData.distance;
+        cumulativeTime += routeData.duration;
+        start = site.coordinates;
       } else {
-        // Fallback to straight line if API fails
         fullRoute.push([start.lat, start.lng], [site.coordinates.lat, site.coordinates.lng]);
         start = site.coordinates;
       }
     }
     
     setRouteCoords(fullRoute);
+    setRouteSteps(allSteps);
+    setTotalDist(cumulativeDist);
+    setTotalTime(cumulativeTime);
     setIsPlanningRoute(false);
   };
 
@@ -141,76 +127,50 @@ export default function ExploreRoutePage() {
       <Navbar />
       
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* Left Panel: Discovery & Itinerary */}
+        {/* Left Panel: Discovery & Navigation */}
         <div className="w-full md:w-1/3 border-r bg-white flex flex-col z-10 shadow-lg">
           <div className="p-6 border-b bg-primary/5">
             <h1 className="font-headline text-2xl font-bold text-primary flex items-center gap-2">
-              <MapIcon size={24} /> Explore & Route
+              <Navigation size={24} /> In-App Navigation
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">Discover nearby heritage and plan your path.</p>
+            <p className="text-sm text-muted-foreground mt-1">Real-time routing within Metro Cebu.</p>
             
             <div className="mt-4 flex gap-2">
-              <Button 
-                onClick={detectLocation} 
-                disabled={loading} 
-                variant="outline"
-                className="flex-1 rounded-full text-xs h-9"
-              >
+              <Button onClick={detectLocation} disabled={loading} variant="outline" className="flex-1 rounded-full text-xs h-9">
                 {loading ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <MapPin className="mr-2 h-3 w-3" />}
-                Relocate
+                Recenter
               </Button>
-              <Button 
-                onClick={generateSmartItinerary}
-                className="flex-1 rounded-full text-xs h-9 shadow-sm"
-              >
-                <Sparkles className="mr-2 h-3 w-3" /> Auto-Plan
+              <Button onClick={() => { setItineraryIds(sortedSites.slice(0, 4).map(s => s.id)); setRouteCoords([]); }} className="flex-1 rounded-full text-xs h-9 shadow-sm">
+                <Sparkles className="mr-2 h-3 w-3" /> Auto-Select
               </Button>
             </div>
           </div>
 
-          <Tabs defaultValue="nearby" className="flex-1 flex flex-col overflow-hidden">
+          <Tabs defaultValue="discovery" className="flex-1 flex flex-col overflow-hidden">
             <TabsList className="grid grid-cols-2 mx-6 mt-4 h-10">
-              <TabsTrigger value="nearby">Discovery</TabsTrigger>
-              <TabsTrigger value="itinerary">Your Route ({itineraryIds.length})</TabsTrigger>
+              <TabsTrigger value="discovery">Sites</TabsTrigger>
+              <TabsTrigger value="navigation">Navigation {itineraryIds.length > 0 && `(${itineraryIds.length})`}</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="nearby" className="flex-1 overflow-hidden p-0 m-0">
+            <TabsContent value="discovery" className="flex-1 overflow-hidden p-0 m-0">
               <ScrollArea className="h-full px-6 py-4">
                 <div className="space-y-4">
-                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Heritage Sites Near You</h3>
                   {nearbySites.map((site) => (
                     <Card key={site.id} className="group overflow-hidden border-none shadow-sm hover:shadow-md transition-all">
                       <div className="flex">
                         <div className="relative w-24 h-24 flex-shrink-0">
-                          <Image 
-                            src={site.imageUrl} 
-                            alt={site.name} 
-                            fill 
-                            className="object-cover"
-                            sizes="96px"
-                          />
-                          <div className="absolute top-1 left-1">
-                            <Badge className="bg-white/90 text-primary text-[10px] px-1.5 h-4 border-none shadow-sm">
-                              {site.distance.toFixed(1)} km
-                            </Badge>
-                          </div>
+                          <Image src={site.imageUrl} alt={site.name} fill className="object-cover" sizes="96px" />
+                          <Badge className="absolute top-1 left-1 bg-white/90 text-primary text-[10px] px-1.5 h-4 border-none">{site.distance.toFixed(1)} km</Badge>
                         </div>
                         <div className="p-3 flex-1 flex flex-col justify-between">
                           <div>
-                            <h3 className="font-bold text-sm line-clamp-1 group-hover:text-primary transition-colors">{site.name}</h3>
+                            <h3 className="font-bold text-sm line-clamp-1">{site.name}</h3>
                             <p className="text-[10px] text-muted-foreground uppercase font-bold">{site.category}</p>
                           </div>
                           <div className="flex justify-between items-center mt-2">
-                            <Link href={`/site/${site.id}`} className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-0.5">
-                              View <ArrowRight size={10} />
-                            </Link>
-                            <Button 
-                              size="sm" 
-                              variant={itineraryIds.includes(site.id) ? "default" : "outline"} 
-                              className="h-6 px-2 text-[10px] rounded-full"
-                              onClick={() => toggleItinerary(site.id)}
-                            >
-                              {itineraryIds.includes(site.id) ? "In Route" : "+ Add"}
+                            <Link href={`/site/${site.id}`} className="text-[10px] font-bold text-blue-600 flex items-center gap-0.5">Details <ArrowRight size={10} /></Link>
+                            <Button size="sm" variant={itineraryIds.includes(site.id) ? "default" : "outline"} className="h-6 px-2 text-[10px] rounded-full" onClick={() => toggleItinerary(site.id)}>
+                              {itineraryIds.includes(site.id) ? "Selected" : "Add"}
                             </Button>
                           </div>
                         </div>
@@ -221,66 +181,60 @@ export default function ExploreRoutePage() {
               </ScrollArea>
             </TabsContent>
 
-            <TabsContent value="itinerary" className="flex-1 overflow-hidden p-0 m-0">
+            <TabsContent value="navigation" className="flex-1 overflow-hidden p-0 m-0">
               <div className="h-full flex flex-col">
                 <ScrollArea className="flex-1 px-6 py-4">
                   {itineraryIds.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center opacity-50">
-                      <Sparkles size={48} className="mb-4 text-slate-300" />
-                      <p className="text-sm font-medium">No sites added to your route yet.</p>
-                      <p className="text-xs text-muted-foreground mt-2">Add sites from the Discovery tab or use Auto-Plan.</p>
+                      <MapIcon size={48} className="mb-4 text-slate-300" />
+                      <p className="text-sm font-medium">No sites selected for your route.</p>
+                      <p className="text-xs text-muted-foreground mt-2">Select sites from the Sites tab to begin navigation.</p>
+                    </div>
+                  ) : routeSteps.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="bg-primary/5 p-4 rounded-xl mb-6">
+                        <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-primary mb-2">
+                          <span>Route Overview</span>
+                          <span className="flex items-center gap-1"><Clock size={12} /> {Math.round(totalTime)} mins</span>
+                        </div>
+                        <p className="text-sm font-medium">Estimated Distance: {totalDist.toFixed(1)} km</p>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Turn-by-Turn Instructions</h4>
+                        {routeSteps.map((step, idx) => (
+                          <div key={idx} className="flex gap-3 items-start p-2 border-b last:border-0 hover:bg-slate-50 transition-colors">
+                            <div className="mt-1">
+                              {step.instruction.includes('Arriving') ? <MapPin size={14} className="text-primary" /> : <ChevronRight size={14} className="text-slate-400" />}
+                            </div>
+                            <div className="flex-1">
+                              <p className={`text-sm ${step.instruction.includes('Arriving') ? 'font-bold text-primary' : 'text-slate-700'}`}>
+                                {step.instruction.replace(/<[^>]*>?/gm, '')}
+                              </p>
+                              {step.distance > 0 && (
+                                <p className="text-[10px] text-muted-foreground mt-0.5">{Math.round(step.distance)} meters</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
-                    <div className="space-y-6 relative">
-                      <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-slate-100" />
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-4">Current Stop Sequence</h4>
                       {manualItinerary.map((site, idx) => (
-                        <div key={site.id} className="flex gap-4 relative">
-                          <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold z-10 shadow-sm">
-                            {idx + 1}
-                          </div>
-                          <Card className="flex-1 border-none shadow-sm p-4 hover:bg-slate-50 transition-colors">
-                            <div className="flex justify-between items-start">
-                              <h4 className="font-bold text-sm">{site.name}</h4>
-                              <button onClick={() => toggleItinerary(site.id)} className="text-slate-400 hover:text-red-500 transition-colors">
-                                <Plus size={14} className="rotate-45" />
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-1">
-                              <span className="flex items-center gap-1"><Clock size={10} /> ~45m visit</span>
-                              <span className="flex items-center gap-1"><MapPin size={10} /> {site.distance.toFixed(1)} km from you</span>
-                            </div>
-                          </Card>
+                        <div key={site.id} className="flex gap-4 items-center">
+                          <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold">{idx + 1}</div>
+                          <div className="flex-1 text-sm font-medium">{site.name}</div>
+                          <button onClick={() => toggleItinerary(site.id)} className="text-slate-300 hover:text-red-500">×</button>
                         </div>
                       ))}
+                      <Button className="w-full mt-6 rounded-full h-11" onClick={handleGenerateRoute} disabled={isPlanningRoute}>
+                        {isPlanningRoute ? <><Loader2 className="animate-spin mr-2" /> Calculating...</> : <><RouteIcon className="mr-2" size={16} /> Start Navigation</>}
+                      </Button>
                     </div>
                   )}
                 </ScrollArea>
-                
-                {itineraryIds.length > 0 && (
-                  <div className="p-6 border-t bg-slate-50">
-                    <Button 
-                      className="w-full rounded-full shadow-lg h-12 gap-2 text-sm font-bold" 
-                      onClick={handleGenerateRoute}
-                      disabled={isPlanningRoute}
-                    >
-                      {isPlanningRoute ? (
-                        <>
-                          <Loader2 className="animate-spin" size={18} />
-                          Mapping Street Route...
-                        </>
-                      ) : (
-                        <>
-                          <Route size={18} />
-                          Generate Route Navigation
-                        </>
-                      )}
-                    </Button>
-                    <div className="mt-4 flex justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                      <span>Total Stops: {itineraryIds.length}</span>
-                      <span>Estimated Tour: {itineraryIds.length * 50} mins</span>
-                    </div>
-                  </div>
-                )}
               </div>
             </TabsContent>
           </Tabs>
@@ -288,27 +242,15 @@ export default function ExploreRoutePage() {
 
         {/* Right Panel: Interactive Map */}
         <div className="flex-1 h-full relative">
-          <HeritageMap 
-            userLocation={userLocation} 
-            sites={nearbySites} 
-            itinerary={manualItinerary}
-            routeCoordinates={routeCoords}
-          />
-          
-          <div className="absolute top-6 right-6 z-[1000] flex flex-col gap-2">
-            <Button 
-              size="icon" 
-              className="bg-white text-slate-800 hover:bg-slate-100 shadow-xl border h-10 w-10" 
-              onClick={detectLocation}
-              title="Recenter Map"
-            >
-              <Navigation size={20} />
-            </Button>
-          </div>
-
-          {error && (
-            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1000] bg-red-50 text-red-600 px-4 py-2 rounded-full text-xs font-bold shadow-lg border border-red-100">
-              {error}
+          <HeritageMap userLocation={userLocation} sites={nearbySites} itinerary={manualItinerary} routeCoordinates={routeCoords} />
+          {routeSteps.length > 0 && (
+            <div className="absolute bottom-6 left-6 right-6 md:left-auto md:w-64 bg-white/90 backdrop-blur p-4 rounded-2xl shadow-2xl border border-primary/10 z-[1000] animate-in fade-in slide-in-from-bottom-4">
+              <p className="text-[10px] font-bold text-primary uppercase mb-1">Active Navigation</p>
+              <h4 className="text-sm font-bold flex items-center justify-between">
+                To {manualItinerary[manualItinerary.length - 1]?.name}
+                <Badge variant="outline" className="text-[10px]">{Math.round(totalTime)}m</Badge>
+              </h4>
+              <Button size="sm" variant="ghost" className="w-full h-8 mt-2 text-xs text-red-500 hover:bg-red-50" onClick={() => { setRouteCoords([]); setRouteSteps([]); }}>Cancel Route</Button>
             </div>
           )}
         </div>
