@@ -107,7 +107,7 @@ export default function Home() {
             <span className="font-headline text-3xl font-bold">Handumanan</span>
           </div>
           <p className="max-w-md mx-auto opacity-80 mb-8 font-body">
-            A Web-Based Cultural Heritage Site Information System for Metro Cebu. BSIT Capstone Project 2024.
+            A Web-Based Cultural Heritage Site Information System for Metro Cebu. BSIT Capstone Project 2026.
           </p>
           <div className="flex justify-center gap-6 mb-8 text-sm uppercase tracking-widest font-bold">
             <Link href="/explore" className="hover:opacity-100 opacity-70">Explore</Link>
