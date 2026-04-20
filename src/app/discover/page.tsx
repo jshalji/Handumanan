@@ -27,7 +27,9 @@ import {
   Maximize2,
   LocateFixed,
   Car,
-  Footprints
+  Footprints,
+  Calendar,
+  Layers
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -48,20 +50,16 @@ export default function ExploreRoutePage() {
   const [totalDist, setTotalDist] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
   const [travelMode, setTravelMode] = useState<'driving-car' | 'foot-walking'>('driving-car');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const db = useFirestore();
   const sitesRef = useMemoFirebase(() => collection(db, 'heritageSites'), [db]);
   const { data: dbSites } = useCollection(sitesRef);
 
   const allSites = useMemo(() => {
-    if (dbSites && dbSites.length > 0) {
-      return dbSites.map(s => ({
-        ...s,
-        coordinates: s.latitude && s.longitude ? { lat: s.latitude, lng: s.longitude } : (HERITAGE_SITES.find(hs => hs.id === s.id)?.coordinates || { lat: 0, lng: 0 })
-      }));
-    }
+    // Merge static sites with any from DB if needed, but per requirements we use static verified sites mainly
     return HERITAGE_SITES;
-  }, [dbSites]);
+  }, []);
 
   const defaultLocation = { lat: 10.2936, lng: 123.9019 };
 
@@ -83,17 +81,33 @@ export default function ExploreRoutePage() {
 
   const sortedSites = useMemo(() => {
     const loc = userLocation || defaultLocation;
-    return allSites.map(site => ({
-      ...site,
-      distance: calculateDistance(loc.lat, loc.lng, site.coordinates.lat, site.coordinates.lng)
-    })).sort((a, b) => a.distance - b.distance);
+    return allSites
+      .map(site => ({
+        ...site,
+        distance: calculateDistance(loc.lat, loc.lng, site.coordinates.lat, site.coordinates.lng)
+      }))
+      .sort((a, b) => a.distance - b.distance);
   }, [userLocation, allSites]);
 
-  const nearbySites = sortedSites.slice(0, 15);
+  const filteredSites = useMemo(() => {
+    if (!searchQuery) return sortedSites;
+    return sortedSites.filter(site => 
+      site.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      site.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      site.category.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [sortedSites, searchQuery]);
 
   const toggleItinerary = (id: string) => {
     setItineraryIds(prev => {
-      const newIds = prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id];
+      const isAlreadyIn = prev.includes(id);
+      let newIds;
+      if (isAlreadyIn) {
+        newIds = prev.filter(i => i !== id);
+      } else {
+        if (prev.length >= 8) return prev; // Limit to 8 stops for performance
+        newIds = [...prev, id];
+      }
       setRouteCoords([]);
       setRouteSteps([]);
       return newIds;
@@ -101,8 +115,8 @@ export default function ExploreRoutePage() {
   };
 
   const manualItinerary = useMemo(() => {
-    return itineraryIds.map(id => sortedSites.find(site => site.id === id)).filter(Boolean) as any[];
-  }, [itineraryIds, sortedSites]);
+    return itineraryIds.map(id => allSites.find(site => site.id === id)).filter(Boolean) as any[];
+  }, [itineraryIds, allSites]);
 
   const handleGenerateRoute = async () => {
     if (manualItinerary.length === 0 || !userLocation) return;
@@ -114,7 +128,14 @@ export default function ExploreRoutePage() {
     let cumulativeTime = 0;
     let start = userLocation;
 
-    for (const site of manualItinerary) {
+    // Sort manual itinerary by distance to create a naive shortest path
+    const optimizedSequence = [...manualItinerary].sort((a, b) => {
+      const distA = calculateDistance(userLocation.lat, userLocation.lng, a.coordinates.lat, a.coordinates.lng);
+      const distB = calculateDistance(userLocation.lat, userLocation.lng, b.coordinates.lat, b.coordinates.lng);
+      return distA - distB;
+    });
+
+    for (const site of optimizedSequence) {
       const routeData = await getRoute(start, site.coordinates, travelMode);
       if (routeData) {
         fullRoute = [...fullRoute, ...routeData.coordinates];
@@ -132,6 +153,13 @@ export default function ExploreRoutePage() {
     setIsPlanningRoute(false);
   };
 
+  const smartPlan = async (duration: 'half' | 'full' | 'multi') => {
+    setItineraryIds([]);
+    const stopCount = duration === 'half' ? 3 : duration === 'full' ? 5 : 8;
+    const selection = sortedSites.slice(0, stopCount).map(s => s.id);
+    setItineraryIds(selection);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
       <Navbar />
@@ -144,8 +172,10 @@ export default function ExploreRoutePage() {
             <div className="flex-1 relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={20} />
               <Input 
-                placeholder="Search heritage sites..." 
+                placeholder="Search heritage sites, cities, or categories..." 
                 className="pl-12 h-14 rounded-2xl shadow-2xl border-none bg-white/95 backdrop-blur-xl w-full text-base font-medium focus:ring-2 ring-primary/30"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <Button size="icon" className="h-14 w-14 rounded-2xl shadow-2xl bg-white text-slate-600 hover:bg-slate-50 border-none transition-all active:scale-95" onClick={detectLocation}>
@@ -155,65 +185,75 @@ export default function ExploreRoutePage() {
         </div>
 
         {/* SIDEBAR PANEL */}
-        <div className="w-full md:w-[32%] border-r bg-white flex flex-col z-20 shadow-2xl transition-all">
-          <div className="p-8 border-b bg-gradient-to-br from-primary/5 via-transparent to-transparent">
-            <div className="flex items-center justify-between mb-2">
+        <div className="w-full md:w-[35%] border-r bg-white flex flex-col z-20 shadow-2xl transition-all">
+          <div className="p-6 border-b bg-gradient-to-br from-primary/5 via-transparent to-transparent">
+            <div className="flex items-center justify-between mb-4">
               <h1 className="font-headline text-2xl font-black text-slate-900 flex items-center gap-3">
-                <Navigation size={28} className="text-primary" /> Handumanan Nav
+                <Navigation size={28} className="text-primary" /> Explore & Route
               </h1>
-              <Badge variant="outline" className="border-primary/20 text-primary font-bold">Live</Badge>
+              <Badge variant="outline" className="border-primary/20 text-primary font-bold">AI Active</Badge>
             </div>
-            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Optimized Heritage Routing</p>
             
-            <div className="mt-6 flex bg-slate-100 p-1.5 rounded-2xl">
+            <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
               <button 
                 onClick={() => setTravelMode('driving-car')}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-black rounded-xl transition-all ${travelMode === 'driving-car' ? 'bg-white shadow-md text-primary' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${travelMode === 'driving-car' ? 'bg-white shadow-sm text-primary' : 'text-slate-500'}`}
               >
-                <Car size={16} /> Driving
+                <Car size={14} className="inline mr-1" /> Drive
               </button>
               <button 
                 onClick={() => setTravelMode('foot-walking')}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-black rounded-xl transition-all ${travelMode === 'foot-walking' ? 'bg-white shadow-md text-primary' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${travelMode === 'foot-walking' ? 'bg-white shadow-sm text-primary' : 'text-slate-500'}`}
               >
-                <Footprints size={16} /> Walking
+                <Footprints size={14} className="inline mr-1" /> Walk
               </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <Button variant="outline" size="sm" className="text-[10px] h-8 rounded-lg" onClick={() => smartPlan('half')}>
+                <Sparkles size={12} className="mr-1" /> Half-Day
+              </Button>
+              <Button variant="outline" size="sm" className="text-[10px] h-8 rounded-lg" onClick={() => smartPlan('full')}>
+                <Sparkles size={12} className="mr-1" /> Full-Day
+              </Button>
+              <Button variant="outline" size="sm" className="text-[10px] h-8 rounded-lg" onClick={() => smartPlan('multi')}>
+                <Sparkles size={12} className="mr-1" /> Multi-Day
+              </Button>
             </div>
           </div>
 
           <Tabs defaultValue="discovery" className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="grid grid-cols-2 mx-8 mt-6 h-12 bg-slate-100 rounded-2xl p-1.5">
-              <TabsTrigger value="discovery" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-black text-xs uppercase tracking-tighter">Nearby</TabsTrigger>
-              <TabsTrigger value="navigation" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm font-black text-xs uppercase tracking-tighter">Itinerary {itineraryIds.length > 0 && `(${itineraryIds.length})`}</TabsTrigger>
+            <TabsList className="grid grid-cols-2 mx-6 mt-4 h-10 bg-slate-100 rounded-xl p-1">
+              <TabsTrigger value="discovery" className="rounded-lg text-xs font-black uppercase">Nearby</TabsTrigger>
+              <TabsTrigger value="navigation" className="rounded-lg text-xs font-black uppercase">Plan {itineraryIds.length > 0 && `(${itineraryIds.length})`}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="discovery" className="flex-1 overflow-hidden p-0 m-0">
-              <ScrollArea className="h-full px-8 py-6">
-                <div className="space-y-5">
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Nearby Heritage</h3>
-                  {nearbySites.map((site) => (
-                    <Card key={site.id} className="group overflow-hidden border-none shadow-sm hover:shadow-xl transition-all duration-500 rounded-2xl bg-slate-50/50">
+              <ScrollArea className="h-full px-6 py-4">
+                <div className="space-y-4">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Nearby Heritage Treasures</h3>
+                  {filteredSites.slice(0, 15).map((site) => (
+                    <Card key={site.id} className="group overflow-hidden border-none shadow-sm hover:shadow-md transition-all rounded-xl bg-slate-50/50">
                       <div className="flex">
-                        <div className="relative w-32 h-32 flex-shrink-0">
-                          <Image src={site.imageUrl} alt={site.name} fill className="object-cover group-hover:scale-110 transition-transform duration-700" sizes="128px" />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                          <Badge className="absolute bottom-3 left-3 bg-white/90 text-primary text-[10px] px-2 h-5 border-none font-black shadow-lg">
+                        <div className="relative w-24 h-24 flex-shrink-0">
+                          <Image src={site.imageUrl} alt={site.name} fill className="object-cover" sizes="96px" />
+                          <Badge className="absolute bottom-1 left-1 bg-white/90 text-primary text-[8px] px-1 h-4 border-none font-black shadow-lg">
                             {site.distance.toFixed(1)} km
                           </Badge>
                         </div>
-                        <div className="p-5 flex-1 flex flex-col justify-between">
+                        <div className="p-3 flex-1 flex flex-col justify-between">
                           <div>
-                            <h3 className="font-bold text-sm line-clamp-1 group-hover:text-primary transition-colors text-slate-900">{site.name}</h3>
-                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter opacity-70 mt-1">{site.category}</p>
+                            <h3 className="font-bold text-xs line-clamp-1 text-slate-900">{site.name}</h3>
+                            <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-tighter mt-0.5">{site.city}</p>
                           </div>
-                          <div className="flex justify-between items-center mt-4">
-                            <Link href={`/site/${site.id}`} className="text-[10px] font-black text-blue-600 flex items-center gap-1 hover:gap-2 transition-all">
-                              INFO <ArrowRight size={12} />
+                          <div className="flex justify-between items-center mt-2">
+                            <Link href={`/site/${site.id}`} className="text-[9px] font-black text-blue-600 flex items-center gap-1">
+                              INFO <ArrowRight size={10} />
                             </Link>
                             <Button 
                               size="sm" 
                               variant={itineraryIds.includes(site.id) ? "default" : "outline"} 
-                              className={`h-8 px-4 text-[10px] rounded-full font-black shadow-sm transition-all ${itineraryIds.includes(site.id) ? 'bg-primary border-none scale-105' : 'border-primary/20 hover:bg-primary/5 text-primary'}`}
+                              className={`h-6 px-3 text-[9px] rounded-full font-black ${itineraryIds.includes(site.id) ? 'bg-primary border-none' : 'border-primary/20 text-primary'}`}
                               onClick={() => toggleItinerary(site.id)}
                             >
                               {itineraryIds.includes(site.id) ? "ADDED" : "ADD STOP"}
@@ -229,53 +269,50 @@ export default function ExploreRoutePage() {
 
             <TabsContent value="navigation" className="flex-1 overflow-hidden p-0 m-0">
               <div className="h-full flex flex-col">
-                <ScrollArea className="flex-1 px-8 py-6">
+                <ScrollArea className="flex-1 px-6 py-4">
                   {itineraryIds.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-24 text-center">
-                      <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-6">
-                        <MapIcon size={32} className="text-slate-300" />
+                    <div className="flex flex-col items-center justify-center py-20 text-center">
+                      <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4">
+                        <MapIcon size={24} className="text-slate-300" />
                       </div>
-                      <p className="text-base font-black text-slate-800">Your trip is empty</p>
-                      <p className="text-xs text-muted-foreground mt-2 max-w-[220px] mx-auto leading-relaxed">Add cultural heritage sites from the Discovery tab to start mapping your journey through Cebu.</p>
+                      <p className="text-sm font-black text-slate-800">Your trip is empty</p>
+                      <p className="text-xs text-muted-foreground mt-2 max-w-[180px] mx-auto leading-relaxed">Add sites from Nearby or use a Smart Plan to begin your journey.</p>
                     </div>
                   ) : routeSteps.length > 0 ? (
-                    <div className="space-y-8">
-                      <div className="bg-primary p-6 rounded-3xl text-white shadow-2xl shadow-primary/30 relative overflow-hidden">
-                        <div className="absolute -right-4 -bottom-4 opacity-10 rotate-12">
-                          <Navigation size={120} />
+                    <div className="space-y-6">
+                      <div className="bg-primary p-4 rounded-2xl text-white shadow-lg relative overflow-hidden">
+                        <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest opacity-80 mb-2">
+                          <span>{travelMode === 'driving-car' ? 'DRIVING' : 'WALKING'} ROUTE</span>
+                          <span>{Math.round(totalTime)} MINS</span>
                         </div>
-                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest opacity-80 mb-4">
-                          <span className="flex items-center gap-1.5"><Car size={14} /> ACTIVE ROUTE</span>
-                          <span className="bg-white/20 px-3 py-1 rounded-full">{Math.round(totalTime)} MIN</span>
-                        </div>
-                        <h4 className="text-2xl font-black leading-tight mb-2">{itineraryIds.length} STOPS SELECTED</h4>
-                        <p className="text-sm opacity-90 font-bold">{totalDist.toFixed(1)} KM TOTAL DISTANCE</p>
+                        <h4 className="text-lg font-black leading-tight">{itineraryIds.length} SITES PLANNED</h4>
+                        <p className="text-xs opacity-90 font-bold mt-1">{totalDist.toFixed(1)} KM TOTAL</p>
                         
                         <Button 
                           variant="ghost" 
-                          className="w-full mt-6 h-10 text-[10px] font-black uppercase text-white bg-white/10 hover:bg-white/20 border-none rounded-xl tracking-widest"
+                          className="w-full mt-4 h-8 text-[9px] font-black uppercase text-white bg-white/10 hover:bg-white/20 border-none rounded-lg"
                           onClick={() => { setRouteCoords([]); setRouteSteps([]); }}
                         >
-                          EDIT TRIP
+                          EDIT SEQUENCE
                         </Button>
                       </div>
                       
-                      <div className="space-y-5">
-                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Directions</h4>
+                      <div className="space-y-4">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Turn-by-Turn Directions</h4>
                         <div className="relative pl-3">
                           <div className="absolute left-[13px] top-4 bottom-4 w-0.5 bg-slate-100" />
                           {routeSteps.map((step, idx) => (
-                            <div key={idx} className="flex gap-5 items-start mb-8 last:mb-0 relative z-10">
-                              <div className={`mt-1.5 h-6 w-6 rounded-full flex items-center justify-center shadow-lg border-2 bg-white ${step.instruction.includes('Arrive') ? 'border-primary text-primary scale-125' : 'border-slate-200 text-slate-400'}`}>
-                                {step.instruction.includes('Arrive') ? <MapPin size={12} fill="currentColor" /> : <ChevronRight size={12} />}
+                            <div key={idx} className="flex gap-4 items-start mb-6 last:mb-0 relative z-10">
+                              <div className={`mt-1 h-5 w-5 rounded-full flex items-center justify-center shadow-md border bg-white ${step.instruction.includes('Arrive') ? 'border-primary text-primary scale-110' : 'border-slate-200 text-slate-400'}`}>
+                                {step.instruction.includes('Arrive') ? <MapPin size={10} fill="currentColor" /> : <ChevronRight size={10} />}
                               </div>
                               <div className="flex-1">
-                                <p className={`text-sm leading-snug ${step.instruction.includes('Arrive') ? 'font-black text-slate-900' : 'text-slate-600 font-bold'}`}>
+                                <p className={`text-xs leading-snug ${step.instruction.includes('Arrive') ? 'font-black text-slate-900' : 'text-slate-600 font-bold'}`}>
                                   {step.instruction.replace(/<[^>]*>?/gm, '')}
                                 </p>
                                 {step.distance > 0 && (
-                                  <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-tighter">
-                                    {Math.round(step.distance)} METERS &bull; {Math.round(step.duration / 60)} MINS
+                                  <p className="text-[9px] font-black text-slate-400 mt-1 uppercase tracking-tighter">
+                                    {Math.round(step.distance)} M &bull; {Math.round(step.duration / 60)} MIN
                                   </p>
                                 )}
                               </div>
@@ -285,16 +322,16 @@ export default function ExploreRoutePage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-8">
-                      <div className="bg-slate-50/80 p-6 rounded-3xl border-2 border-dashed border-slate-200">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Planned Sequence</h4>
-                        <div className="space-y-4">
+                    <div className="space-y-6">
+                      <div className="bg-slate-50 p-4 rounded-2xl border-2 border-dashed border-slate-200">
+                        <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Itinerary Sequence</h4>
+                        <div className="space-y-3">
                           {manualItinerary.map((site, idx) => (
-                            <div key={site.id} className="flex gap-5 items-center group animate-in slide-in-from-left-2 duration-300" style={{ animationDelay: `${idx * 100}ms` }}>
-                              <div className="w-8 h-8 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-xs font-black shadow-sm">{idx + 1}</div>
-                              <div className="flex-1 text-sm font-bold text-slate-800 truncate">{site.name}</div>
-                              <button onClick={() => toggleItinerary(site.id)} className="text-slate-300 hover:text-red-500 transition-colors p-2 hover:bg-red-50 rounded-xl">
-                                <Maximize2 size={16} className="rotate-45" />
+                            <div key={site.id} className="flex gap-3 items-center">
+                              <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[10px] font-black">{idx + 1}</div>
+                              <div className="flex-1 text-xs font-bold text-slate-800 truncate">{site.name}</div>
+                              <button onClick={() => toggleItinerary(site.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1">
+                                <Maximize2 size={14} className="rotate-45" />
                               </button>
                             </div>
                           ))}
@@ -302,14 +339,14 @@ export default function ExploreRoutePage() {
                       </div>
                       
                       <Button 
-                        className="w-full rounded-3xl h-16 bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-2xl shadow-primary/30 flex items-center justify-center gap-4 transition-all active:scale-95 group" 
+                        className="w-full rounded-2xl h-14 bg-primary hover:bg-primary/90 text-white font-black text-sm shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95" 
                         onClick={handleGenerateRoute} 
                         disabled={isPlanningRoute}
                       >
                         {isPlanningRoute ? (
-                          <><Loader2 className="animate-spin" size={24} /> CALCULATING...</>
+                          <><Loader2 className="animate-spin" size={20} /> CALCULATING...</>
                         ) : (
-                          <><RouteIcon size={24} className="group-hover:rotate-12 transition-transform" /> GENERATE ROUTE</>
+                          <><RouteIcon size={20} /> GENERATE OPTIMIZED ROUTE</>
                         )}
                       </Button>
                     </div>
@@ -324,7 +361,7 @@ export default function ExploreRoutePage() {
         <div className="flex-1 h-full relative">
           <HeritageMap 
             userLocation={userLocation} 
-            sites={nearbySites} 
+            sites={filteredSites} 
             itinerary={manualItinerary} 
             routeCoordinates={routeCoords} 
             totalTime={totalTime}
@@ -332,18 +369,14 @@ export default function ExploreRoutePage() {
           />
           
           {/* MAP CONTROLS */}
-          <div className="absolute bottom-10 right-8 z-[1000] flex flex-col gap-4">
+          <div className="absolute bottom-8 right-6 z-[1000] flex flex-col gap-3">
             <Button 
               size="icon" 
-              className="h-16 w-16 rounded-3xl bg-white text-slate-600 shadow-2xl hover:bg-slate-50 border border-slate-100 transition-all active:scale-90"
+              className="h-12 w-12 rounded-2xl bg-white text-slate-600 shadow-2xl hover:bg-slate-50 border border-slate-100 transition-all active:scale-90"
               onClick={detectLocation}
             >
-              <LocateFixed size={28} />
+              <LocateFixed size={24} />
             </Button>
-            <div className="flex flex-col bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
-              <Button size="icon" variant="ghost" className="h-14 w-14 rounded-none border-b text-slate-600 hover:bg-slate-50 font-black text-xl">+</Button>
-              <Button size="icon" variant="ghost" className="h-14 w-14 rounded-none text-slate-600 hover:bg-slate-50 font-black text-xl">-</Button>
-            </div>
           </div>
         </div>
       </main>
