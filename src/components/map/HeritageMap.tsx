@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -52,10 +53,15 @@ function MapController({
 
   useEffect(() => {
     if (routeCoordinates && routeCoordinates.length > 1) {
+      // Create a polyline just to get bounds for automatic fitting
       const bounds = L.polyline(routeCoordinates).getBounds();
-      map.fitBounds(bounds, { padding: [50, 50], animate: true });
+      map.fitBounds(bounds, { 
+        padding: [80, 80], 
+        animate: true,
+        duration: 1.5
+      });
     } else {
-      map.setView(center, map.getZoom(), { animate: true, duration: 1 });
+      map.setView(center, 14, { animate: true, duration: 1 });
     }
   }, [center, routeCoordinates, map]);
 
@@ -107,7 +113,7 @@ export default function HeritageMap({
               pathOptions={{ fillColor: '#3b82f6', fillOpacity: 0.1, color: '#3b82f6', weight: 1 }} 
             />
             <Marker position={[userLocation.lat, userLocation.lng]} icon={userPulse}>
-              <Popup>Your starting point</Popup>
+              <Popup>You are here</Popup>
             </Marker>
           </>
         )}
@@ -120,7 +126,8 @@ export default function HeritageMap({
             <Marker 
               key={site.id} 
               position={[site.coordinates?.lat || 0, site.coordinates?.lng || 0]}
-              icon={isDestination ? destIcon : isInItinerary ? DefaultIcon : DefaultIcon}
+              icon={isDestination ? destIcon : DefaultIcon}
+              opacity={isInItinerary ? 1 : 0.7}
             >
               <Popup className="custom-map-popup">
                 <div className="w-56 overflow-hidden rounded-2xl bg-white p-2">
@@ -142,26 +149,39 @@ export default function HeritageMap({
         })}
 
         {routeCoordinates && routeCoordinates.length > 1 && (
-          <Polyline 
-            positions={routeCoordinates} 
-            color="#3b82f6" 
-            weight={6} 
-            opacity={0.8} 
-            lineCap="round"
-            lineJoin="round"
-          >
-            {totalTime && totalDist && (
-              <Tooltip direction="top" offset={[0, -20]} permanent className="route-info-tooltip">
-                <div className="flex flex-col items-center">
-                  <span className="text-primary font-black text-[10px] uppercase tracking-tighter mb-0.5">Route to Destination</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-900 font-bold">{Math.round(totalTime)} min</span>
-                    <span className="text-slate-500 text-xs">({totalDist.toFixed(1)} km)</span>
+          <>
+            {/* Background polyline for "Google Maps" glow/border effect */}
+            <Polyline 
+              positions={routeCoordinates} 
+              color="#ffffff" 
+              weight={10} 
+              opacity={0.5} 
+              lineCap="round"
+              lineJoin="round"
+            />
+            {/* Main Bold Route Line */}
+            <Polyline 
+              positions={routeCoordinates} 
+              color="#4338ca" // Deep Indigo
+              weight={7} 
+              opacity={0.9} 
+              lineCap="round"
+              lineJoin="round"
+              smoothFactor={1}
+            >
+              {totalTime && totalDist && (
+                <Tooltip direction="top" offset={[0, -20]} permanent className="route-info-tooltip">
+                  <div className="flex flex-col items-center">
+                    <span className="text-primary font-black text-[10px] uppercase tracking-tighter mb-0.5">Fastest Route</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-900 font-bold">{Math.round(totalTime)} min</span>
+                      <span className="text-slate-500 text-xs">({totalDist.toFixed(1)} km)</span>
+                    </div>
                   </div>
-                </div>
-              </Tooltip>
-            )}
-          </Polyline>
+                </Tooltip>
+              )}
+            </Polyline>
+          </>
         )}
       </MapContainer>
     </div>

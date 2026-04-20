@@ -28,9 +28,7 @@ import {
   Maximize2,
   LocateFixed,
   Car,
-  Footprints,
-  Calendar,
-  Layers
+  Footprints
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -108,6 +106,7 @@ export default function ExploreRoutePage() {
         if (prev.length >= 10) return prev; 
         newIds = [...prev, id];
       }
+      // Reset current route when itinerary changes
       setRouteCoords([]);
       setRouteSteps([]);
       return newIds;
@@ -127,8 +126,7 @@ export default function ExploreRoutePage() {
     let cumulativeDist = 0;
     let cumulativeTime = 0;
     
-    // GREEDY NEAREST NEIGHBOR ROUTE OPTIMIZATION
-    // Instead of sorting by distance from start, we find the closest next stop iteratively
+    // Nearest Neighbor Optimization
     let optimizedSequence = [];
     let remaining = [...manualItinerary];
     let currentPos = userLocation;
@@ -155,11 +153,11 @@ export default function ExploreRoutePage() {
     for (const site of optimizedSequence) {
       const routeData = await getRoute(start, site.coordinates, travelMode);
       if (routeData) {
-        // Only append if it's the first segment or avoid duplicating the connection point
+        // Append all coordinate points for a detailed road-following path
         fullRoute = [...fullRoute, ...routeData.coordinates];
         allSteps = [
           ...allSteps, 
-          { instruction: `Destination: ${site.name}`, distance: 0, duration: 0 } as any, 
+          { instruction: `Destination Reached: ${site.name}`, distance: 0, duration: 0 } as any, 
           ...routeData.steps
         ];
         cumulativeDist += routeData.distance;
@@ -190,7 +188,7 @@ export default function ExploreRoutePage() {
       
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         
-        {/* TOP OVERLAY: Google Maps Style Search Bar */}
+        {/* MAP SEARCH OVERLAY */}
         <div className="absolute top-6 left-4 right-4 md:left-[35%] md:right-8 z-[1000] pointer-events-none flex flex-col gap-4">
           <div className="flex gap-3 pointer-events-auto max-w-2xl">
             <div className="flex-1 relative group">
@@ -215,7 +213,7 @@ export default function ExploreRoutePage() {
               <h1 className="font-headline text-2xl font-black text-slate-900 flex items-center gap-3">
                 <Navigation size={28} className="text-primary" /> Explore & Route
               </h1>
-              <Badge variant="outline" className="border-primary/20 text-primary font-bold">AI Pathing</Badge>
+              <Badge variant="outline" className="border-primary/20 text-primary font-bold">ACCURATE ROUTING</Badge>
             </div>
             
             <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
@@ -248,14 +246,14 @@ export default function ExploreRoutePage() {
 
           <Tabs defaultValue="discovery" className="flex-1 flex flex-col overflow-hidden">
             <TabsList className="grid grid-cols-2 mx-6 mt-4 h-10 bg-slate-100 rounded-xl p-1">
-              <TabsTrigger value="discovery" className="rounded-lg text-xs font-black uppercase">Nearby</TabsTrigger>
-              <TabsTrigger value="navigation" className="rounded-lg text-xs font-black uppercase">Plan {itineraryIds.length > 0 && `(${itineraryIds.length})`}</TabsTrigger>
+              <TabsTrigger value="discovery" className="rounded-lg text-xs font-black uppercase">Nearby Sites</TabsTrigger>
+              <TabsTrigger value="navigation" className="rounded-lg text-xs font-black uppercase">My Route {itineraryIds.length > 0 && `(${itineraryIds.length})`}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="discovery" className="flex-1 overflow-hidden p-0 m-0">
               <ScrollArea className="h-full px-6 py-4">
                 <div className="space-y-4">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Nearby Heritage Treasures</h3>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Nearby Heritage Sites</h3>
                   {filteredSites.slice(0, 15).map((site) => (
                     <Card key={site.id} className="group overflow-hidden border-none shadow-sm hover:shadow-md transition-all rounded-xl bg-slate-50/50">
                       <div className="flex">
@@ -272,7 +270,7 @@ export default function ExploreRoutePage() {
                           </div>
                           <div className="flex justify-between items-center mt-2">
                             <Link href={`/site/${site.id}`} className="text-[9px] font-black text-blue-600 flex items-center gap-1">
-                              INFO <ArrowRight size={10} />
+                              DETAILS <ArrowRight size={10} />
                             </Link>
                             <Button 
                               size="sm" 
@@ -322,21 +320,21 @@ export default function ExploreRoutePage() {
                       </div>
                       
                       <div className="space-y-4">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Route Instructions</h4>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Turn-by-Turn Instructions</h4>
                         <div className="relative pl-3">
                           <div className="absolute left-[13px] top-4 bottom-4 w-0.5 bg-slate-100" />
                           {routeSteps.map((step, idx) => (
                             <div key={idx} className="flex gap-4 items-start mb-6 last:mb-0 relative z-10">
-                              <div className={`mt-1 h-5 w-5 rounded-full flex items-center justify-center shadow-md border bg-white ${step.instruction.includes('Destination') ? 'border-primary text-primary scale-110' : 'border-slate-200 text-slate-400'}`}>
-                                {step.instruction.includes('Destination') ? <MapPin size={10} fill="currentColor" /> : <ChevronRight size={10} />}
+                              <div className={`mt-1 h-5 w-5 rounded-full flex items-center justify-center shadow-md border bg-white ${step.instruction.includes('Reached') ? 'border-primary text-primary scale-110' : 'border-slate-200 text-slate-400'}`}>
+                                {step.instruction.includes('Reached') ? <MapPin size={10} fill="currentColor" /> : <ChevronRight size={10} />}
                               </div>
                               <div className="flex-1">
-                                <p className={`text-xs leading-snug ${step.instruction.includes('Destination') ? 'font-black text-slate-900' : 'text-slate-600 font-bold'}`}>
+                                <p className={`text-xs leading-snug ${step.instruction.includes('Reached') ? 'font-black text-slate-900' : 'text-slate-600 font-bold'}`}>
                                   {step.instruction.replace(/<[^>]*>?/gm, '')}
                                 </p>
                                 {step.distance > 0 && (
                                   <p className="text-[9px] font-black text-slate-400 mt-1 uppercase tracking-tighter">
-                                    {Math.round(step.distance)} M &bull; {Math.round(step.duration / 60)} MIN
+                                    {step.distance >= 1 ? `${step.distance.toFixed(1)} KM` : `${Math.round(step.distance * 1000)} M`} &bull; {Math.round(step.duration / 60)} MIN
                                   </p>
                                 )}
                               </div>
@@ -368,9 +366,9 @@ export default function ExploreRoutePage() {
                         disabled={isPlanningRoute}
                       >
                         {isPlanningRoute ? (
-                          <><Loader2 className="animate-spin" size={20} /> ANALYZING...</>
+                          <><Loader2 className="animate-spin" size={20} /> CALCULATING...</>
                         ) : (
-                          <><RouteIcon size={20} /> GENERATE ACCURATE ROUTE</>
+                          <><RouteIcon size={20} /> GENERATE ROAD ROUTE</>
                         )}
                       </Button>
                     </div>
