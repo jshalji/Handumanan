@@ -140,6 +140,7 @@ function ExploreRouteContent() {
     let remaining = [...activeItinerary];
     let currentPos = startPoint;
 
+    // Greedy nearest neighbor optimization for the route sequence
     while (remaining.length > 0) {
       let nearestIdx = 0;
       let minDist = Infinity;
@@ -230,7 +231,7 @@ function ExploreRouteContent() {
       });
       const suggestedIds = result.itinerary.map(item => allSites.find(s => s.name === item.siteName)?.id).filter(Boolean) as string[];
       setItineraryIds(suggestedIds);
-      const suggestedSites = suggestedIds.map(id => allSites.find(s => id === id)).filter(Boolean);
+      const suggestedSites = suggestedIds.map(id => allSites.find(s => s.id === id)).filter(Boolean);
       handleGenerateRoute(suggestedSites);
       toast({ title: "AI Plan Ready", description: "Mapping optimized heritage route." });
     } catch (error) {
@@ -255,6 +256,13 @@ function ExploreRouteContent() {
       setRouteSteps([]);
       return newIds;
     });
+  };
+
+  const handleRecommendationClick = (site: any) => {
+    // Add the site to itinerary and immediately calculate route
+    const newItinerary = [...manualItinerary, site];
+    setItineraryIds(newItinerary.map(s => s.id));
+    handleGenerateRoute(newItinerary);
   };
 
   const saveToProfile = () => {
@@ -425,7 +433,7 @@ function ExploreRouteContent() {
                 <ScrollArea className="h-48 pr-3">
                   <div className="space-y-4">
                     {recommendedSites.map(site => (
-                      <div key={site.id} className="flex gap-4 items-center group cursor-pointer" onClick={() => { toggleItinerary(site.id); handleGenerateRoute([...manualItinerary, site]); }}>
+                      <div key={site.id} className="flex gap-4 items-center group cursor-pointer" onClick={() => handleRecommendationClick(site)}>
                         <div className="relative w-12 h-12 rounded-2xl overflow-hidden shrink-0 shadow-sm">
                           <Image src={site.imageUrl} alt={site.name} fill className="object-cover group-hover:scale-110 transition-transform" />
                         </div>
