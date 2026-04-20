@@ -7,8 +7,6 @@ import { calculateDistance } from './location-utils';
  * Optimized for road-accurate navigation in Metro Cebu.
  */
 
-const ORS_API_KEY = '5b3ce3597851110001cf6248383c2738a956426786851610443e06a3'; 
-
 export interface RouteStep {
   instruction: string;
   distance: number;
@@ -25,23 +23,28 @@ export interface RouteData {
 /**
  * Fetches an accurate road-based route using OpenRouteService.
  * Returns GeoJSON coordinates for street-level precision.
+ * @param start - Starting {lat, lng}
+ * @param end - Destination {lat, lng}
+ * @param apiKey - OpenRouteService API Key
+ * @param profile - 'driving-car' or 'foot-walking'
  */
 export async function getRoute(
   start: { lat: number; lng: number } | null, 
   end: { lat: number; lng: number } | null,
+  apiKey: string,
   profile: 'driving-car' | 'foot-walking' = 'driving-car'
 ): Promise<RouteData | null> {
-  if (!start || !end) return null;
+  if (!start || !end || !apiKey) return null;
 
   const directDistance = calculateDistance(start.lat, start.lng, end.lat, end.lng);
   
-  // Fallback data: Straight line (used only if API fails)
+  // Fallback data: Straight line (used if API fails or key is invalid)
   const fallbackData: RouteData = {
     coordinates: [[start.lat, start.lng], [end.lat, end.lng]],
     distance: directDistance,
     duration: directDistance * (profile === 'driving-car' ? 2.5 : 12),
     steps: [{ 
-      instruction: `Follow the main road towards the heritage site`, 
+      instruction: `Follow the main road towards the heritage site (Network Fallback)`, 
       distance: directDistance, 
       duration: directDistance * 10 
     }]
@@ -50,7 +53,7 @@ export async function getRoute(
   try {
     // OpenRouteService V2 Directions API (GET)
     // Format: lng,lat
-    const url = `https://api.openrouteservice.org/v2/directions/${profile}?api_key=${ORS_API_KEY}&start=${start.lng},${start.lat}&end=${end.lng},${end.lat}`;
+    const url = `https://api.openrouteservice.org/v2/directions/${profile}?api_key=${apiKey}&start=${start.lng},${start.lat}&end=${end.lng},${end.lat}`;
     
     const response = await fetch(url, {
       method: 'GET',
@@ -60,7 +63,7 @@ export async function getRoute(
     });
 
     if (!response.ok) {
-      console.warn(`Routing API returned ${response.status}. Using road approximation.`);
+      console.warn(`OpenRouteService returned ${response.status}. Ensure your API key is valid.`);
       return fallbackData;
     }
 

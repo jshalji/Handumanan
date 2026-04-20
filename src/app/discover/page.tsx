@@ -30,13 +30,22 @@ import {
   Car,
   Footprints,
   BrainCircuit,
-  Save
+  Save,
+  Key
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFirestore, useUser } from '@/firebase';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), { 
   ssr: false,
@@ -57,9 +66,32 @@ export default function ExploreRoutePage() {
   const [totalTime, setTotalTime] = useState(0);
   const [travelMode, setTravelMode] = useState<'driving-car' | 'foot-walking'>('driving-car');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // OpenRouteService API Key Management
+  const [orsKey, setOrsKey] = useState<string>('');
+  const [showKeyDialog, setShowKeyDialog] = useState(false);
+  const [tempKey, setTempKey] = useState('');
 
   const db = useFirestore();
   const defaultLocation = { lat: 10.2936, lng: 123.9019 };
+
+  useEffect(() => {
+    const savedKey = localStorage.getItem('ors_api_key');
+    if (savedKey) {
+      setOrsKey(savedKey);
+    } else {
+      setShowKeyDialog(true);
+    }
+  }, []);
+
+  const handleSaveKey = () => {
+    if (tempKey.trim()) {
+      localStorage.setItem('ors_api_key', tempKey.trim());
+      setOrsKey(tempKey.trim());
+      setShowKeyDialog(false);
+      toast({ title: "API Key Saved", description: "You can now generate road-accurate routes." });
+    }
+  };
 
   const detectLocation = useCallback(async () => {
     setLoading(true);
@@ -105,6 +137,11 @@ export default function ExploreRoutePage() {
   }, [itineraryIds, allSites]);
 
   const handleGenerateRoute = async (customItinerary?: any[]) => {
+    if (!orsKey) {
+      setShowKeyDialog(true);
+      return;
+    }
+
     const activeItinerary = customItinerary || manualItinerary;
     const startPoint = userLocation || defaultLocation;
 
@@ -119,7 +156,7 @@ export default function ExploreRoutePage() {
     let cumulativeDist = 0;
     let cumulativeTime = 0;
     
-    // Nearest Neighbor optimization for road routing
+    // Nearest Neighbor optimization
     let optimizedSequence = [];
     let remaining = [...activeItinerary];
     let currentPos = startPoint;
@@ -143,9 +180,9 @@ export default function ExploreRoutePage() {
 
     let start = startPoint;
 
-    // Sequential Segment Fetching
+    // Sequential Segment Fetching using OpenRouteService
     for (const site of optimizedSequence) {
-      const routeData = await getRoute(start, site.coordinates, travelMode);
+      const routeData = await getRoute(start, site.coordinates, orsKey, travelMode);
       if (routeData) {
         fullRoute = [...fullRoute, ...routeData.coordinates];
         allSteps = [
@@ -165,10 +202,15 @@ export default function ExploreRoutePage() {
     setTotalTime(cumulativeTime);
     setIsPlanningRoute(false);
     
-    toast({ title: "Route Calculated", description: "Road-accurate path rendered on map." });
+    toast({ title: "Route Calculated", description: "Road-accurate path from your location rendered." });
   };
 
   const handleAiItinerary = async () => {
+    if (!orsKey) {
+      setShowKeyDialog(true);
+      return;
+    }
+    
     const loc = userLocation || await detectLocation();
     setIsAiThinking(true);
     try {
@@ -189,7 +231,7 @@ export default function ExploreRoutePage() {
       // Auto-trigger road routing for the AI plan
       setTimeout(() => handleGenerateRoute(suggestedSites), 500);
       
-      toast({ title: "AI Plan Ready", description: "Calculating best road path..." });
+      toast({ title: "AI Plan Ready", description: "Calculating best road path from your location..." });
     } catch (error) {
       console.error(error);
       toast({ title: "AI Assistant Busy", description: "Falling back to proximity-based trip.", variant: "destructive" });
@@ -268,7 +310,9 @@ export default function ExploreRoutePage() {
               <h1 className="font-headline text-2xl font-black text-slate-900 flex items-center gap-3">
                 <Navigation size={28} className="text-primary" /> Route Planner
               </h1>
-              <Badge variant="outline" className="border-primary/20 text-primary font-black uppercase tracking-widest text-[9px] px-3">OpenRoute Engine</Badge>
+              <Button variant="ghost" size="icon" className="rounded-full text-slate-400 hover:text-primary" onClick={() => setShowKeyDialog(true)}>
+                <Key size={18} />
+              </Button>
             </div>
             
             <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6">
@@ -381,7 +425,7 @@ export default function ExploreRoutePage() {
                       </div>
                       
                       <div className="space-y-4">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Maneuvers</h4>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Maneuvers (From Your Location)</h4>
                         <div className="relative pl-3">
                           <div className="absolute left-[13px] top-4 bottom-4 w-0.5 bg-slate-100" />
                           {routeSteps.map((step, idx) => (
@@ -466,6 +510,33 @@ export default function ExploreRoutePage() {
             </Button>
           </div>
         </div>
+
+        {/* API KEY DIALOG */}
+        <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
+          <DialogContent className="sm:max-w-md rounded-3xl">
+            <DialogHeader>
+              <DialogTitle className="font-headline text-2xl font-bold">OpenRouteService API Key</DialogTitle>
+              <DialogDescription className="text-slate-500 font-medium">
+                To generate road-accurate navigation in Metro Cebu, please enter your OpenRouteService API key. You can get one for free at <a href="https://openrouteservice.org/dev/#/signup" target="_blank" className="text-primary hover:underline font-bold">openrouteservice.org</a>.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center space-x-2 py-4">
+              <div className="grid flex-1 gap-2">
+                <Input
+                  placeholder="Enter your API Key"
+                  value={tempKey}
+                  onChange={(e) => setTempKey(e.target.value)}
+                  className="rounded-xl h-12"
+                />
+              </div>
+            </div>
+            <DialogFooter className="sm:justify-start">
+              <Button type="button" className="w-full h-12 rounded-xl font-bold" onClick={handleSaveKey}>
+                Save & Continue
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
