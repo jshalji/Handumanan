@@ -1,3 +1,4 @@
+
 'use client';
 
 import { calculateDistance } from './location-utils';
@@ -37,35 +38,44 @@ export async function getRoute(
 
   const directDistance = calculateDistance(start.lat, start.lng, end.lat, end.lng);
   
-  // Standard fallback data to return on failure
+  // Standard fallback data to return on failure (Straight Line)
   const fallbackData: RouteData = {
     coordinates: [[start.lat, start.lng], [end.lat, end.lng]],
     distance: directDistance,
     duration: directDistance * (profile === 'driving-car' ? 8 : 15), 
     steps: [{ 
-      instruction: `Head towards destination`, 
+      instruction: `Head straight to destination`, 
       distance: directDistance * 1000, 
       duration: directDistance * 10 
     }]
   };
 
   try {
+    // OpenRouteService expects coordinates in [longitude, latitude] for the query string
     const query = `https://api.openrouteservice.org/v2/directions/${profile}?api_key=${ORS_API_KEY}&start=${start.lng},${start.lat}&end=${end.lng},${end.lat}`;
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout for better UX
 
-    // Using a more robust fetch with signal and catching potential TypeError
-    const response = await fetch(query, { signal: controller.signal }).catch(() => null);
+    const response = await fetch(query, { 
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8'
+      }
+    }).catch(() => null);
     
     clearTimeout(timeoutId);
     
-    if (!response || !response.ok) return fallbackData;
+    if (!response || !response.ok) {
+      console.warn("Routing API failed, using straight-line fallback.");
+      return fallbackData;
+    }
 
     const data = await response.json();
 
     if (data.features && data.features.length > 0) {
       const feature = data.features[0];
+      // ORS returns [longitude, latitude]. Leaflet expects [latitude, longitude].
       const coords = feature.geometry.coordinates.map((c: number[]) => [c[1], c[0]] as [number, number]);
       const segment = feature.properties.segments[0];
       
@@ -77,15 +87,15 @@ export async function getRoute(
 
       return {
         coordinates: coords,
-        distance: segment.distance / 1000, 
-        duration: segment.duration / 60, 
+        distance: segment.distance / 1000, // meters to km
+        duration: segment.duration / 60, // seconds to mins
         steps: steps
       };
     }
     
     return fallbackData;
   } catch (error) {
-    // Silently return fallback data instead of letting the error propagate
+    console.error("Routing error:", error);
     return fallbackData;
   }
 }

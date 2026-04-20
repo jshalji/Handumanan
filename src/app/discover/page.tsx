@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -57,7 +58,6 @@ export default function ExploreRoutePage() {
   const { data: dbSites } = useCollection(sitesRef);
 
   const allSites = useMemo(() => {
-    // Merge static sites with any from DB if needed, but per requirements we use static verified sites mainly
     return HERITAGE_SITES;
   }, []);
 
@@ -105,7 +105,7 @@ export default function ExploreRoutePage() {
       if (isAlreadyIn) {
         newIds = prev.filter(i => i !== id);
       } else {
-        if (prev.length >= 8) return prev; // Limit to 8 stops for performance
+        if (prev.length >= 10) return prev; 
         newIds = [...prev, id];
       }
       setRouteCoords([]);
@@ -126,20 +126,42 @@ export default function ExploreRoutePage() {
     let allSteps: RouteStep[] = [];
     let cumulativeDist = 0;
     let cumulativeTime = 0;
-    let start = userLocation;
+    
+    // GREEDY NEAREST NEIGHBOR ROUTE OPTIMIZATION
+    // Instead of sorting by distance from start, we find the closest next stop iteratively
+    let optimizedSequence = [];
+    let remaining = [...manualItinerary];
+    let currentPos = userLocation;
 
-    // Sort manual itinerary by distance to create a naive shortest path
-    const optimizedSequence = [...manualItinerary].sort((a, b) => {
-      const distA = calculateDistance(userLocation.lat, userLocation.lng, a.coordinates.lat, a.coordinates.lng);
-      const distB = calculateDistance(userLocation.lat, userLocation.lng, b.coordinates.lat, b.coordinates.lng);
-      return distA - distB;
-    });
+    while (remaining.length > 0) {
+      let nearestIdx = 0;
+      let minDist = Infinity;
+      
+      for (let i = 0; i < remaining.length; i++) {
+        const d = calculateDistance(currentPos.lat, currentPos.lng, remaining[i].coordinates.lat, remaining[i].coordinates.lng);
+        if (d < minDist) {
+          minDist = d;
+          nearestIdx = i;
+        }
+      }
+      
+      const nextSite = remaining.splice(nearestIdx, 1)[0];
+      optimizedSequence.push(nextSite);
+      currentPos = nextSite.coordinates;
+    }
+
+    let start = userLocation;
 
     for (const site of optimizedSequence) {
       const routeData = await getRoute(start, site.coordinates, travelMode);
       if (routeData) {
+        // Only append if it's the first segment or avoid duplicating the connection point
         fullRoute = [...fullRoute, ...routeData.coordinates];
-        allSteps = [...allSteps, { instruction: `Arrive at ${site.name}`, distance: 0, duration: 0 } as any, ...routeData.steps];
+        allSteps = [
+          ...allSteps, 
+          { instruction: `Destination: ${site.name}`, distance: 0, duration: 0 } as any, 
+          ...routeData.steps
+        ];
         cumulativeDist += routeData.distance;
         cumulativeTime += routeData.duration;
         start = site.coordinates;
@@ -153,11 +175,13 @@ export default function ExploreRoutePage() {
     setIsPlanningRoute(false);
   };
 
-  const smartPlan = async (duration: 'half' | 'full' | 'multi') => {
+  const smartPlan = (duration: 'half' | 'full' | 'multi') => {
     setItineraryIds([]);
     const stopCount = duration === 'half' ? 3 : duration === 'full' ? 5 : 8;
     const selection = sortedSites.slice(0, stopCount).map(s => s.id);
     setItineraryIds(selection);
+    setRouteCoords([]);
+    setRouteSteps([]);
   };
 
   return (
@@ -191,18 +215,18 @@ export default function ExploreRoutePage() {
               <h1 className="font-headline text-2xl font-black text-slate-900 flex items-center gap-3">
                 <Navigation size={28} className="text-primary" /> Explore & Route
               </h1>
-              <Badge variant="outline" className="border-primary/20 text-primary font-bold">AI Active</Badge>
+              <Badge variant="outline" className="border-primary/20 text-primary font-bold">AI Pathing</Badge>
             </div>
             
             <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
               <button 
-                onClick={() => setTravelMode('driving-car')}
+                onClick={() => { setTravelMode('driving-car'); setRouteCoords([]); }}
                 className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${travelMode === 'driving-car' ? 'bg-white shadow-sm text-primary' : 'text-slate-500'}`}
               >
                 <Car size={14} className="inline mr-1" /> Drive
               </button>
               <button 
-                onClick={() => setTravelMode('foot-walking')}
+                onClick={() => { setTravelMode('foot-walking'); setRouteCoords([]); }}
                 className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${travelMode === 'foot-walking' ? 'bg-white shadow-sm text-primary' : 'text-slate-500'}`}
               >
                 <Footprints size={14} className="inline mr-1" /> Walk
@@ -285,7 +309,7 @@ export default function ExploreRoutePage() {
                           <span>{travelMode === 'driving-car' ? 'DRIVING' : 'WALKING'} ROUTE</span>
                           <span>{Math.round(totalTime)} MINS</span>
                         </div>
-                        <h4 className="text-lg font-black leading-tight">{itineraryIds.length} SITES PLANNED</h4>
+                        <h4 className="text-lg font-black leading-tight">{itineraryIds.length} SITES OPTIMIZED</h4>
                         <p className="text-xs opacity-90 font-bold mt-1">{totalDist.toFixed(1)} KM TOTAL</p>
                         
                         <Button 
@@ -298,16 +322,16 @@ export default function ExploreRoutePage() {
                       </div>
                       
                       <div className="space-y-4">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Turn-by-Turn Directions</h4>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Route Instructions</h4>
                         <div className="relative pl-3">
                           <div className="absolute left-[13px] top-4 bottom-4 w-0.5 bg-slate-100" />
                           {routeSteps.map((step, idx) => (
                             <div key={idx} className="flex gap-4 items-start mb-6 last:mb-0 relative z-10">
-                              <div className={`mt-1 h-5 w-5 rounded-full flex items-center justify-center shadow-md border bg-white ${step.instruction.includes('Arrive') ? 'border-primary text-primary scale-110' : 'border-slate-200 text-slate-400'}`}>
-                                {step.instruction.includes('Arrive') ? <MapPin size={10} fill="currentColor" /> : <ChevronRight size={10} />}
+                              <div className={`mt-1 h-5 w-5 rounded-full flex items-center justify-center shadow-md border bg-white ${step.instruction.includes('Destination') ? 'border-primary text-primary scale-110' : 'border-slate-200 text-slate-400'}`}>
+                                {step.instruction.includes('Destination') ? <MapPin size={10} fill="currentColor" /> : <ChevronRight size={10} />}
                               </div>
                               <div className="flex-1">
-                                <p className={`text-xs leading-snug ${step.instruction.includes('Arrive') ? 'font-black text-slate-900' : 'text-slate-600 font-bold'}`}>
+                                <p className={`text-xs leading-snug ${step.instruction.includes('Destination') ? 'font-black text-slate-900' : 'text-slate-600 font-bold'}`}>
                                   {step.instruction.replace(/<[^>]*>?/gm, '')}
                                 </p>
                                 {step.distance > 0 && (
@@ -324,7 +348,7 @@ export default function ExploreRoutePage() {
                   ) : (
                     <div className="space-y-6">
                       <div className="bg-slate-50 p-4 rounded-2xl border-2 border-dashed border-slate-200">
-                        <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Itinerary Sequence</h4>
+                        <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Selected Itinerary</h4>
                         <div className="space-y-3">
                           {manualItinerary.map((site, idx) => (
                             <div key={site.id} className="flex gap-3 items-center">
@@ -344,9 +368,9 @@ export default function ExploreRoutePage() {
                         disabled={isPlanningRoute}
                       >
                         {isPlanningRoute ? (
-                          <><Loader2 className="animate-spin" size={20} /> CALCULATING...</>
+                          <><Loader2 className="animate-spin" size={20} /> ANALYZING...</>
                         ) : (
-                          <><RouteIcon size={20} /> GENERATE OPTIMIZED ROUTE</>
+                          <><RouteIcon size={20} /> GENERATE ACCURATE ROUTE</>
                         )}
                       </Button>
                     </div>
