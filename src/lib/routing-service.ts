@@ -53,7 +53,8 @@ export async function getRoute(
   };
 
   try {
-    const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
+    // Moving API key to query parameter to avoid CORS preflight issues with Authorization header
+    const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson?api_key=${ORS_API_KEY}`;
     
     const body = {
       coordinates: [
@@ -68,9 +69,8 @@ export async function getRoute(
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
-        'Content-Type': 'application/json; charset=utf-8',
-        'Authorization': ORS_API_KEY
+        'Accept': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8'
       },
       body: JSON.stringify(body)
     });
@@ -84,7 +84,7 @@ export async function getRoute(
 
     if (data.features && data.features.length > 0) {
       const feature = data.features[0];
-      // Map [lng, lat] from ORS to [lat, lng] for Leaflet
+      // Map [lng, lat] from ORS back to [lat, lng] for Leaflet
       const coords = feature.geometry.coordinates.map((c: number[]) => [c[1], c[0]] as [number, number]);
       const properties = feature.properties;
       const segment = properties.segments[0];
@@ -97,7 +97,7 @@ export async function getRoute(
 
       return {
         coordinates: coords,
-        distance: segment.distance, // already in km due to body config
+        distance: segment.distance, 
         duration: segment.duration / 60, // seconds to minutes
         steps: steps
       };
@@ -105,7 +105,7 @@ export async function getRoute(
     
     return fallbackData;
   } catch (error) {
-    console.error("Routing fetch exception:", error);
+    // Silently return fallback data on network errors
     return fallbackData;
   }
 }
