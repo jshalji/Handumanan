@@ -25,7 +25,17 @@ export default function ExplorePage() {
 
   const filteredSites = searchSites(query, city, category);
 
-  const categories = ["All", "Religious", "Spanish Colonial", "National Monument", "Arts & Culture", "Modern History", "Ancestral House", "Museum", "Public Space"];
+  const categories = [
+    "All",
+    "Churches & Religious Heritage Sites",
+    "Ancestral Houses & Heritage Residences",
+    "Museums & Cultural Institutions",
+    "Historical Landmarks & Monuments",
+    "Plazas, Parks & Public Spaces",
+    "Government & Historic Buildings",
+    "Cultural & Religious (Non-Catholic Sites)"
+  ];
+
   const cities = ["All", "Cebu City", "Lapu-Lapu City", "Mandaue City", "Talisay City"];
 
   const resetFilters = () => {
@@ -104,7 +114,7 @@ export default function ExplorePage() {
                     />
                     <div className="absolute top-4 left-4">
                       <Badge variant="secondary" className="bg-white/90 backdrop-blur text-primary border-none shadow-sm">
-                        {site.category}
+                        {site.category.split(' & ')[0]}
                       </Badge>
                     </div>
                   </div>
