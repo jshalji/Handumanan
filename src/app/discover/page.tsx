@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -31,13 +30,10 @@ import {
   Car,
   Footprints,
   BrainCircuit,
-  Save,
-  Coffee,
-  Bed,
-  Fuel
+  Save
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
@@ -123,7 +119,7 @@ export default function ExploreRoutePage() {
     let cumulativeDist = 0;
     let cumulativeTime = 0;
     
-    // Nearest Neighbor optimization for logical road routing
+    // Nearest Neighbor optimization for road routing
     let optimizedSequence = [];
     let remaining = [...activeItinerary];
     let currentPos = startPoint;
@@ -147,13 +143,14 @@ export default function ExploreRoutePage() {
 
     let start = startPoint;
 
+    // Sequential Segment Fetching
     for (const site of optimizedSequence) {
       const routeData = await getRoute(start, site.coordinates, travelMode);
       if (routeData) {
         fullRoute = [...fullRoute, ...routeData.coordinates];
         allSteps = [
           ...allSteps, 
-          { instruction: `Destination: ${site.name}`, distance: 0, duration: 0 } as any, 
+          { instruction: `Destination: ${site.name}`, distance: 0, duration: 0 } as RouteStep, 
           ...routeData.steps
         ];
         cumulativeDist += routeData.distance;
@@ -167,6 +164,8 @@ export default function ExploreRoutePage() {
     setTotalDist(cumulativeDist);
     setTotalTime(cumulativeTime);
     setIsPlanningRoute(false);
+    
+    toast({ title: "Route Calculated", description: "Road-accurate path rendered on map." });
   };
 
   const handleAiItinerary = async () => {
@@ -177,7 +176,7 @@ export default function ExploreRoutePage() {
         interests: ["History", "Architecture", "Religious Sites"],
         availableTimeHours: 6,
         startingLocation: `${loc.lat}, ${loc.lng}`,
-        siteDatabase: JSON.stringify(allSites.slice(0, 15))
+        siteDatabase: JSON.stringify(allSites.slice(0, 20))
       });
 
       const suggestedIds = result.itinerary
@@ -190,20 +189,19 @@ export default function ExploreRoutePage() {
       // Auto-trigger road routing for the AI plan
       setTimeout(() => handleGenerateRoute(suggestedSites), 500);
       
-      toast({ title: "AI Plan Ready", description: "Road-accurate route generated." });
+      toast({ title: "AI Plan Ready", description: "Calculating best road path..." });
     } catch (error) {
       console.error(error);
       toast({ title: "AI Assistant Busy", description: "Falling back to proximity-based trip.", variant: "destructive" });
-      smartPlan('full');
     } finally {
       setIsAiThinking(false);
     }
   };
 
-  const smartPlan = (duration: 'half' | 'full' | 'multi') => {
-    const stopCount = duration === 'half' ? 3 : duration === 'full' ? 5 : 8;
-    const selection = sortedSites.slice(0, stopCount).map(s => s.id);
+  const smartPlan = (duration: 'half' | 'full') => {
+    const stopCount = duration === 'half' ? 3 : 6;
     const selectedSites = sortedSites.slice(0, stopCount);
+    const selection = selectedSites.map(s => s.id);
     setItineraryIds(selection);
     setTimeout(() => handleGenerateRoute(selectedSites), 300);
   };
@@ -245,7 +243,7 @@ export default function ExploreRoutePage() {
       
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         
-        {/* MAP SEARCH & FILTER OVERLAY */}
+        {/* MAP SEARCH OVERLAY */}
         <div className="absolute top-6 left-4 right-4 md:left-[35%] md:right-8 z-[1000] pointer-events-none flex flex-col gap-4">
           <div className="flex gap-3 pointer-events-auto max-w-2xl">
             <div className="flex-1 relative group">
@@ -261,18 +259,6 @@ export default function ExploreRoutePage() {
               {loading ? <Loader2 className="animate-spin" size={24} /> : <LocateFixed size={24} />}
             </Button>
           </div>
-          
-          <div className="flex gap-2 pointer-events-auto overflow-x-auto scrollbar-hide pb-2">
-            {[
-              { label: 'Food', icon: Coffee },
-              { label: 'Hotels', icon: Bed },
-              { label: 'Gas', icon: Fuel }
-            ].map(filter => (
-              <Button key={filter.label} variant="outline" className="h-9 px-4 rounded-full bg-white/90 backdrop-blur shadow-md border-none text-[10px] font-black uppercase tracking-widest gap-2 hover:bg-white">
-                <filter.icon size={12} className="text-primary" /> {filter.label}
-              </Button>
-            ))}
-          </div>
         </div>
 
         {/* SIDEBAR PANEL */}
@@ -282,7 +268,7 @@ export default function ExploreRoutePage() {
               <h1 className="font-headline text-2xl font-black text-slate-900 flex items-center gap-3">
                 <Navigation size={28} className="text-primary" /> Route Planner
               </h1>
-              <Badge variant="outline" className="border-primary/20 text-primary font-black uppercase tracking-widest text-[9px] px-3">Road-Accurate</Badge>
+              <Badge variant="outline" className="border-primary/20 text-primary font-black uppercase tracking-widest text-[9px] px-3">OpenRoute Engine</Badge>
             </div>
             
             <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6">
@@ -301,7 +287,7 @@ export default function ExploreRoutePage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Button variant="outline" size="sm" className="h-12 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-white border-slate-200" onClick={() => smartPlan('full')}>
+              <Button variant="outline" size="sm" className="h-12 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-white border-slate-200" onClick={() => smartPlan('half')}>
                 <MapIcon size={14} className="mr-2" /> Quick Trip
               </Button>
               <Button variant="default" size="sm" className="h-12 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-primary shadow-lg shadow-primary/20" onClick={handleAiItinerary} disabled={isAiThinking}>
@@ -363,8 +349,8 @@ export default function ExploreRoutePage() {
                       <div className="w-20 h-20 rounded-3xl bg-slate-50 flex items-center justify-center mb-6">
                         <MapIcon size={32} className="text-slate-300" />
                       </div>
-                      <p className="text-sm font-black text-slate-800">Your trip list is empty</p>
-                      <p className="text-[11px] text-muted-foreground mt-2 max-w-[200px] mx-auto leading-relaxed font-bold">Use AI or Directory to add heritage stops to your journey.</p>
+                      <p className="text-sm font-black text-slate-800">No stops planned</p>
+                      <p className="text-[11px] text-muted-foreground mt-2 max-w-[200px] mx-auto leading-relaxed font-bold">Use the Directory or AI Assistant to add heritage sites to your route.</p>
                     </div>
                   ) : routeSteps.length > 0 ? (
                     <div className="space-y-6">
@@ -380,9 +366,9 @@ export default function ExploreRoutePage() {
                           <Button 
                             variant="ghost" 
                             className="h-10 text-[10px] font-black uppercase text-white bg-white/10 hover:bg-white/20 border-none rounded-xl"
-                            onClick={() => { setRouteCoords([]); setRouteSteps([]); }}
+                            onClick={() => { setRouteCoords([]); setRouteSteps([]); setItineraryIds([]); }}
                           >
-                            RESET
+                            CLEAR
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -409,7 +395,7 @@ export default function ExploreRoutePage() {
                                 </p>
                                 {step.distance > 0 && (
                                   <p className="text-[9px] font-black text-slate-400 mt-1 uppercase tracking-tighter">
-                                    {step.distance >= 1 ? `${step.distance.toFixed(1)} KM` : `${Math.round(step.distance * 1000)} M`} &bull; {Math.round(step.duration / 60)} MIN
+                                    {step.distance >= 1 ? `${step.distance.toFixed(1)} KM` : `${Math.round(step.distance * 1000)} M`} &bull; {Math.round(step.duration)} MIN
                                   </p>
                                 )}
                               </div>
@@ -446,7 +432,7 @@ export default function ExploreRoutePage() {
                         disabled={isPlanningRoute}
                       >
                         {isPlanningRoute ? (
-                          <><Loader2 className="animate-spin" size={20} /> CALCULATING ROAD ROUTE...</>
+                          <><Loader2 className="animate-spin" size={20} /> MAPPING STREETS...</>
                         ) : (
                           <><RouteIcon size={20} /> START NAVIGATION</>
                         )}

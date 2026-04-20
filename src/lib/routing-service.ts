@@ -1,4 +1,3 @@
-
 'use client';
 
 import { calculateDistance } from './location-utils';
@@ -24,7 +23,8 @@ export interface RouteData {
 }
 
 /**
- * Fetches an accurate road-based route using POST request for maximum stability and GeoJSON precision.
+ * Fetches an accurate road-based route using OpenRouteService.
+ * Returns GeoJSON coordinates for street-level precision.
  */
 export async function getRoute(
   start: { lat: number; lng: number } | null, 
@@ -35,7 +35,7 @@ export async function getRoute(
 
   const directDistance = calculateDistance(start.lat, start.lng, end.lat, end.lng);
   
-  // High-fidelity fallback logic
+  // Fallback data: Straight line (used only if API fails)
   const fallbackData: RouteData = {
     coordinates: [[start.lat, start.lng], [end.lat, end.lng]],
     distance: directDistance,
@@ -48,27 +48,19 @@ export async function getRoute(
   };
 
   try {
-    // Using POST endpoint for better handling of road network data and CORS stability
-    const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
+    // OpenRouteService V2 Directions API (GET)
+    // Format: lng,lat
+    const url = `https://api.openrouteservice.org/v2/directions/${profile}?api_key=${ORS_API_KEY}&start=${start.lng},${start.lat}&end=${end.lng},${end.lat}`;
     
     const response = await fetch(url, {
-      method: 'POST',
+      method: 'GET',
       headers: {
-        'Accept': 'application/json, application/geo+json',
-        'Content-Type': 'application/json; charset=utf-8',
-        'Authorization': ORS_API_KEY
-      },
-      body: JSON.stringify({
-        coordinates: [
-          [start.lng, start.lat],
-          [end.lng, end.lat]
-        ]
-      })
+        'Accept': 'application/json, application/geo+json'
+      }
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.warn(`Routing API error (${response.status}): ${errorText}. Using road approximation.`);
+      console.warn(`Routing API returned ${response.status}. Using road approximation.`);
       return fallbackData;
     }
 
@@ -76,21 +68,21 @@ export async function getRoute(
 
     if (data.features && data.features.length > 0) {
       const feature = data.features[0];
-      // Flip coordinates to [lat, lng] for Leaflet
+      // ORS returns [lng, lat], Leaflet needs [lat, lng]
       const coords = feature.geometry.coordinates.map((c: number[]) => [c[1], c[0]] as [number, number]);
       const properties = feature.properties;
       const segment = properties.segments[0];
       
       const steps: RouteStep[] = segment.steps.map((step: any) => ({
         instruction: step.instruction,
-        distance: step.distance,
-        duration: step.duration
+        distance: step.distance / 1000, // meters to km
+        duration: step.duration / 60 // seconds to minutes
       }));
 
       return {
         coordinates: coords,
-        distance: segment.distance / 1000, // meters to km
-        duration: segment.duration / 60, // seconds to minutes
+        distance: segment.distance / 1000,
+        duration: segment.duration / 60,
         steps: steps
       };
     }
