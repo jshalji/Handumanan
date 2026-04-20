@@ -1,3 +1,4 @@
+
 'use client';
 
 import { use, useState, useEffect } from 'react';
@@ -184,7 +185,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
               </div>
               <div className="flex flex-col gap-3">
                 <Button className="w-full h-12 bg-primary rounded-full font-bold" asChild>
-                  <Link href={`/discover`}>
+                  <Link href={`/discover?siteId=${site.id}`}>
                     <Route size={18} className="mr-2" /> Start Navigation
                   </Link>
                 </Button>
