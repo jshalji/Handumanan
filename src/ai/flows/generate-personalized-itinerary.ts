@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview An AI agent that generates personalized travel itineraries for cultural heritage sites.
+ * @fileOverview An AI agent that generates simple, realistic travel itineraries for cultural heritage sites in Metro Cebu.
  *
  * - generatePersonalizedItinerary - A function that generates a personalized itinerary.
  * - GeneratePersonalizedItineraryInput - The input type for the generatePersonalizedItinerary function.
@@ -22,7 +22,7 @@ const GeneratePersonalizedItineraryInputSchema = z.object({
     .describe('The user\'s starting geographic location (e.g., "Cebu City Center", "Mactan-Cebu International Airport").'),
   siteDatabase: z
     .string()
-    .describe('A JSON string representing an array of available cultural heritage sites, including their name, description, category, location, and visiting hours.'),
+    .describe('A JSON string representing an array of available cultural heritage sites.'),
 });
 export type GeneratePersonalizedItineraryInput = z.infer<
   typeof GeneratePersonalizedItineraryInputSchema
@@ -35,17 +35,17 @@ const GeneratePersonalizedItineraryOutputSchema = z.object({
       estimatedVisitDurationMinutes: z
         .number()
         .describe('The estimated time in minutes required to visit this specific site.'),
-      notes: z
+      description: z
         .string()
-        .describe('Brief notes or highlights about the site or why it was included.'),
+        .describe('A short, simple description of the site and its significance.'),
     })
-  ).describe('An ordered list of recommended heritage sites to visit.'),
+  ).describe('The "Day Plan": An ordered list of recommended heritage sites to visit.'),
   totalEstimatedDurationMinutes: z
     .number()
     .describe('The total estimated duration of the entire itinerary in minutes.'),
-  summary: z
+  routeSuggestion: z
     .string()
-    .describe('A concise summary of the generated itinerary, highlighting key aspects.'),
+    .describe('A simple explanation of the travel order, logical route flow, and travel tips.'),
 });
 export type GeneratePersonalizedItineraryOutput = z.infer<
   typeof GeneratePersonalizedItineraryOutputSchema
@@ -61,25 +61,27 @@ const generatePersonalizedItineraryPrompt = ai.definePrompt({
   name: 'generatePersonalizedItineraryPrompt',
   input: {schema: GeneratePersonalizedItineraryInputSchema},
   output: {schema: GeneratePersonalizedItineraryOutputSchema},
-  prompt: `You are an expert IT researcher and system analyst working on the "Handumanan" project, a web-based cultural heritage site information system for Metro Cebu. Your task is to act as an AI itinerary planner.
+  prompt: `You are an AI travel assistant for "Handumanan", a cultural heritage information system for Metro Cebu. 
 
-Generate a personalized travel itinerary for cultural heritage sites in Metro Cebu based on the user's preferences. The itinerary should be optimal in terms of route and duration, respecting the available time and user interests.
+Your task is to generate a simple and realistic travel itinerary based on the user's location, interests, and available time.
 
-Available Heritage Sites (JSON format):
+### Instructions:
+1. **Real Sites Only**: Only suggest REAL and EXISTING cultural heritage sites from the provided database. Do NOT invent locations.
+2. **Proximity Matters**: Use a practical travel order based on geographic proximity. Do not jump between far-away locations randomly.
+3. **Keep it Simple**: Use clear, easy-to-understand language. Avoid complex or academic words.
+4. **Logical Flow**: Suggest a logical route (like a Google Maps style flow) starting from the user's location.
+5. **Respect Time**: Ensure the total time (visiting + estimated transit) fits within the available hours.
+
+### Input Data:
+- **Starting Location**: {{{startingLocation}}}
+- **Time Available**: {{{availableTimeHours}}} hours
+- **User Interests**: {{{interests}}}
+- **Heritage Site Database**: 
 {{{siteDatabase}}}
 
-User Preferences:
-- Interests: {{{interests}}}
-- Available Time: {{{availableTimeHours}}} hours
-- Starting Location: {{{startingLocation}}}
-
-Instructions:
-1. Select heritage sites from the provided database that align with the user's interests.
-2. Create an optimal visiting order for the selected sites, considering the starting location and minimizing travel time (assume sites in the same general area are closer).
-3. Ensure the total estimated visit duration for all sites in the itinerary does not exceed the available time.
-4. For each site, provide an estimated visit duration and brief notes.
-5. Provide a summary of the entire itinerary.
-6. The output MUST be a JSON object conforming to the GeneratePersonalizedItineraryOutputSchema, with sites ordered logically for travel.
+### Output Format Requirements:
+Generate a "Day Plan" with site names, short descriptions, and estimated visit times. 
+Provide a "Route Suggestion" that explains the travel sequence simply.
 `,
 });
 
