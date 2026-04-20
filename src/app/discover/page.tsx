@@ -419,7 +419,7 @@ function ExploreRouteContent() {
           
           {/* Recommendations Floating Panel */}
           {isRecommendationsOpen && (
-            <div className="fixed bottom-10 left-10 md:left-[37%] z-[1001] w-[calc(100%-2.5rem)] md:w-80 animate-in slide-in-from-bottom-10 fade-in duration-300">
+            <div className="fixed bottom-10 right-10 z-[1001] w-[calc(100%-2.5rem)] md:w-80 animate-in slide-in-from-bottom-10 fade-in duration-300">
               <Card className="rounded-[2.5rem] shadow-2xl border-none p-6 bg-white/95 backdrop-blur-2xl ring-1 ring-slate-100">
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-2">
