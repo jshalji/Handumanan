@@ -33,7 +33,9 @@ import {
   Footprints,
   BrainCircuit,
   Save,
-  Key
+  Key,
+  X,
+  Plus
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFirestore, useUser } from '@/firebase';
@@ -71,6 +73,7 @@ function ExploreRouteContent() {
   const [totalTime, setTotalTime] = useState(0);
   const [travelMode, setTravelMode] = useState<'driving-car' | 'foot-walking'>('driving-car');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRecommendationsOpen, setIsRecommendationsOpen] = useState(false);
   
   const [orsKey, setOrsKey] = useState<string>('');
   const [showKeyDialog, setShowKeyDialog] = useState(false);
@@ -173,6 +176,7 @@ function ExploreRouteContent() {
     setTotalDist(cumulativeDist);
     setTotalTime(cumulativeTime);
     setIsPlanningRoute(false);
+    setIsRecommendationsOpen(true);
   };
 
   // Auto-trigger routing when navigating from a specific site
@@ -226,7 +230,7 @@ function ExploreRouteContent() {
       });
       const suggestedIds = result.itinerary.map(item => allSites.find(s => s.name === item.siteName)?.id).filter(Boolean) as string[];
       setItineraryIds(suggestedIds);
-      const suggestedSites = suggestedIds.map(id => allSites.find(s => s.id === id)).filter(Boolean);
+      const suggestedSites = suggestedIds.map(id => allSites.find(s => id === id)).filter(Boolean);
       handleGenerateRoute(suggestedSites);
       toast({ title: "AI Plan Ready", description: "Mapping optimized heritage route." });
     } catch (error) {
@@ -267,6 +271,10 @@ function ExploreRouteContent() {
     }, { merge: true });
     toast({ title: "Trip Saved", description: "Find this in your profile." });
   };
+
+  const recommendedSites = useMemo(() => {
+    return sortedSites.filter(s => !itineraryIds.includes(s.id)).slice(0, 5);
+  }, [sortedSites, itineraryIds]);
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
@@ -350,7 +358,7 @@ function ExploreRouteContent() {
                         <h4 className="text-xl font-black leading-tight">{itineraryIds.length} SITES PLANNED</h4>
                         <p className="text-[12px] opacity-90 font-bold mt-1.5">{totalDist.toFixed(1)} KM TOTAL</p>
                         <div className="grid grid-cols-2 gap-3 mt-6">
-                          <Button variant="ghost" className="h-10 text-[10px] font-black uppercase text-white bg-white/10 hover:bg-white/20 border-none rounded-xl" onClick={() => { setRouteCoords([]); setRouteSteps([]); setItineraryIds([]); }}>CLEAR</Button>
+                          <Button variant="ghost" className="h-10 text-[10px] font-black uppercase text-white bg-white/10 hover:bg-white/20 border-none rounded-xl" onClick={() => { setRouteCoords([]); setRouteSteps([]); setItineraryIds([]); setIsRecommendationsOpen(false); }}>CLEAR</Button>
                           <Button variant="ghost" className="h-10 text-[10px] font-black uppercase text-white bg-white/10 hover:bg-white/20 border-none rounded-xl" onClick={saveToProfile}><Save size={12} className="mr-2" /> SAVE</Button>
                         </div>
                       </div>
@@ -400,6 +408,42 @@ function ExploreRouteContent() {
 
         <div className="flex-1 h-full relative">
           <HeritageMap userLocation={userLocation} sites={filteredSites} itinerary={manualItinerary} routeCoordinates={routeCoords} totalTime={totalTime} totalDist={totalDist} />
+          
+          {/* Recommendations Floating Panel */}
+          {isRecommendationsOpen && (
+            <div className="fixed bottom-10 left-10 md:left-[37%] z-[1001] w-[calc(100%-2.5rem)] md:w-80 animate-in slide-in-from-bottom-10 fade-in duration-300">
+              <Card className="rounded-[2.5rem] shadow-2xl border-none p-6 bg-white/95 backdrop-blur-2xl ring-1 ring-slate-100">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-primary/10 rounded-xl text-primary"><Sparkles size={14} /></div>
+                    <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Nearby Picks</h4>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-slate-100" onClick={() => setIsRecommendationsOpen(false)}>
+                    <X size={16} className="text-slate-400" />
+                  </Button>
+                </div>
+                <ScrollArea className="h-48 pr-3">
+                  <div className="space-y-4">
+                    {recommendedSites.map(site => (
+                      <div key={site.id} className="flex gap-4 items-center group cursor-pointer" onClick={() => { toggleItinerary(site.id); handleGenerateRoute([...manualItinerary, site]); }}>
+                        <div className="relative w-12 h-12 rounded-2xl overflow-hidden shrink-0 shadow-sm">
+                          <Image src={site.imageUrl} alt={site.name} fill className="object-cover group-hover:scale-110 transition-transform" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12px] font-black text-slate-800 truncate leading-none mb-1">{site.name}</p>
+                          <p className="text-[10px] text-primary font-black uppercase tracking-tighter">{site.distance.toFixed(1)} km &bull; {site.city}</p>
+                        </div>
+                        <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
+                          <Plus size={14} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </Card>
+            </div>
+          )}
+
           <div className="absolute bottom-8 right-6 z-[1000] flex flex-col gap-3">
             <Button size="icon" className="h-14 w-14 rounded-2xl bg-white text-slate-600 shadow-2xl hover:bg-slate-50 border border-slate-100 transition-all active:scale-90" onClick={detectLocation}><LocateFixed size={28} /></Button>
           </div>
