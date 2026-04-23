@@ -327,7 +327,7 @@ function ExploreRouteContent() {
       <Navbar />
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         {/* Search Overlay */}
-        <div className="absolute top-6 left-4 right-4 md:left-[35%] md:right-8 z-[1000] pointer-events-none flex flex-col gap-4">
+        <div className="absolute top-6 left-4 right-4 md:left-[30%] md:right-8 z-[1000] pointer-events-none flex flex-col gap-4">
           <div className="flex gap-3 pointer-events-auto max-w-2xl">
             <div className="flex-1 relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={20} />
@@ -340,7 +340,7 @@ function ExploreRouteContent() {
         </div>
 
         {/* Control Sidebar */}
-        <div className="w-full md:w-[35%] border-r bg-white flex flex-col z-20 shadow-2xl">
+        <div className="w-full md:w-[30%] border-r bg-white flex flex-col z-20 shadow-2xl">
           <div className="p-6 border-b space-y-4">
             <div className="flex items-center justify-between">
               <h1 className="font-headline text-2xl font-black text-slate-900 flex items-center gap-3">
