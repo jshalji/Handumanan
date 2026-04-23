@@ -21,12 +21,78 @@ export interface RouteData {
 }
 
 /**
- * Fetches an accurate road-based route using OpenRouteService.
- * Returns GeoJSON coordinates for street-level precision.
- * @param start - Starting {lat, lng}
- * @param end - Destination {lat, lng}
+ * Fetches an accurate road-based route using OpenRouteService POST API for multiple waypoints.
+ * @param points - Array of {lat, lng} coordinates in order
  * @param apiKey - OpenRouteService API Key
  * @param profile - 'driving-car' or 'foot-walking'
+ */
+export async function getRouteMulti(
+  points: { lat: number; lng: number }[],
+  apiKey: string,
+  profile: 'driving-car' | 'foot-walking' = 'driving-car'
+): Promise<RouteData | null> {
+  if (points.length < 2 || !apiKey) return null;
+
+  try {
+    const coordinates = points.map(p => [p.lng, p.lat]);
+    
+    const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json, application/geo+json',
+        'Content-Type': 'application/json',
+        'Authorization': apiKey
+      },
+      body: JSON.stringify({
+        coordinates: coordinates,
+        instructions: true,
+        units: 'km'
+      })
+    });
+
+    if (!response.ok) {
+      console.warn(`OpenRouteService returned ${response.status}. Falling back to direct calculation.`);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (data.features && data.features.length > 0) {
+      const feature = data.features[0];
+      const coords = feature.geometry.coordinates.map((c: number[]) => [c[1], c[0]] as [number, number]);
+      const properties = feature.properties;
+      const summary = properties.summary;
+      
+      const allSteps: RouteStep[] = [];
+      properties.segments.forEach((segment: any) => {
+        segment.steps.forEach((step: any) => {
+          allSteps.push({
+            instruction: step.instruction,
+            distance: step.distance,
+            duration: step.duration / 60
+          });
+        });
+      });
+
+      return {
+        coordinates: coords,
+        distance: summary.distance,
+        duration: summary.duration / 60,
+        steps: allSteps
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Critical routing fetch error:", error);
+    return null;
+  }
+}
+
+/**
+ * Legacy single route fetcher (now uses the multi-point logic internally for consistency)
  */
 export async function getRoute(
   start: { lat: number; lng: number } | null, 
@@ -34,65 +100,6 @@ export async function getRoute(
   apiKey: string,
   profile: 'driving-car' | 'foot-walking' = 'driving-car'
 ): Promise<RouteData | null> {
-  if (!start || !end || !apiKey) return null;
-
-  const directDistance = calculateDistance(start.lat, start.lng, end.lat, end.lng);
-  
-  // Fallback data: Straight line (used if API fails or key is invalid)
-  const fallbackData: RouteData = {
-    coordinates: [[start.lat, start.lng], [end.lat, end.lng]],
-    distance: directDistance,
-    duration: directDistance * (profile === 'driving-car' ? 2.5 : 12),
-    steps: [{ 
-      instruction: `Follow the main road towards the heritage site (Network Fallback)`, 
-      distance: directDistance, 
-      duration: directDistance * 10 
-    }]
-  };
-
-  try {
-    // OpenRouteService V2 Directions API (GET)
-    // Format: lng,lat
-    const url = `https://api.openrouteservice.org/v2/directions/${profile}?api_key=${apiKey}&start=${start.lng},${start.lat}&end=${end.lng},${end.lat}`;
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json, application/geo+json'
-      }
-    });
-
-    if (!response.ok) {
-      console.warn(`OpenRouteService returned ${response.status}. Ensure your API key is valid.`);
-      return fallbackData;
-    }
-
-    const data = await response.json();
-
-    if (data.features && data.features.length > 0) {
-      const feature = data.features[0];
-      // ORS returns [lng, lat], Leaflet needs [lat, lng]
-      const coords = feature.geometry.coordinates.map((c: number[]) => [c[1], c[0]] as [number, number]);
-      const properties = feature.properties;
-      const segment = properties.segments[0];
-      
-      const steps: RouteStep[] = segment.steps.map((step: any) => ({
-        instruction: step.instruction,
-        distance: step.distance / 1000, // meters to km
-        duration: step.duration / 60 // seconds to minutes
-      }));
-
-      return {
-        coordinates: coords,
-        distance: segment.distance / 1000,
-        duration: segment.duration / 60,
-        steps: steps
-      };
-    }
-    
-    return fallbackData;
-  } catch (error) {
-    console.error("Critical routing fetch error:", error);
-    return fallbackData;
-  }
+  if (!start || !end) return null;
+  return getRouteMulti([start, end], apiKey, profile);
 }
