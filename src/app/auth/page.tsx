@@ -1,15 +1,17 @@
+
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser } from '@/firebase';
-import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { Navbar } from '@/components/layout/Navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Landmark, Loader2, Sparkles } from 'lucide-react';
+import { Landmark, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -21,6 +23,7 @@ export default function AuthPage() {
   const auth = useAuth();
   const { user } = useUser();
   const router = useRouter();
+  const { toast } = useToast();
 
   if (user) {
     router.push('/profile');
@@ -32,15 +35,33 @@ export default function AuthPage() {
     setIsSubmitting(true);
     
     if (isLogin) {
-      initiateEmailSignIn(auth, email, password);
+      signInWithEmailAndPassword(auth, email, password)
+        .catch((error: any) => {
+          setIsSubmitting(false);
+          toast({
+            variant: "destructive",
+            title: "Login Failed",
+            description: error.message || "Invalid email or password.",
+          });
+        });
     } else {
-      initiateEmailSignUp(auth, email, password);
-      // Note: In a real app, you'd also update the profile with the 'name'
+      createUserWithEmailAndPassword(auth, email, password)
+        .then(async (userCredential) => {
+          if (name) {
+            await updateProfile(userCredential.user, {
+              displayName: name
+            });
+          }
+        })
+        .catch((error: any) => {
+          setIsSubmitting(false);
+          toast({
+            variant: "destructive",
+            title: "Sign Up Failed",
+            description: error.message || "Could not create account.",
+          });
+        });
     }
-    
-    // Auth state changes are handled by the provider and will redirect via useEffect if needed
-    // For this simple UX, we'll just wait a moment or let the redirect happen
-    setTimeout(() => setIsSubmitting(false), 2000);
   };
 
   return (
