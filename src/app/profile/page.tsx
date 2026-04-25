@@ -68,9 +68,9 @@ export default function ProfilePage() {
               <h1 className="font-headline text-4xl font-bold mb-1">
                 {user.displayName || user.email?.split('@')[0]}
               </h1>
-              <p className="opacity-80 flex items-center justify-center md:justify-start gap-2">
+              <div className="opacity-80 flex items-center justify-center md:justify-start gap-2">
                 {user.email} <Badge className="bg-white/20 text-white border-none">Explorer</Badge>
-              </p>
+              </div>
             </div>
             <div className="md:ml-auto">
               <Button onClick={handleLogout} variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20 rounded-full">
