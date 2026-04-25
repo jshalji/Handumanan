@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Navbar } from '@/components/layout/Navbar';
@@ -20,6 +21,12 @@ export default function ProfilePage() {
   const auth = useAuth();
   const router = useRouter();
 
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth');
+    }
+  }, [user, isUserLoading, router]);
+
   // Fetch Favorites
   const favoritesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -34,17 +41,12 @@ export default function ProfilePage() {
   }, [db, user]);
   const { data: savedItineraries, isLoading: isItinLoading } = useCollection(itinerariesQuery);
 
-  if (isUserLoading) {
+  if (isUserLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin text-primary" size={48} />
       </div>
     );
-  }
-
-  if (!user) {
-    router.push('/auth');
-    return null;
   }
 
   const handleLogout = () => {
