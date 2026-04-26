@@ -56,7 +56,7 @@ export function HeritageChatBot() {
       let userLocation = undefined;
       try {
         const pos = await new Promise<GeolocationPosition>((res, rej) => 
-          navigator.geolocation.getCurrentPosition(res, rej)
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 })
         );
         userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       } catch (e) {
@@ -65,12 +65,13 @@ export function HeritageChatBot() {
 
       const response = await chatWithHeritageBot({
         history,
-        userLocation
+        userLocation,
+        userId: user?.uid
       });
 
       setMessages(prev => [...prev, { role: 'model', text: response.text }]);
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'model', text: 'Sorry, I encountered an issue. Please try again later.' }]);
+      setMessages(prev => [...prev, { role: 'model', text: 'Sorry, I couldn\'t process that. Try again.' }]);
     } finally {
       setIsLoading(false);
     }
