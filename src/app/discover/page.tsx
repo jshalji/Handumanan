@@ -256,7 +256,23 @@ function ExploreRouteContent() {
         interests: plannerInterests.length > 0 ? plannerInterests : ["General Interest"],
         siteDatabase: JSON.stringify(HERITAGE_SITES)
       });
+      
       setPlannerResult(output);
+
+      // CRITICAL FIX: Find the site IDs from the AI output to render route on map
+      const suggestedIds = output.itinerary
+        .map(item => allSites.find(s => s.name.toLowerCase() === item.siteName.toLowerCase())?.id)
+        .filter((id): id is string => !!id);
+      
+      if (suggestedIds.length > 0) {
+        setItineraryIds(suggestedIds);
+        // Focus map on the first suggested stop
+        const firstSite = allSites.find(s => s.id === suggestedIds[0]);
+        if (firstSite) {
+          setFocusedLocation({ lat: firstSite.coordinates.lat, lng: firstSite.coordinates.lng });
+        }
+      }
+
       toast({ title: "Itinerary Ready", description: "Your custom journey has been mapped." });
     } catch (error) {
       toast({ title: "Planner Offline", description: "The assistant is busy. Please try again.", variant: "destructive" });
@@ -468,7 +484,7 @@ function ExploreRouteContent() {
                                             onCheckedChange={() => toggleInterest(opt)}
                                             className="rounded-md border-slate-200"
                                           />
-                                          <label htmlFor={`int-${opt}`} className="text-[10px] font-bold text-slate-600 cursor-pointer">{opt}</label>
+                                          <label htmlFor={`int-${opt}`} className="text-sm font-bold text-slate-600 cursor-pointer">{opt}</label>
                                         </div>
                                       ))}
                                     </div>
