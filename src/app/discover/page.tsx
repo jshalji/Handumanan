@@ -46,7 +46,6 @@ import {
   Info,
   ChevronRight
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -123,7 +122,6 @@ function ExploreRouteContent() {
     
     // Multi-category support via 'in' query
     if (selectedCategories.length > 0) {
-      console.log("Filtering by categories:", selectedCategories);
       return query(colRef, where('category', 'in', selectedCategories));
     }
     return colRef;
@@ -132,9 +130,7 @@ function ExploreRouteContent() {
   const { data: firestoreSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
 
   const allSites = useMemo(() => {
-    const sites = (firestoreSites || []) as any as HeritageSite[];
-    console.log(`Firestore returned ${sites.length} sites.`);
-    return sites;
+    return (firestoreSites || []) as any as HeritageSite[];
   }, [firestoreSites]);
 
   // API Key Loading
@@ -164,7 +160,7 @@ function ExploreRouteContent() {
       return loc;
     } catch (err) {
       toast({ title: "Location Denied", description: "Enable GPS for nearby suggestions.", variant: "destructive" });
-      setUserLocation(null); // Explicitly null to trigger must-visit fallback
+      setUserLocation(null);
       return null;
     } finally {
       setLoading(false);
@@ -206,7 +202,7 @@ function ExploreRouteContent() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [userLocation, itineraryIds, visitedSites, allSites, toast]);
 
-  // UI Filtering and Sorting (Local refinement of Firestore results)
+  // UI Filtering and Sorting
   const filteredAndSortedSites = useMemo(() => {
     let result = allSites.map(site => ({
       ...site,
@@ -232,22 +228,19 @@ function ExploreRouteContent() {
     return result;
   }, [allSites, userLocation, selectedCity, searchQuery, isNearMeEnabled]);
 
-  // AI Recommendations - Always populated
   const aiSuggestions = useMemo(() => {
     if (allSites.length === 0) return [];
     
     let suggestions = [...allSites];
     if (userLocation) {
-      // Suggest nearest 5
       suggestions.sort((a, b) => {
         const distA = calculateDistance(userLocation.lat, userLocation.lng, a.coordinates.lat, a.coordinates.lng);
         const distB = calculateDistance(userLocation.lat, userLocation.lng, b.coordinates.lat, b.coordinates.lng);
         return distA - distB;
       });
     } else {
-      // Fallback: Suggest must-visit sites
       suggestions = suggestions.filter(s => s.isMustVisit);
-      if (suggestions.length === 0) suggestions = allSites; // Total fallback
+      if (suggestions.length === 0) suggestions = allSites;
     }
     
     return suggestions.slice(0, 5).map(s => ({
@@ -255,41 +248,6 @@ function ExploreRouteContent() {
       distance: userLocation ? calculateDistance(userLocation.lat, userLocation.lng, s.coordinates.lat, s.coordinates.lng) : undefined
     }));
   }, [allSites, userLocation]);
-
-  const handleGenerateRoute = async (customIds?: string[]) => {
-    const idsToRoute = customIds || itineraryIds;
-    if (idsToRoute.length < 1) {
-      toast({ title: "Select Destination", description: "Choose at least one site to begin your route.", variant: "destructive" });
-      return;
-    }
-
-    if (!orsKey) {
-      setShowKeyDialog(true);
-      return;
-    }
-
-    setIsPlanningRoute(true);
-    try {
-      const startPoint = userLocation || defaultLocation;
-      const destinations = idsToRoute.map(id => allSites.find(s => s.id === id)?.coordinates).filter(Boolean) as {lat: number, lng: number}[];
-      
-      const routeData = await getRouteMulti([startPoint, ...destinations], orsKey, travelMode);
-      
-      if (routeData) {
-        setRouteCoords(routeData.coordinates);
-        setRouteSteps(routeData.steps);
-        setTotalDist(routeData.distance);
-        setTotalTime(routeData.duration);
-        toast({ title: "Route Calculated", description: `Trip duration: ${Math.round(routeData.duration)} mins.` });
-      } else {
-        toast({ title: "Navigation Error", description: "Could not fetch street route. Using direct paths.", variant: "destructive" });
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsPlanningRoute(false);
-    }
-  };
 
   const itinerarySites = useMemo(() => {
     return itineraryIds.map(id => allSites.find(s => s.id === id)).filter(Boolean) as HeritageSite[];
@@ -299,22 +257,6 @@ function ExploreRouteContent() {
     setSelectedCategories(prev => 
       prev.includes(value) ? prev.filter(c => c !== value) : [...prev, value]
     );
-  };
-
-  const saveToProfile = () => {
-    if (!user || !db || itineraryIds.length === 0) {
-        toast({ title: "Account Required", description: "Sign in to save your heritage trips.", variant: "destructive" });
-        return;
-    }
-    const itinRef = doc(collection(db, 'users', user.uid, 'itineraries'));
-    setDocumentNonBlocking(itinRef, {
-        userId: user.uid,
-        selectedPlaces: itineraryIds,
-        itineraryData: JSON.stringify({ itinerary: itinerarySites, totalDist, totalTime }),
-        summary: `${itinerarySites.length} sites exploration starting at ${itinerarySites[0].name}.`,
-        createdAt: serverTimestamp()
-    }, { merge: true });
-    toast({ title: "Trip Saved", description: "Access this itinerary in your profile." });
   };
 
   const toggleSite = (id: string) => {
@@ -331,7 +273,6 @@ function ExploreRouteContent() {
       
       <main className="flex-1 relative overflow-hidden">
         
-        {/* Full-screen Immersive Map */}
         <div className="absolute inset-0 z-0">
           <HeritageMap 
             userLocation={userLocation} 
@@ -345,7 +286,6 @@ function ExploreRouteContent() {
           />
         </div>
 
-        {/* Top-Center Floating Command Bar */}
         <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[92vw] max-w-2xl z-50 flex flex-col items-center gap-3">
           <div className="w-full flex gap-2 items-center">
             <div className="flex-1 relative group">
@@ -362,7 +302,6 @@ function ExploreRouteContent() {
             </Button>
           </div>
 
-          {/* Fully Working Horizontal Filters */}
           <div className="w-full overflow-hidden">
             <ScrollArea className="w-full pb-2">
               <div className="flex items-center gap-2 px-1">
@@ -402,29 +341,6 @@ function ExploreRouteContent() {
           </div>
         </div>
 
-        {/* Route Summary Floating Overlay */}
-        {routeSteps.length > 0 && (
-          <div className="absolute top-6 right-6 z-[60] w-64 animate-in fade-in slide-in-from-right-4 duration-500 hidden md:block">
-            <Card className="bg-white/95 backdrop-blur-2xl shadow-[0_30px_60px_rgba(0,0,0,0.12)] border-none rounded-[2.5rem] p-6 ring-1 ring-black/5">
-               <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-2 text-primary font-black text-[11px] uppercase tracking-widest">
-                    <Navigation2 size={16} /> Live Route
-                  </div>
-                  <Badge className="bg-primary/10 text-primary border-none text-[10px] font-black">{totalDist.toFixed(1)} KM</Badge>
-               </div>
-               <div className="space-y-1">
-                 <p className="text-3xl font-black text-slate-900 leading-none">{Math.round(totalTime)} MINS</p>
-                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Estimated Arrival</p>
-               </div>
-               <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
-                  <button onClick={() => setTravelMode('driving-car')} className={cn("flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2", travelMode === 'driving-car' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-slate-100 text-slate-500')}><Car size={12} /> Drive</button>
-                  <button onClick={() => setTravelMode('foot-walking')} className={cn("flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2", travelMode === 'foot-walking' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-slate-100 text-slate-500')}><Footprints size={12} /> Walk</button>
-               </div>
-            </Card>
-          </div>
-        )}
-
-        {/* Compact Adaptive Explore Panel */}
         <div 
           className={cn(
             "fixed inset-x-0 bottom-0 z-50 transition-all duration-500 ease-in-out md:left-6 md:top-24 md:bottom-auto md:w-[340px] bg-white/90 backdrop-blur-2xl shadow-[0_40px_80px_rgba(0,0,0,0.2)] border-none flex flex-col rounded-t-[2.5rem] md:rounded-[2.5rem] ring-1 ring-black/5",
@@ -442,11 +358,6 @@ function ExploreRouteContent() {
               <h2 className="font-headline text-lg font-black text-slate-900">Explore</h2>
             </div>
             <div className="flex items-center gap-3">
-               {itineraryIds.length > 0 && (
-                <Badge className="bg-primary text-white border-none rounded-full h-6 min-w-6 flex items-center justify-center text-xs font-black">
-                  {itineraryIds.length}
-                </Badge>
-              )}
               <div className="p-1 rounded-full bg-slate-100 text-slate-400">
                 {isPanelExpanded ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
               </div>
@@ -454,14 +365,6 @@ function ExploreRouteContent() {
           </button>
 
           <div className={cn("flex-1 flex flex-col overflow-hidden", !isPanelExpanded && "hidden")}>
-            <Tabs defaultValue="discovery" className="flex-1 flex flex-col overflow-hidden">
-              <TabsList className="grid grid-cols-2 mx-6 mt-2 h-12 bg-slate-100/50 rounded-2xl p-1">
-                <TabsTrigger value="discovery" className="rounded-xl text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-md">Discovery</TabsTrigger>
-                <TabsTrigger value="navigation" className="rounded-xl text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-md">My Trip</TabsTrigger>
-              </TabsList>
-
-              {/* DISCOVERY SECTION */}
-              <TabsContent value="discovery" className="flex-1 overflow-hidden p-0 m-0 flex flex-col">
                 <div className="p-4 bg-slate-50/40 border-b space-y-3 px-6">
                   <div className="flex items-center justify-between p-3 bg-white/80 rounded-2xl shadow-sm border border-white">
                     <div className="flex items-center gap-3">
@@ -484,7 +387,6 @@ function ExploreRouteContent() {
 
                 <ScrollArea className="flex-1 px-6">
                   <div className="space-y-8 py-6">
-                      {/* AI RECOMMENDATION ENGINE - Non-Empty */}
                       <div className="space-y-3">
                          <button 
                           onClick={() => setIsAiSectionExpanded(!isAiSectionExpanded)}
@@ -540,7 +442,6 @@ function ExploreRouteContent() {
                          )}
                       </div>
 
-                      {/* MAIN DIRECTORY LIST */}
                       <div className="space-y-4">
                          <div className="flex items-center gap-3 px-1">
                             <MapIcon size={16} className="text-slate-400" />
@@ -584,83 +485,9 @@ function ExploreRouteContent() {
                       </div>
                   </div>
                 </ScrollArea>
-              </TabsContent>
-
-              {/* ROUTE PLAN SECTION */}
-              <TabsContent value="navigation" className="flex-1 overflow-hidden p-0 m-0 flex flex-col">
-                <div className="p-4 bg-slate-50/40 border-b flex items-center justify-between px-6">
-                   <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-500">Active Route</h3>
-                  <Button variant="ghost" size="sm" className="h-8 text-[10px] font-black uppercase text-slate-400 hover:text-red-500 gap-2 px-3 rounded-full" onClick={() => { setItineraryIds([]); setRouteCoords([]); setRouteSteps([]); }}>
-                    <Trash2 size={12} /> Clear Trip
-                  </Button>
-                </div>
-                
-                <ScrollArea className="flex-1 px-6 py-6">
-                  {itineraryIds.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-center">
-                      <div className="w-20 h-20 rounded-[2rem] bg-slate-100 flex items-center justify-center mb-6 text-slate-300">
-                        <MapIcon size={32} />
-                      </div>
-                      <p className="text-[12px] font-black text-slate-800 uppercase tracking-widest max-w-[200px]">Your route is empty.</p>
-                      <p className="text-[10px] font-bold text-slate-400 mt-2">Select sites from Discovery to start planning your custom journey.</p>
-                      <Button variant="outline" className="mt-8 rounded-full h-12 px-8 font-black uppercase text-[10px] tracking-widest border-2" onClick={() => {}}>
-                        <Sparkles size={14} className="mr-2 text-primary" /> Popular Sites
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4 pb-24">
-                      {itinerarySites.map((site, idx) => (
-                        <div key={site.id} className="flex gap-4 items-center bg-white p-5 rounded-[2rem] shadow-sm ring-1 ring-slate-100 group border-l-8 border-l-primary animate-in fade-in slide-in-from-left-4">
-                          <div className="w-10 h-10 rounded-2xl bg-primary text-white flex items-center justify-center text-sm font-black shrink-0 shadow-xl shadow-primary/20">
-                            {visitedSites.includes(site.id) ? <CheckCircle2 size={20} className="text-white" /> : idx + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-black text-slate-900 truncate leading-none mb-1">{site.name}</p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">{site.city}</p>
-                          </div>
-                          <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => {
-                               setItineraryIds(prev => {
-                                 const newIds = [...prev];
-                                 if (idx > 0) [newIds[idx], newIds[idx-1]] = [newIds[idx-1], newIds[idx]];
-                                 return newIds;
-                               });
-                            }} disabled={idx === 0} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-300 hover:text-primary disabled:opacity-20 transition-colors"><ArrowUp size={16} /></button>
-                            <button onClick={() => {
-                               setItineraryIds(prev => {
-                                 const newIds = [...prev];
-                                 if (idx < newIds.length - 1) [newIds[idx], newIds[idx+1]] = [newIds[idx+1], newIds[idx]];
-                                 return newIds;
-                               });
-                            }} disabled={idx === itineraryIds.length - 1} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-300 hover:text-primary disabled:opacity-20 transition-colors"><ArrowDown size={16} /></button>
-                          </div>
-                          <button onClick={() => setItineraryIds(prev => prev.filter(id => id !== site.id))} className="p-2 rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"><X size={20} /></button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-                
-                <div className="p-8 border-t bg-white space-y-4">
-                  <div className="flex gap-3">
-                    <Button variant="outline" className="flex-1 h-14 rounded-[1.8rem] font-black text-[11px] uppercase tracking-widest border-2 hover:bg-slate-50" onClick={saveToProfile} disabled={itineraryIds.length === 0}>
-                      <Save size={18} className="mr-2" /> Save
-                    </Button>
-                    <Button 
-                      className="flex-[2] rounded-[1.8rem] h-14 bg-primary hover:bg-primary/90 text-white font-black text-[11px] tracking-widest uppercase shadow-2xl flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50 shadow-primary/40" 
-                      onClick={() => handleGenerateRoute()} 
-                      disabled={isPlanningRoute || itineraryIds.length === 0}
-                    >
-                      {isPlanningRoute ? <Loader2 className="animate-spin" size={24} /> : <><Navigation size={20} /> Start Trip</>}
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
           </div>
         </div>
 
-        {/* Street-Level Navigation Engine Dialog */}
         <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
           <DialogContent className="w-[92vw] max-w-md rounded-[3rem] p-10 border-none shadow-3xl bg-white/95 backdrop-blur-2xl">
             <DialogHeader>
