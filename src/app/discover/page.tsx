@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { HeritageSite, HERITAGE_SITES } from '@/lib/heritage-data';
@@ -38,7 +39,9 @@ import {
   Star,
   Info,
   Home,
-  Building2
+  Building2,
+  Calendar,
+  ArrowRight
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, limit } from 'firebase/firestore';
@@ -65,13 +68,13 @@ const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), {
 });
 
 const CATEGORIES = [
-  { label: "Churches", value: "Churches & Religious Heritage Sites", icon: Church },
+  { label: "Churches & Religious", value: "Churches & Religious Heritage Sites", icon: Church },
   { label: "Ancestral Houses", value: "Ancestral Houses & Heritage Residences", icon: Home },
-  { label: "Museums", value: "Museums & Cultural Institutions", icon: Landmark },
-  { label: "Landmarks", value: "Historical Landmarks & Monuments", icon: MapPin },
-  { label: "Parks", value: "Plazas, Parks & Public Spaces", icon: TreePine },
-  { label: "Government", value: "Government & Historic Buildings", icon: Building2 },
-  { label: "Other Cultural", value: "Cultural & Religious (Non-Catholic Sites)", icon: Sparkles }
+  { label: "Museums & Institutions", value: "Museums & Cultural Institutions", icon: Landmark },
+  { label: "Historical Landmarks", value: "Historical Landmarks & Monuments", icon: MapPin },
+  { label: "Parks & Public Spaces", value: "Plazas, Parks & Public Spaces", icon: TreePine },
+  { label: "Government Buildings", value: "Government & Historic Buildings", icon: Building2 },
+  { label: "Non-Catholic Sites", value: "Cultural & Religious (Non-Catholic Sites)", icon: Sparkles }
 ];
 
 function ExploreRouteContent() {
@@ -86,7 +89,7 @@ function ExploreRouteContent() {
   const [totalDist, setTotalDist] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(true);
   const [focusedLocation, setFocusedLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   // Filter States
@@ -105,7 +108,6 @@ function ExploreRouteContent() {
     const colRef = collection(db, 'heritageSites');
     if (selectedCategories.length > 0) {
       console.log("[DEBUG] Filtering categories:", selectedCategories);
-      // Firestore 'in' operator supports up to 10 items
       return query(colRef, where('category', 'in', selectedCategories));
     }
     return colRef;
@@ -114,7 +116,7 @@ function ExploreRouteContent() {
   const { data: firestoreSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
 
   const allSites = useMemo(() => {
-    // Standardize coordinates for map usage
+    // Fallback to local data if Firestore is empty or still loading (initial state)
     const source = (firestoreSites && firestoreSites.length > 0) ? firestoreSites : HERITAGE_SITES;
     return (source as any[]).map(site => ({
       ...site,
@@ -183,18 +185,16 @@ function ExploreRouteContent() {
     return result;
   }, [allSites, userLocation, searchQuery, isNearMeEnabled]);
 
-  // Enhanced AI Recommendations logic
+  // AI Suggestions section
   const aiSuggestions = useMemo(() => {
     let suggestions = [...allSites];
     if (userLocation) {
-      // Sort by proximity
       suggestions.sort((a, b) => {
         const distA = calculateDistance(userLocation.lat, userLocation.lng, a.coordinates.lat, a.coordinates.lng);
         const distB = calculateDistance(userLocation.lat, userLocation.lng, b.coordinates.lat, b.coordinates.lng);
         return distA - distB;
       });
     } else {
-      // Show must-visit/featured sites if location unavailable
       suggestions = suggestions.filter(s => s.isMustVisit);
       if (suggestions.length === 0) suggestions = [...allSites].slice(0, 5);
     }
@@ -285,7 +285,7 @@ function ExploreRouteContent() {
           {/* Filter Pills */}
           <div className="w-full">
             <ScrollArea className="w-full pb-2">
-              <div className="flex items-center justify-center gap-2 px-1">
+              <div className="flex items-center justify-start gap-2 px-1">
                 <Button 
                     onClick={() => setSelectedCategories([])}
                     variant="ghost"
@@ -348,6 +348,14 @@ function ExploreRouteContent() {
                       <p className="text-lg font-black text-primary">{totalDist.toFixed(1)} km</p>
                     </div>
                   </div>
+                  <div className="space-y-2">
+                    {itinerarySites.map((s, idx) => (
+                      <div key={s.id} className="flex items-center gap-2 text-[10px] font-bold text-slate-600 truncate">
+                        <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center rounded-full shrink-0 border-primary text-primary">{idx + 1}</Badge>
+                        <span className="truncate">{s.name}</span>
+                      </div>
+                    ))}
+                  </div>
                   <Button className="w-full rounded-2xl font-black text-[10px] uppercase tracking-widest h-12 shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90">
                     <Navigation size={16} className="mr-2" /> Start Navigation
                   </Button>
@@ -386,6 +394,7 @@ function ExploreRouteContent() {
 
           {/* Collapsible Content */}
           <div className={cn("flex-1 flex flex-col overflow-hidden", !isPanelExpanded && "hidden")}>
+                {/* Proximity Toggle */}
                 <div className="p-5 bg-slate-50/40 border-y space-y-3 px-7">
                   <div className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-white">
                     <div className="flex items-center gap-3">
@@ -400,7 +409,26 @@ function ExploreRouteContent() {
 
                 <ScrollArea className="flex-1">
                   <div className="p-7 space-y-6">
-                    <Accordion type="multiple" defaultValue={["discovery"]} className="space-y-4">
+                    {/* AI Planner Access */}
+                    <div className="p-5 bg-primary/5 rounded-[2rem] border border-primary/10 shadow-inner">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-primary rounded-xl text-white">
+                                <Calendar size={18} />
+                            </div>
+                            <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-primary leading-none mb-1">AI Trip Planner</h4>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Build a custom itinerary</p>
+                            </div>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mb-4 font-medium leading-relaxed">Let our AI build a realistic heritage route based on your time and specific interests.</p>
+                        <Button asChild className="w-full h-11 rounded-2xl bg-primary hover:bg-primary/90 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/10">
+                            <Link href="/itinerary">
+                                Start AI Planning <ArrowRight size={14} className="ml-2" />
+                            </Link>
+                        </Button>
+                    </div>
+
+                    <Accordion type="multiple" defaultValue={["discovery", "ai"]} className="space-y-4">
                       
                       {/* Discovery Section */}
                       <AccordionItem value="discovery" className="border-none">
@@ -409,7 +437,7 @@ function ExploreRouteContent() {
                             <div className="bg-slate-100 p-2.5 rounded-xl text-slate-500 group-data-[state=open]:bg-primary/10 group-data-[state=open]:text-primary transition-colors">
                               <MapIcon size={18} />
                             </div>
-                            <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-data-[state=open]:text-primary">Discovery</span>
+                            <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-data-[state=open]:text-primary">Site Discovery</span>
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
