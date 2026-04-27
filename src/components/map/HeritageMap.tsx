@@ -4,6 +4,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, Circle, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Button } from '@/components/ui/button';
+import { Plus, Check, MapPin } from 'lucide-react';
 
 // Fix for default marker icons in NextJS
 const DefaultIcon = L.icon({
@@ -15,6 +17,14 @@ const DefaultIcon = L.icon({
 
 const destIcon = L.icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+});
+
+const selectedIcon = L.icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -37,6 +47,7 @@ interface HeritageMapProps {
   routeCoordinates?: [number, number][];
   totalTime?: number;
   totalDist?: number;
+  onAddSite: (id: string) => void;
 }
 
 function MapController({ 
@@ -70,7 +81,8 @@ export default function HeritageMap({
   itinerary, 
   routeCoordinates,
   totalTime,
-  totalDist
+  totalDist,
+  onAddSite
 }: HeritageMapProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -115,27 +127,43 @@ export default function HeritageMap({
         )}
 
         {sites.map((site) => {
-          const isDestination = itinerary.length > 0 && itinerary[itinerary.length - 1].id === site.id;
           const isInItinerary = itinerary.some(i => i.id === site.id);
+          const isDestination = itinerary.length > 0 && itinerary[itinerary.length - 1].id === site.id;
           
+          let markerIcon = DefaultIcon;
+          if (isDestination) markerIcon = destIcon;
+          else if (isInItinerary) markerIcon = selectedIcon;
+
           return (
             <Marker 
               key={site.id} 
               position={[site.coordinates?.lat || 0, site.coordinates?.lng || 0]}
-              icon={isDestination ? destIcon : DefaultIcon}
-              opacity={isInItinerary ? 1 : 0.6}
+              icon={markerIcon}
+              opacity={isInItinerary ? 1 : 0.7}
             >
               <Popup className="custom-map-popup">
-                <div className="w-60 overflow-hidden rounded-2xl bg-white p-2">
-                  <div className="relative h-36 w-full rounded-xl overflow-hidden mb-3">
+                <div className="w-64 overflow-hidden rounded-2xl bg-white p-0">
+                  <div className="relative h-32 w-full overflow-hidden">
                     <img src={site.imageUrl} alt={site.name} className="h-full w-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                    <div className="absolute bottom-3 left-3 right-3 text-white">
+                      <h3 className="font-black text-sm leading-tight line-clamp-1">{site.name}</h3>
+                    </div>
                   </div>
-                  <div className="px-1">
-                    <h3 className="font-black text-sm mb-1 leading-tight text-slate-900">{site.name}</h3>
-                    <p className="text-[10px] text-muted-foreground line-clamp-2 mb-3 font-medium">{site.description}</p>
-                    <div className="flex justify-between items-center pt-3 border-t border-slate-100">
-                      <span className="text-[10px] font-black text-primary uppercase tracking-tighter">{site.city}</span>
-                      <a href={`/site/${site.id}`} className="text-[10px] font-black text-blue-600 hover:text-blue-700 uppercase">View Page</a>
+                  <div className="p-4 space-y-3">
+                    <p className="text-[11px] text-slate-500 line-clamp-2 font-medium leading-relaxed">{site.description}</p>
+                    <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-50">
+                       <span className="text-[10px] font-black text-primary uppercase tracking-tighter flex items-center gap-1">
+                        <MapPin size={10} /> {site.city}
+                      </span>
+                      <Button 
+                        size="sm" 
+                        variant={isInItinerary ? "secondary" : "default"}
+                        className="h-8 rounded-full text-[10px] font-black uppercase tracking-widest px-4"
+                        onClick={() => onAddSite(site.id)}
+                      >
+                        {isInItinerary ? <><Check size={12} className="mr-1" /> Added</> : <><Plus size={12} className="mr-1" /> Add to Route</>}
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -146,19 +174,17 @@ export default function HeritageMap({
 
         {routeCoordinates && routeCoordinates.length > 1 && (
           <>
-            {/* Soft Glow Shadow Layer */}
             <Polyline 
               positions={routeCoordinates} 
-              color="#4338ca" 
+              color="#2563eb" 
               weight={12} 
               opacity={0.15} 
               lineCap="round"
               lineJoin="round"
             />
-            {/* Core Route Line - High Contrast Road Following */}
             <Polyline 
               positions={routeCoordinates} 
-              color="#4338ca" 
+              color="#2563eb" 
               weight={7} 
               opacity={1} 
               lineCap="round"
@@ -168,7 +194,7 @@ export default function HeritageMap({
               {totalTime && totalDist && (
                 <Tooltip direction="top" offset={[0, -20]} permanent className="route-info-tooltip">
                   <div className="flex flex-col items-center">
-                    <span className="text-primary font-black text-[9px] uppercase tracking-widest mb-0.5">Fastest Path</span>
+                    <span className="text-primary font-black text-[9px] uppercase tracking-widest mb-0.5">Route Path</span>
                     <div className="flex items-center gap-2">
                       <span className="text-slate-900 font-black">{Math.round(totalTime)} MIN</span>
                       <span className="text-slate-400 text-[10px] font-bold">({totalDist.toFixed(1)} KM)</span>

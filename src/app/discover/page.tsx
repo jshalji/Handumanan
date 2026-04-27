@@ -42,7 +42,8 @@ import {
   Church,
   Landmark,
   TreePine,
-  Building2
+  Building2,
+  Trash2
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFirestore, useUser } from '@/firebase';
@@ -100,7 +101,7 @@ function ExploreRouteContent() {
   const [totalTime, setTotalTime] = useState(0);
   const [travelMode, setTravelMode] = useState<'driving-car' | 'foot-walking'>('driving-car');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(true);
   
   // Filter States
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -212,7 +213,8 @@ function ExploreRouteContent() {
         setRouteSteps(routeData.steps);
         setTotalDist(routeData.distance);
         setTotalTime(routeData.duration);
-        setIsPanelExpanded(false); 
+        // On mobile, expand trip view
+        if (window.innerWidth < 768) setIsPanelExpanded(true); 
       } else {
         toast({ title: "Route Error", description: "Check your API key or connection.", variant: "destructive" });
       }
@@ -331,6 +333,10 @@ function ExploreRouteContent() {
     toast({ title: "Trip Saved", description: "Check your profile." });
   };
 
+  const toggleSite = (id: string) => {
+    setItineraryIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden relative">
       <Navbar />
@@ -346,6 +352,7 @@ function ExploreRouteContent() {
             routeCoordinates={routeCoords} 
             totalTime={totalTime} 
             totalDist={totalDist} 
+            onAddSite={toggleSite}
           />
         </div>
 
@@ -356,7 +363,7 @@ function ExploreRouteContent() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <Input 
                 placeholder="Find a heritage site..." 
-                className="pl-11 h-14 rounded-2xl shadow-2xl border-none bg-white/90 backdrop-blur-xl w-full font-bold text-sm ring-1 ring-black/5" 
+                className="pl-11 h-14 rounded-2xl shadow-2xl border-none bg-white/95 backdrop-blur-xl w-full font-bold text-sm ring-1 ring-black/5" 
                 value={searchQuery} 
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -378,7 +385,7 @@ function ExploreRouteContent() {
                     onClick={() => setSelectedCategory(cat.label)}
                     variant="ghost"
                     className={cn(
-                      "h-10 px-4 rounded-full shadow-sm bg-white/80 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all",
+                      "h-10 px-5 rounded-full shadow-sm bg-white/90 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all",
                       isSelected ? "bg-primary text-white shadow-primary/20 scale-105" : "text-slate-600 hover:bg-white"
                     )}
                   >
@@ -417,12 +424,12 @@ function ExploreRouteContent() {
         )}
 
         {/* Nearby Recommendations (Bottom-Right Floating) */}
-        {itineraryIds.length > 0 && !isPanelExpanded && (
+        {itineraryIds.length > 0 && (
           <div className="fixed bottom-10 right-10 z-[1000] w-72 animate-in fade-in slide-in-from-right-10 hidden lg:block">
             <Card className="rounded-[2.5rem] shadow-2xl border-none p-6 bg-white/95 backdrop-blur-2xl ring-1 ring-slate-100">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                  <Sparkles size={14} className="text-primary" /> Nearby Picks
+                  <Sparkles size={14} className="text-accent" /> Nearby Picks
                 </h3>
               </div>
               <ScrollArea className="h-48">
@@ -431,12 +438,7 @@ function ExploreRouteContent() {
                     <div 
                       key={site.id} 
                       className="flex items-center gap-3 p-2 rounded-2xl hover:bg-slate-50 transition-colors cursor-pointer group"
-                      onClick={() => {
-                        const newIds = [...itineraryIds, site.id];
-                        setItineraryIds(newIds);
-                        handleGenerateRoute(newIds);
-                        toast({ title: "Site Added", description: `Rerouting to include ${site.name}` });
-                      }}
+                      onClick={() => toggleSite(site.id)}
                     >
                       <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden relative shadow-sm">
                         <Image src={site.imageUrl} alt={site.name} fill className="object-cover" sizes="40px" />
@@ -457,20 +459,20 @@ function ExploreRouteContent() {
         {/* Explore & Itinerary Panel (Floating Side/Bottom Panel) */}
         <div 
           className={cn(
-            "fixed inset-x-0 bottom-0 z-50 transition-all duration-500 ease-in-out md:left-6 md:top-24 md:bottom-auto md:w-[380px] bg-white/95 backdrop-blur-2xl shadow-2xl border-none flex flex-col rounded-t-[2.5rem] md:rounded-[2.5rem] ring-1 ring-black/5",
+            "fixed inset-x-0 bottom-0 z-50 transition-all duration-500 ease-in-out md:left-6 md:top-24 md:bottom-auto md:w-[360px] bg-white/95 backdrop-blur-2xl shadow-2xl border-none flex flex-col rounded-t-[2.5rem] md:rounded-[2.5rem] ring-1 ring-black/5",
             isPanelExpanded ? "h-[85vh] md:h-[calc(100vh-120px)]" : "h-[72px] md:h-14"
           )}
         >
           {/* Header/Handle */}
           <button 
-            className="w-full h-14 flex items-center justify-between px-6 pt-1"
+            className="w-full h-14 flex items-center justify-between px-6 shrink-0"
             onClick={() => setIsPanelExpanded(!isPanelExpanded)}
           >
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-xl">
                 <MapIcon size={18} className="text-primary" />
               </div>
-              <h2 className="font-headline text-lg font-black text-slate-900">Explore Heritage</h2>
+              <h2 className="font-headline text-lg font-black text-slate-900">Heritage Explorer</h2>
             </div>
             <div className="flex items-center gap-2">
                {itineraryIds.length > 0 && (
@@ -486,7 +488,7 @@ function ExploreRouteContent() {
             <Tabs defaultValue="discovery" className="flex-1 flex flex-col overflow-hidden">
               <TabsList className="grid grid-cols-2 mx-4 mt-2 h-12 bg-slate-100/50 rounded-2xl p-1.5">
                 <TabsTrigger value="discovery" className="rounded-xl text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">Discovery</TabsTrigger>
-                <TabsTrigger value="navigation" className="rounded-xl text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">My Trip</TabsTrigger>
+                <TabsTrigger value="navigation" className="rounded-xl text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">Route Plan</TabsTrigger>
               </TabsList>
 
               <TabsContent value="discovery" className="flex-1 overflow-hidden p-0 m-0 flex flex-col">
@@ -494,7 +496,7 @@ function ExploreRouteContent() {
                   <div className="flex items-center justify-between p-3 bg-white rounded-2xl shadow-sm border border-slate-100">
                     <div className="flex items-center gap-2">
                       <LocateFixed size={14} className={isNearMeEnabled ? "text-primary" : "text-slate-400"} />
-                      <Label htmlFor="near-me-toggle" className="text-[10px] font-black uppercase tracking-widest text-slate-600">Near Me Only</Label>
+                      <Label htmlFor="near-me-toggle" className="text-[10px] font-black uppercase tracking-widest text-slate-600">Proximity Filter</Label>
                     </div>
                     <Switch id="near-me-toggle" checked={isNearMeEnabled} onCheckedChange={setIsNearMeEnabled} className="scale-75 origin-right" />
                   </div>
@@ -511,7 +513,10 @@ function ExploreRouteContent() {
                 <ScrollArea className="flex-1 px-4">
                   <div className="space-y-4 py-4">
                     {filteredAndSortedSites.map((site) => (
-                      <Card key={site.id} className="group overflow-hidden border-none shadow-sm rounded-3xl bg-slate-50/50 hover:bg-white hover:shadow-md transition-all">
+                      <Card key={site.id} className={cn(
+                        "group overflow-hidden border-none shadow-sm rounded-3xl transition-all duration-300",
+                        itineraryIds.includes(site.id) ? "bg-primary/5 ring-1 ring-primary/20" : "bg-slate-50/50 hover:bg-white hover:shadow-md"
+                      )}>
                         <div className="flex items-center p-3 gap-4">
                           <div className="relative w-16 h-16 flex-shrink-0 rounded-2xl overflow-hidden shadow-sm">
                             <Image src={site.imageUrl} alt={site.name} fill className="object-cover" sizes="64px" />
@@ -519,13 +524,13 @@ function ExploreRouteContent() {
                           <div className="flex-1 min-w-0">
                             <h3 className="font-bold text-sm line-clamp-1 text-slate-900 leading-tight mb-1">{site.name}</h3>
                             <p className="text-[9px] text-muted-foreground uppercase font-black tracking-tight">{site.city} • {site.distance.toFixed(1)} km</p>
-                            <Link href={`/site/${site.id}`} className="text-[10px] font-black text-primary hover:underline mt-2 inline-block">Learn More</Link>
+                            <Link href={`/site/${site.id}`} className="text-[10px] font-black text-primary hover:underline mt-2 inline-block">Site Details</Link>
                           </div>
                           <Button 
                             size="sm" 
                             variant={itineraryIds.includes(site.id) ? "default" : "outline"} 
                             className={cn("h-10 w-10 p-0 rounded-2xl", itineraryIds.includes(site.id) ? 'bg-primary border-none shadow-lg' : 'border-slate-200 text-slate-400')} 
-                            onClick={() => setItineraryIds(prev => prev.includes(site.id) ? prev.filter(i => i !== site.id) : [...prev, site.id])}
+                            onClick={() => toggleSite(site.id)}
                           >
                             {itineraryIds.includes(site.id) ? <X size={16} /> : <Plus size={16} />}
                           </Button>
@@ -537,7 +542,7 @@ function ExploreRouteContent() {
                 
                 <div className="p-6 border-t bg-white/80">
                   <Button variant="outline" className="w-full h-14 rounded-[2rem] font-black text-[10px] uppercase tracking-widest border-2 border-dashed border-primary/20 hover:border-primary/40 text-primary" onClick={handleAiItinerary} disabled={isAiThinking}>
-                    {isAiThinking ? <Loader2 className="animate-spin mr-2" /> : <BrainCircuit size={18} className="mr-2" />} AI Suggested Itinerary
+                    {isAiThinking ? <Loader2 className="animate-spin mr-2" /> : <BrainCircuit size={18} className="mr-2" />} Get AI Recommendations
                   </Button>
                 </div>
               </TabsContent>
@@ -548,7 +553,9 @@ function ExploreRouteContent() {
                     <button onClick={() => setTravelMode('driving-car')} className={cn("flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2", travelMode === 'driving-car' ? 'bg-white shadow-sm text-primary' : 'text-slate-500')}><Car size={12} /> Drive</button>
                     <button onClick={() => setTravelMode('foot-walking')} className={cn("flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2", travelMode === 'foot-walking' ? 'bg-white shadow-sm text-primary' : 'text-slate-500')}><Footprints size={12} /> Walk</button>
                   </div>
-                  <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase text-slate-400 hover:text-red-500" onClick={() => { setItineraryIds([]); setRouteCoords([]); setRouteSteps([]); }}>Clear Trip</Button>
+                  <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase text-slate-400 hover:text-red-500 gap-1.5" onClick={() => { setItineraryIds([]); setRouteCoords([]); setRouteSteps([]); }}>
+                    <Trash2 size={12} /> Clear All
+                  </Button>
                 </div>
                 
                 <ScrollArea className="flex-1 px-4 py-4">
@@ -557,12 +564,12 @@ function ExploreRouteContent() {
                       <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-6">
                         <MapIcon size={32} className="text-slate-300" />
                       </div>
-                      <p className="text-[10px] font-black text-slate-800 uppercase tracking-widest max-w-[150px]">Your trip is empty. Add sites to start routing.</p>
+                      <p className="text-[10px] font-black text-slate-800 uppercase tracking-widest max-w-[150px]">Your route is empty. Select sites from the map or list.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {itinerarySites.map((site, idx) => (
-                        <div key={site.id} className="flex gap-4 items-center bg-white p-4 rounded-[1.5rem] shadow-sm ring-1 ring-slate-100 group border-l-4 border-l-primary">
+                        <div key={site.id} className="flex gap-4 items-center bg-white p-4 rounded-[1.5rem] shadow-sm ring-1 ring-slate-100 group border-l-4 border-l-primary animate-in fade-in slide-in-from-left-2">
                           <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-black shrink-0 shadow-lg shadow-primary/20">
                             {visitedSites.includes(site.id) ? <CheckCircle2 size={16} className="text-white" /> : idx + 1}
                           </div>
@@ -582,6 +589,15 @@ function ExploreRouteContent() {
                 </ScrollArea>
                 
                 <div className="p-6 border-t bg-white space-y-4">
+                  {routeSteps.length > 0 && (
+                    <div className="bg-primary/5 p-4 rounded-3xl space-y-2 border border-primary/10">
+                      <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-primary/60">
+                        <span>Total Trip Stats</span>
+                        <Badge variant="outline" className="text-[9px] border-primary/20 text-primary">{totalDist.toFixed(1)} KM</Badge>
+                      </div>
+                      <p className="text-2xl font-black text-primary leading-none">{Math.round(totalTime)} MINS <span className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Est. Travel</span></p>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1 h-14 rounded-[2rem] font-black text-[10px] uppercase tracking-widest border-2" onClick={saveToProfile} disabled={itineraryIds.length === 0}>
                       <Save size={16} className="mr-2" /> Save Trip
@@ -591,7 +607,7 @@ function ExploreRouteContent() {
                       onClick={() => handleGenerateRoute()} 
                       disabled={isPlanningRoute || itineraryIds.length === 0}
                     >
-                      {isPlanningRoute ? <Loader2 className="animate-spin" size={20} /> : <><RouteIcon size={18} /> Generate Route</>}
+                      {isPlanningRoute ? <Loader2 className="animate-spin" size={20} /> : <><RouteIcon size={18} /> Start Navigation</>}
                     </Button>
                   </div>
                 </div>
@@ -615,7 +631,7 @@ function ExploreRouteContent() {
             <Input placeholder="PASTE_API_KEY_HERE" value={tempKey} onChange={(e) => setTempKey(e.target.value)} className="rounded-2xl h-14 bg-slate-50 border-none px-6 font-mono text-xs" />
             <DialogFooter className="mt-8">
               <Button type="button" className="w-full h-16 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20" onClick={handleSaveKey}>
-                Enable Navigation
+                Enable Mapping Engine
               </Button>
             </DialogFooter>
           </DialogContent>
