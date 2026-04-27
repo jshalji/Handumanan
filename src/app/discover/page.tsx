@@ -44,7 +44,8 @@ import {
   ArrowRight,
   Info,
   Clock,
-  Save
+  Save,
+  Globe
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, serverTimestamp } from 'firebase/firestore';
@@ -78,7 +79,7 @@ const CATEGORIES = [
   { label: "Landmarks", value: "Historical Landmarks & Monuments", icon: MapPin },
   { label: "Parks", value: "Plazas, Parks & Public Spaces", icon: TreePine },
   { label: "Government", value: "Government & Historic Buildings", icon: Building2 },
-  { label: "Other", value: "Cultural & Religious (Non-Catholic Sites)", icon: Sparkles }
+  { label: "Cultural", value: "Cultural & Religious (Non-Catholic Sites)", icon: Globe }
 ];
 
 const INTERESTS_OPTIONS = [
@@ -177,7 +178,12 @@ function ExploreRouteContent() {
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(s => s.name.toLowerCase().includes(q) || s.city.toLowerCase().includes(q));
+      result = result.filter(s => 
+        s.name.toLowerCase().includes(q) || 
+        s.city.toLowerCase().includes(q) || 
+        s.category.toLowerCase().includes(q) ||
+        (s.tags && s.tags.some(tag => tag.toLowerCase().includes(q)))
+      );
     }
 
     if (isNearMeEnabled && userLocation) {
@@ -304,7 +310,7 @@ function ExploreRouteContent() {
             <div className="flex-1 relative group">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={20} />
               <Input 
-                placeholder="Search historical landmarks..." 
+                placeholder="Search historical landmarks & categories..." 
                 className="pl-14 h-14 rounded-2xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full font-bold text-sm ring-1 ring-black/5" 
                 value={searchQuery} 
                 onChange={(e) => setSearchQuery(e.target.value)}
