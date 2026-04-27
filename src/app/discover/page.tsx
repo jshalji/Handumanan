@@ -9,6 +9,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { HeritageSite, HERITAGE_SITES } from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation } from '@/lib/location-utils';
 import { getRouteMulti } from '@/lib/routing-service';
+import { generatePersonalizedItinerary, type GeneratePersonalizedItineraryOutput } from '@/ai/flows/generate-personalized-itinerary';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +17,8 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Slider } from '@/components/ui/slider';
 import { 
   Navigation, 
   Loader2, 
@@ -39,10 +42,13 @@ import {
   Building2,
   Calendar,
   ArrowRight,
-  Info
+  Info,
+  Clock,
+  Save
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, doc, serverTimestamp } from 'firebase/firestore';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
@@ -75,6 +81,10 @@ const CATEGORIES = [
   { label: "Other", value: "Cultural & Religious (Non-Catholic Sites)", icon: Sparkles }
 ];
 
+const INTERESTS_OPTIONS = [
+  "History", "Architecture", "Religious Sites", "Photography", "Spanish Heritage", "Parks", "WWII History"
+];
+
 function ExploreRouteContent() {
   const { user } = useUser();
   const { toast } = useToast();
@@ -87,11 +97,19 @@ function ExploreRouteContent() {
   const [totalDist, setTotalDist] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(true);
   const [focusedLocation, setFocusedLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [isNearMeEnabled, setIsNearMeEnabled] = useState(false);
+
+  // AI Planner State
+  const [isGeneratingPlanner, setIsGeneratingPlanner] = useState(false);
+  const [plannerResult, setPlannerResult] = useState<GeneratePersonalizedItineraryOutput | null>(null);
+  const [plannerStart, setPlannerStart] = useState('Cebu City Center');
+  const [plannerTime, setPlannerTime] = useState([4]);
+  const [plannerInterests, setPlannerInterests] = useState<string[]>([]);
+  const [isSavingPlanner, setIsSavingPlanner] = useState(false);
 
   const [orsKey, setOrsKey] = useState<string>('');
   const [showKeyDialog, setShowKeyDialog] = useState(false);
@@ -99,12 +117,10 @@ function ExploreRouteContent() {
 
   const db = useFirestore();
 
-  // Functional Multi-Filter Firestore Query
   const sitesQuery = useMemoFirebase(() => {
     if (!db) return null;
     const colRef = collection(db, 'heritageSites');
     if (selectedCategories.length > 0) {
-      console.log("[DEBUG] Fetching categories:", selectedCategories);
       return query(colRef, where('category', 'in', selectedCategories));
     }
     return colRef;
@@ -113,7 +129,6 @@ function ExploreRouteContent() {
   const { data: firestoreSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
 
   const allSites = useMemo(() => {
-    // If Firestore is empty (initial state), fallback to static data
     const source = (firestoreSites && firestoreSites.length > 0) ? firestoreSites : HERITAGE_SITES;
     return source.map(site => ({
       ...site,
@@ -224,6 +239,45 @@ function ExploreRouteContent() {
 
   const centerOnSite = (site: HeritageSite) => {
     setFocusedLocation({ lat: site.coordinates.lat, lng: site.coordinates.lng });
+  };
+
+  const handleGeneratePlanner = async () => {
+    setIsGeneratingPlanner(true);
+    try {
+      const output = await generatePersonalizedItinerary({
+        startingLocation: plannerStart,
+        availableTimeHours: plannerTime[0],
+        interests: plannerInterests.length > 0 ? plannerInterests : ["General Interest"],
+        siteDatabase: JSON.stringify(HERITAGE_SITES)
+      });
+      setPlannerResult(output);
+      toast({ title: "Itinerary Ready", description: "Your custom journey has been mapped." });
+    } catch (error) {
+      toast({ title: "Planner Offline", description: "The assistant is busy. Please try again.", variant: "destructive" });
+    } finally {
+      setIsGeneratingPlanner(false);
+    }
+  };
+
+  const handleSavePlanner = () => {
+    if (!user || !db || !plannerResult) {
+      toast({ title: "Login Required", description: "Sign in to save your custom trips.", variant: "destructive" });
+      return;
+    }
+    setIsSavingPlanner(true);
+    const itRef = doc(collection(db, 'users', user.uid, 'itineraries'));
+    setDocumentNonBlocking(itRef, {
+      userId: user.uid,
+      itineraryData: JSON.stringify(plannerResult),
+      summary: plannerResult.routeSuggestion,
+      createdAt: serverTimestamp()
+    }, { merge: true });
+    setIsSavingPlanner(false);
+    toast({ title: "Trip Saved", description: "Find this anytime in your profile." });
+  };
+
+  const toggleInterest = (interest: string) => {
+    setPlannerInterests(prev => prev.includes(interest) ? prev.filter(i => i !== interest) : [...prev, interest]);
   };
 
   return (
@@ -337,12 +391,12 @@ function ExploreRouteContent() {
         {/* Explore Panel (Floating Left) */}
         <div 
           className={cn(
-            "fixed inset-x-0 bottom-0 z-[55] transition-all duration-500 ease-in-out md:left-6 md:top-24 md:bottom-auto md:w-[380px] bg-white/95 backdrop-blur-2xl shadow-[0_40px_80px_rgba(0,0,0,0.2)] border-none flex flex-col rounded-t-[2.5rem] md:rounded-[2.5rem] ring-1 ring-black/5",
-            isPanelExpanded ? "h-[75vh] md:h-[calc(100vh-140px)]" : "h-20 md:h-16"
+            "fixed inset-x-0 bottom-0 z-[55] transition-all duration-500 ease-in-out md:left-6 md:top-24 md:bottom-auto md:w-[400px] bg-white/95 backdrop-blur-2xl shadow-[0_40px_80px_rgba(0,0,0,0.2)] border-none flex flex-col rounded-t-[2.5rem] md:rounded-[2.5rem] ring-1 ring-black/5",
+            isPanelExpanded ? "h-[85vh] md:h-[calc(100vh-140px)]" : "h-20 md:h-16"
           )}
         >
           <button 
-            className="w-full h-16 flex items-center justify-between px-7 shrink-0"
+            className="w-full h-16 shrink-0 flex items-center justify-between px-7"
             onClick={() => setIsPanelExpanded(!isPanelExpanded)}
           >
             <div className="flex items-center gap-4">
@@ -357,39 +411,114 @@ function ExploreRouteContent() {
           </button>
 
           <div className={cn("flex-1 flex flex-col overflow-hidden", !isPanelExpanded && "hidden")}>
-                <div className="p-5 bg-slate-50/40 border-y space-y-3 px-7">
-                  <div className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-white">
-                    <div className="flex items-center gap-3">
-                      <div className={cn("p-2 rounded-xl transition-colors", isNearMeEnabled ? "bg-primary text-white" : "bg-slate-100 text-slate-400")}>
-                        <LocateFixed size={16} />
-                      </div>
-                      <Label htmlFor="near-me-toggle" className="text-[11px] font-black uppercase tracking-widest text-slate-600">Proximity Sort</Label>
-                    </div>
-                    <Switch id="near-me-toggle" checked={isNearMeEnabled} onCheckedChange={setIsNearMeEnabled} className="scale-90" />
-                  </div>
-                </div>
-
                 <ScrollArea className="flex-1">
                   <div className="p-7 space-y-6">
-                    <div className="p-5 bg-primary/5 rounded-[2rem] border border-primary/10 shadow-inner">
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="p-2 bg-primary rounded-xl text-white">
-                                <Calendar size={18} />
+                    <Accordion type="multiple" defaultValue={["planner", "discovery"]} className="space-y-6">
+                      
+                      {/* AI Trip Planner Section */}
+                      <AccordionItem value="planner" className="border-none">
+                        <AccordionTrigger className="hover:no-underline py-0 mb-4 group">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-primary/10 p-2.5 rounded-xl text-primary">
+                              <Sparkles size={18} />
                             </div>
-                            <div>
-                                <h4 className="text-[10px] font-black uppercase tracking-widest text-primary leading-none mb-1">AI Trip Planner</h4>
-                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Custom Itineraries</p>
-                            </div>
-                        </div>
-                        <p className="text-[11px] text-slate-500 mb-4 font-medium leading-relaxed">Let our AI build a realistic heritage route based on your time and specific interests.</p>
-                        <Button asChild className="w-full h-11 rounded-2xl bg-primary hover:bg-primary/90 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/10">
-                            <Link href="/itinerary">
-                                Start Planning <ArrowRight size={14} className="ml-2" />
-                            </Link>
-                        </Button>
-                    </div>
+                            <span className="text-[11px] font-black uppercase tracking-widest text-primary">AI Itinerary Planner</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-6">
+                            {!plannerResult ? (
+                              <Card className="border-none bg-slate-50 rounded-[2rem] p-6 space-y-5 shadow-inner">
+                                <div className="space-y-4">
+                                  <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase text-slate-400">Starting Point</Label>
+                                    <Input 
+                                      placeholder="e.g. Cebu City Center" 
+                                      className="rounded-xl border-none shadow-sm h-11 text-xs font-bold"
+                                      value={plannerStart}
+                                      onChange={(e) => setPlannerStart(e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="space-y-3">
+                                    <div className="flex justify-between items-center">
+                                      <Label className="text-[10px] font-black uppercase text-slate-400">Available Time</Label>
+                                      <span className="text-xs font-black text-primary">{plannerTime[0]} hrs</span>
+                                    </div>
+                                    <Slider 
+                                      value={plannerTime} 
+                                      onValueChange={setPlannerTime} 
+                                      max={12} min={2} step={1}
+                                      className="py-2"
+                                    />
+                                  </div>
+                                  <div className="space-y-3">
+                                    <Label className="text-[10px] font-black uppercase text-slate-400">Your Interests</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {INTERESTS_OPTIONS.map(opt => (
+                                        <div key={opt} className="flex items-center gap-2">
+                                          <Checkbox 
+                                            id={`int-${opt}`} 
+                                            checked={plannerInterests.includes(opt)}
+                                            onCheckedChange={() => toggleInterest(opt)}
+                                            className="rounded-md border-slate-200"
+                                          />
+                                          <label htmlFor={`int-${opt}`} className="text-[10px] font-bold text-slate-600 cursor-pointer">{opt}</label>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                                <Button 
+                                  onClick={handleGeneratePlanner}
+                                  disabled={isGeneratingPlanner}
+                                  className="w-full h-12 rounded-2xl bg-primary hover:bg-primary/90 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20"
+                                >
+                                  {isGeneratingPlanner ? <Loader2 className="animate-spin" size={18} /> : <>Generate Trip <ArrowRight size={14} className="ml-2" /></>}
+                                </Button>
+                              </Card>
+                            ) : (
+                              <div className="space-y-5 animate-in fade-in slide-in-from-top-4 duration-500">
+                                <div className="bg-primary p-6 rounded-[2rem] text-white shadow-xl shadow-primary/10">
+                                  <div className="flex items-center justify-between mb-4">
+                                    <Badge className="bg-white/20 text-white border-none font-black text-[9px] uppercase">{plannerResult.totalEstimatedDurationMinutes} Min Trip</Badge>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/10" onClick={() => setPlannerResult(null)}>
+                                      <X size={16} />
+                                    </Button>
+                                  </div>
+                                  <h3 className="font-headline text-lg font-black leading-tight mb-3">Custom Cebu Route</h3>
+                                  <p className="text-[11px] text-white/80 leading-relaxed font-medium mb-4 italic">"{plannerResult.routeSuggestion}"</p>
+                                  <Button 
+                                    onClick={handleSavePlanner}
+                                    disabled={isSavingPlanner}
+                                    className="w-full h-10 rounded-xl bg-white text-primary hover:bg-white/90 text-[9px] font-black uppercase tracking-widest"
+                                  >
+                                    {isSavingPlanner ? <Loader2 className="animate-spin" size={14} /> : <><Save size={14} className="mr-2" /> Save to Profile</>}
+                                  </Button>
+                                </div>
+                                <div className="space-y-3 pl-2 border-l-2 border-slate-100 ml-4">
+                                  {plannerResult.itinerary.map((item, idx) => (
+                                    <div key={idx} className="relative pl-6">
+                                      <div className="absolute left-[-13px] top-1 w-6 h-6 rounded-full bg-white border-2 border-primary flex items-center justify-center text-[10px] font-black text-primary shadow-sm">
+                                        {idx + 1}
+                                      </div>
+                                      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                                        <h4 className="text-xs font-black text-slate-900 mb-1">{item.siteName}</h4>
+                                        <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2">{item.description}</p>
+                                        <div className="mt-2 flex items-center gap-2">
+                                          <Clock size={10} className="text-primary" />
+                                          <span className="text-[9px] font-black text-primary uppercase">{item.estimatedVisitDurationMinutes} min stop</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
 
-                    <Accordion type="multiple" defaultValue={["discovery", "ai"]} className="space-y-4">
+                      {/* Site Discovery Section */}
                       <AccordionItem value="discovery" className="border-none">
                         <AccordionTrigger className="hover:no-underline py-0 mb-4 group">
                           <div className="flex items-center gap-3">
@@ -401,6 +530,16 @@ function ExploreRouteContent() {
                         </AccordionTrigger>
                         <AccordionContent>
                           <div className="space-y-4">
+                            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-white mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className={cn("p-2 rounded-xl transition-colors", isNearMeEnabled ? "bg-primary text-white" : "bg-slate-200 text-slate-400")}>
+                                  <LocateFixed size={16} />
+                                </div>
+                                <Label htmlFor="near-me-toggle" className="text-[10px] font-black uppercase tracking-widest text-slate-600">Proximity Sort</Label>
+                              </div>
+                              <Switch id="near-me-toggle" checked={isNearMeEnabled} onCheckedChange={setIsNearMeEnabled} className="scale-90" />
+                            </div>
+
                             {isSitesLoading ? (
                                 <div className="flex flex-col items-center justify-center py-12 gap-4">
                                     <Loader2 className="animate-spin text-primary" size={32} />
@@ -438,13 +577,14 @@ function ExploreRouteContent() {
                         </AccordionContent>
                       </AccordionItem>
 
+                      {/* AI Site Suggestions Section */}
                       <AccordionItem value="ai" className="border-none">
                         <AccordionTrigger className="hover:no-underline py-0 mb-4 group">
                           <div className="flex items-center gap-3">
                             <div className="bg-primary/10 p-2.5 rounded-xl text-primary">
                               <Sparkles size={18} />
                             </div>
-                            <span className="text-[11px] font-black uppercase tracking-widest text-primary">AI Suggestions</span>
+                            <span className="text-[11px] font-black uppercase tracking-widest text-primary">Nearby Suggestions</span>
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
