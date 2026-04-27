@@ -92,10 +92,22 @@ const generatePersonalizedItineraryFlow = ai.defineFlow(
     outputSchema: GeneratePersonalizedItineraryOutputSchema,
   },
   async input => {
-    const {output} = await generatePersonalizedItineraryPrompt(input);
-    if (!output) {
-      throw new Error('Failed to generate itinerary.');
+    let lastError;
+    // Implementation of a simple retry loop to handle 503 (Service Unavailable) errors
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const {output} = await generatePersonalizedItineraryPrompt(input);
+        if (output) return output;
+      } catch (error: any) {
+        lastError = error;
+        // If it's a 503 or demand spike, wait and try again
+        if (error.message?.includes('503') || error.message?.includes('high demand')) {
+          await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)));
+          continue;
+        }
+        throw error; // Throw immediately for non-transient errors
+      }
     }
-    return output;
+    throw lastError || new Error('Failed to generate itinerary after multiple attempts.');
   }
 );

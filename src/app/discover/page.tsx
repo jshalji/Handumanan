@@ -35,16 +35,14 @@ import {
   Navigation2,
   MapPin,
   Route,
-  Trash2,
-  Star,
-  Info,
   Home,
   Building2,
   Calendar,
-  ArrowRight
+  ArrowRight,
+  Info
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, limit } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
@@ -68,13 +66,13 @@ const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), {
 });
 
 const CATEGORIES = [
-  { label: "Churches & Religious", value: "Churches & Religious Heritage Sites", icon: Church },
-  { label: "Ancestral Houses", value: "Ancestral Houses & Heritage Residences", icon: Home },
-  { label: "Museums & Institutions", value: "Museums & Cultural Institutions", icon: Landmark },
-  { label: "Historical Landmarks", value: "Historical Landmarks & Monuments", icon: MapPin },
-  { label: "Parks & Public Spaces", value: "Plazas, Parks & Public Spaces", icon: TreePine },
-  { label: "Government Buildings", value: "Government & Historic Buildings", icon: Building2 },
-  { label: "Non-Catholic Sites", value: "Cultural & Religious (Non-Catholic Sites)", icon: Sparkles }
+  { label: "Churches", value: "Churches & Religious Heritage Sites", icon: Church },
+  { label: "Houses", value: "Ancestral Houses & Heritage Residences", icon: Home },
+  { label: "Museums", value: "Museums & Cultural Institutions", icon: Landmark },
+  { label: "Landmarks", value: "Historical Landmarks & Monuments", icon: MapPin },
+  { label: "Parks", value: "Plazas, Parks & Public Spaces", icon: TreePine },
+  { label: "Government", value: "Government & Historic Buildings", icon: Building2 },
+  { label: "Other", value: "Cultural & Religious (Non-Catholic Sites)", icon: Sparkles }
 ];
 
 function ExploreRouteContent() {
@@ -89,10 +87,9 @@ function ExploreRouteContent() {
   const [totalDist, setTotalDist] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isPanelExpanded, setIsPanelExpanded] = useState(true);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const [focusedLocation, setFocusedLocation] = useState<{ lat: number; lng: number } | null>(null);
   
-  // Filter States
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [isNearMeEnabled, setIsNearMeEnabled] = useState(false);
 
@@ -102,12 +99,12 @@ function ExploreRouteContent() {
 
   const db = useFirestore();
 
-  // Firestore Site Fetching with Category Filtering
+  // Functional Multi-Filter Firestore Query
   const sitesQuery = useMemoFirebase(() => {
     if (!db) return null;
     const colRef = collection(db, 'heritageSites');
     if (selectedCategories.length > 0) {
-      console.log("[DEBUG] Filtering categories:", selectedCategories);
+      console.log("[DEBUG] Fetching categories:", selectedCategories);
       return query(colRef, where('category', 'in', selectedCategories));
     }
     return colRef;
@@ -116,22 +113,18 @@ function ExploreRouteContent() {
   const { data: firestoreSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
 
   const allSites = useMemo(() => {
-    // Fallback to local data if Firestore is empty or still loading (initial state)
+    // If Firestore is empty (initial state), fallback to static data
     const source = (firestoreSites && firestoreSites.length > 0) ? firestoreSites : HERITAGE_SITES;
-    return (source as any[]).map(site => ({
+    return source.map(site => ({
       ...site,
       coordinates: site.coordinates || { lat: site.latitude || 0, lng: site.longitude || 0 }
     })) as HeritageSite[];
   }, [firestoreSites]);
 
-  // API Key Loading
   useEffect(() => {
     const savedKey = localStorage.getItem('ors_api_key');
-    if (savedKey) {
-      setOrsKey(savedKey);
-    } else {
-      setShowKeyDialog(true);
-    }
+    if (savedKey) setOrsKey(savedKey);
+    else setShowKeyDialog(true);
   }, []);
 
   const handleSaveKey = () => {
@@ -139,7 +132,7 @@ function ExploreRouteContent() {
       localStorage.setItem('ors_api_key', tempKey.trim());
       setOrsKey(tempKey.trim());
       setShowKeyDialog(false);
-      toast({ title: "Engine Active", description: "Street-level routing enabled." });
+      toast({ title: "Engine Ready", description: "Precision routing is now active." });
     }
   };
 
@@ -150,8 +143,7 @@ function ExploreRouteContent() {
       setUserLocation(loc);
       return loc;
     } catch (err) {
-      toast({ title: "Location Access Denied", description: "Using default view.", variant: "destructive" });
-      setUserLocation(null);
+      toast({ title: "Location Access Denied", description: "Defaulting to Cebu City Center.", variant: "destructive" });
       return null;
     } finally {
       setLoading(false);
@@ -162,7 +154,6 @@ function ExploreRouteContent() {
     detectLocation();
   }, [detectLocation]);
 
-  // UI Filtering and Sorting
   const filteredAndSortedSites = useMemo(() => {
     let result = allSites.map(site => ({
       ...site,
@@ -171,21 +162,17 @@ function ExploreRouteContent() {
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(s => 
-        s.name.toLowerCase().includes(q) || 
-        s.city.toLowerCase().includes(q)
-      );
+      result = result.filter(s => s.name.toLowerCase().includes(q) || s.city.toLowerCase().includes(q));
     }
 
     if (isNearMeEnabled && userLocation) {
-      result = result.filter(s => s.distance <= 5); // 5km radius
+      result = result.filter(s => s.distance <= 5);
       result.sort((a, b) => a.distance - b.distance);
     }
 
     return result;
   }, [allSites, userLocation, searchQuery, isNearMeEnabled]);
 
-  // AI Suggestions section
   const aiSuggestions = useMemo(() => {
     let suggestions = [...allSites];
     if (userLocation) {
@@ -196,7 +183,6 @@ function ExploreRouteContent() {
       });
     } else {
       suggestions = suggestions.filter(s => s.isMustVisit);
-      if (suggestions.length === 0) suggestions = [...allSites].slice(0, 5);
     }
     
     return suggestions.slice(0, 5).map(s => ({
@@ -209,7 +195,6 @@ function ExploreRouteContent() {
     return itineraryIds.map(id => allSites.find(s => s.id === id)).filter(Boolean) as HeritageSite[];
   }, [itineraryIds, allSites]);
 
-  // Automatic Routing Logic
   useEffect(() => {
     const fetchRoute = async () => {
       if (itineraryIds.length < 2 || !orsKey) {
@@ -218,7 +203,6 @@ function ExploreRouteContent() {
         setTotalTime(0);
         return;
       }
-
       const points = itinerarySites.map(s => s.coordinates);
       const data = await getRouteMulti(points, orsKey);
       if (data) {
@@ -227,14 +211,11 @@ function ExploreRouteContent() {
         setTotalTime(data.duration);
       }
     };
-
     fetchRoute();
   }, [itineraryIds, orsKey, itinerarySites]);
 
   const toggleCategory = (value: string) => {
-    setSelectedCategories(prev => 
-      prev.includes(value) ? prev.filter(c => c !== value) : [...prev, value]
-    );
+    setSelectedCategories(prev => prev.includes(value) ? prev.filter(c => c !== value) : [...prev, value]);
   };
 
   const toggleSite = (id: string) => {
@@ -250,8 +231,6 @@ function ExploreRouteContent() {
       <Navbar />
       
       <main className="flex-1 relative overflow-hidden">
-        
-        {/* Full Screen Map */}
         <div className="absolute inset-0 z-0">
           <HeritageMap 
             userLocation={userLocation} 
@@ -265,13 +244,13 @@ function ExploreRouteContent() {
           />
         </div>
 
-        {/* Top Floating Controls */}
+        {/* Floating Top Controls */}
         <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[92vw] max-w-2xl z-50 flex flex-col items-center gap-4">
           <div className="w-full flex gap-3 items-center">
             <div className="flex-1 relative group">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={20} />
               <Input 
-                placeholder="Search historical sites..." 
+                placeholder="Search historical landmarks..." 
                 className="pl-14 h-14 rounded-2xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full font-bold text-sm ring-1 ring-black/5" 
                 value={searchQuery} 
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -282,7 +261,6 @@ function ExploreRouteContent() {
             </Button>
           </div>
 
-          {/* Filter Pills */}
           <div className="w-full">
             <ScrollArea className="w-full pb-2">
               <div className="flex items-center justify-start gap-2 px-1">
@@ -322,7 +300,7 @@ function ExploreRouteContent() {
           </div>
         </div>
 
-        {/* Route Summary (Floating Card) */}
+        {/* Live Trip Summary Card */}
         {itineraryIds.length > 0 && (
           <div className="absolute top-24 right-6 z-[60] w-72 hidden md:block">
             <Card className="rounded-[2rem] shadow-2xl border-none bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 overflow-hidden">
@@ -330,7 +308,7 @@ function ExploreRouteContent() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Route size={18} />
-                        <CardTitle className="text-xs font-black uppercase tracking-widest">Live Trip Summary</CardTitle>
+                        <CardTitle className="text-xs font-black uppercase tracking-widest">Trip Summary</CardTitle>
                     </div>
                     <Button variant="ghost" size="icon" className="h-6 w-6 text-white hover:bg-white/20" onClick={() => setItineraryIds([])}>
                       <X size={14} />
@@ -348,14 +326,6 @@ function ExploreRouteContent() {
                       <p className="text-lg font-black text-primary">{totalDist.toFixed(1)} km</p>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    {itinerarySites.map((s, idx) => (
-                      <div key={s.id} className="flex items-center gap-2 text-[10px] font-bold text-slate-600 truncate">
-                        <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center rounded-full shrink-0 border-primary text-primary">{idx + 1}</Badge>
-                        <span className="truncate">{s.name}</span>
-                      </div>
-                    ))}
-                  </div>
                   <Button className="w-full rounded-2xl font-black text-[10px] uppercase tracking-widest h-12 shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90">
                     <Navigation size={16} className="mr-2" /> Start Navigation
                   </Button>
@@ -364,14 +334,13 @@ function ExploreRouteContent() {
           </div>
         )}
 
-        {/* Left Side Floating Panel */}
+        {/* Explore Panel (Floating Left) */}
         <div 
           className={cn(
             "fixed inset-x-0 bottom-0 z-[55] transition-all duration-500 ease-in-out md:left-6 md:top-24 md:bottom-auto md:w-[380px] bg-white/95 backdrop-blur-2xl shadow-[0_40px_80px_rgba(0,0,0,0.2)] border-none flex flex-col rounded-t-[2.5rem] md:rounded-[2.5rem] ring-1 ring-black/5",
             isPanelExpanded ? "h-[75vh] md:h-[calc(100vh-140px)]" : "h-20 md:h-16"
           )}
         >
-          {/* Panel Header */}
           <button 
             className="w-full h-16 flex items-center justify-between px-7 shrink-0"
             onClick={() => setIsPanelExpanded(!isPanelExpanded)}
@@ -382,26 +351,19 @@ function ExploreRouteContent() {
               </div>
               <h2 className="font-headline text-lg font-black text-slate-900 tracking-tight">Explore Route</h2>
             </div>
-            <div className="flex items-center gap-3">
-              {itineraryIds.length > 0 && !isPanelExpanded && (
-                <Badge className="bg-primary text-white border-none font-black text-[10px] px-3 h-7">{itineraryIds.length} stops</Badge>
-              )}
-              <div className="p-1.5 rounded-full bg-slate-100 text-slate-400">
-                {isPanelExpanded ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-              </div>
+            <div className="p-1.5 rounded-full bg-slate-100 text-slate-400">
+              {isPanelExpanded ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
             </div>
           </button>
 
-          {/* Collapsible Content */}
           <div className={cn("flex-1 flex flex-col overflow-hidden", !isPanelExpanded && "hidden")}>
-                {/* Proximity Toggle */}
                 <div className="p-5 bg-slate-50/40 border-y space-y-3 px-7">
                   <div className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-white">
                     <div className="flex items-center gap-3">
                       <div className={cn("p-2 rounded-xl transition-colors", isNearMeEnabled ? "bg-primary text-white" : "bg-slate-100 text-slate-400")}>
                         <LocateFixed size={16} />
                       </div>
-                      <Label htmlFor="near-me-toggle" className="text-[11px] font-black uppercase tracking-widest text-slate-600">Near Me (5km)</Label>
+                      <Label htmlFor="near-me-toggle" className="text-[11px] font-black uppercase tracking-widest text-slate-600">Proximity Sort</Label>
                     </div>
                     <Switch id="near-me-toggle" checked={isNearMeEnabled} onCheckedChange={setIsNearMeEnabled} className="scale-90" />
                   </div>
@@ -409,7 +371,6 @@ function ExploreRouteContent() {
 
                 <ScrollArea className="flex-1">
                   <div className="p-7 space-y-6">
-                    {/* AI Planner Access */}
                     <div className="p-5 bg-primary/5 rounded-[2rem] border border-primary/10 shadow-inner">
                         <div className="flex items-center gap-3 mb-3">
                             <div className="p-2 bg-primary rounded-xl text-white">
@@ -417,20 +378,18 @@ function ExploreRouteContent() {
                             </div>
                             <div>
                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-primary leading-none mb-1">AI Trip Planner</h4>
-                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Build a custom itinerary</p>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Custom Itineraries</p>
                             </div>
                         </div>
                         <p className="text-[11px] text-slate-500 mb-4 font-medium leading-relaxed">Let our AI build a realistic heritage route based on your time and specific interests.</p>
                         <Button asChild className="w-full h-11 rounded-2xl bg-primary hover:bg-primary/90 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/10">
                             <Link href="/itinerary">
-                                Start AI Planning <ArrowRight size={14} className="ml-2" />
+                                Start Planning <ArrowRight size={14} className="ml-2" />
                             </Link>
                         </Button>
                     </div>
 
                     <Accordion type="multiple" defaultValue={["discovery", "ai"]} className="space-y-4">
-                      
-                      {/* Discovery Section */}
                       <AccordionItem value="discovery" className="border-none">
                         <AccordionTrigger className="hover:no-underline py-0 mb-4 group">
                           <div className="flex items-center gap-3">
@@ -479,7 +438,6 @@ function ExploreRouteContent() {
                         </AccordionContent>
                       </AccordionItem>
 
-                      {/* AI Suggestions Section */}
                       <AccordionItem value="ai" className="border-none">
                         <AccordionTrigger className="hover:no-underline py-0 mb-4 group">
                           <div className="flex items-center gap-3">
@@ -491,7 +449,7 @@ function ExploreRouteContent() {
                         </AccordionTrigger>
                         <AccordionContent>
                           <div className="space-y-3">
-                             {aiSuggestions.map(site => (
+                             {aiSuggestions.length > 0 ? aiSuggestions.map(site => (
                                <button 
                                 key={`suggest-${site.id}`}
                                 onClick={() => centerOnSite(site)}
@@ -509,18 +467,16 @@ function ExploreRouteContent() {
                                   </div>
                                   <Plus size={18} className="text-primary opacity-40 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); toggleSite(site.id); }} />
                                </button>
-                             ))}
+                             )) : <p className="text-center py-4 text-xs text-muted-foreground font-bold uppercase">No recommendations available</p>}
                           </div>
                         </AccordionContent>
                       </AccordionItem>
-
                     </Accordion>
                   </div>
                 </ScrollArea>
           </div>
         </div>
 
-        {/* ORS Activation Dialog */}
         <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
           <DialogContent className="w-[92vw] max-w-md rounded-[2.5rem] p-10 border-none shadow-3xl bg-white/95 backdrop-blur-2xl">
             <DialogHeader>
@@ -540,7 +496,6 @@ function ExploreRouteContent() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
       </main>
     </div>
   );
