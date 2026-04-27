@@ -6,24 +6,21 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
-import { HERITAGE_SITES, HeritageSite } from '@/lib/heritage-data';
+import { HeritageSite } from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation } from '@/lib/location-utils';
 import { getRouteMulti, type RouteStep } from '@/lib/routing-service';
 import { generatePersonalizedItinerary } from '@/ai/flows/generate-personalized-itinerary';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { 
-  MapPin, 
   Navigation, 
   Loader2, 
   Sparkles, 
-  Clock, 
-  Route as RouteIcon, 
   Map as MapIcon, 
   Search,
   LocateFixed,
@@ -38,15 +35,14 @@ import {
   CheckCircle2,
   ChevronUp,
   ChevronDown,
-  History,
   Church,
   Landmark,
   TreePine,
-  Building2,
   Trash2,
   RotateCcw,
   Navigation2,
-  Info
+  Info,
+  MapPin
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -76,10 +72,10 @@ const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), {
 });
 
 const CATEGORIES = [
-  { label: "Churches", icon: Church },
-  { label: "Museums", icon: Landmark },
-  { label: "Landmarks", icon: Landmark },
-  { label: "Parks", icon: TreePine }
+  { label: "Churches", value: "Church", icon: Church },
+  { label: "Museums", value: "Museum", icon: Landmark },
+  { label: "Landmarks", value: "Landmark", icon: Landmark },
+  { label: "Parks", value: "Park", icon: TreePine }
 ];
 
 const CITIES = ["All", "Cebu City", "Lapu-Lapu City", "Mandaue City", "Talisay City"];
@@ -88,7 +84,6 @@ function ExploreRouteContent() {
   const { user } = useUser();
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const siteIdFromUrl = searchParams.get('siteId');
 
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -102,11 +97,15 @@ function ExploreRouteContent() {
   const [travelMode, setTravelMode] = useState<'driving-car' | 'foot-walking'>('driving-car');
   const [searchQuery, setSearchQuery] = useState('');
   const [isPanelExpanded, setIsPanelExpanded] = useState(true);
+  const [focusedLocation, setFocusedLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   // Filter States
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedCity, setSelectedCity] = useState("All");
   const [isNearMeEnabled, setIsNearMeEnabled] = useState(false);
+
+  // AI Recommendations state
+  const [aiSuggestions, setAiSuggestions] = useState<HeritageSite[]>([]);
 
   const [orsKey, setOrsKey] = useState<string>('');
   const [showKeyDialog, setShowKeyDialog] = useState(false);
@@ -118,22 +117,36 @@ function ExploreRouteContent() {
   const db = useFirestore();
   const defaultLocation = { lat: 10.2936, lng: 123.9019 };
 
-  // Firestore Site Fetching with Multi-Category Support
+  // Firestore Site Fetching
   const sitesQuery = useMemoFirebase(() => {
     if (!db) return null;
     const colRef = collection(db, 'heritageSites');
+    
+    // Debug Logging Requirements
+    console.log("--- Filter Update ---");
+    console.log("Selected Filters:", selectedCategories);
+
     if (selectedCategories.length > 0) {
-      return query(colRef, where('category', 'in', selectedCategories));
+      const q = query(colRef, where('category', 'in', selectedCategories));
+      return q;
     }
     return colRef;
   }, [db, selectedCategories]);
 
   const { data: firestoreSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
 
-  // Fallback to static data if Firestore is empty or loading
+  // Debug results
+  useEffect(() => {
+    if (firestoreSites) {
+      console.log("Firestore Results Count:", firestoreSites.length);
+      if (firestoreSites.length > 0) {
+        console.log("Example Category from DB:", (firestoreSites[0] as any).category);
+      }
+    }
+  }, [firestoreSites]);
+
   const allSites = useMemo(() => {
-    if (firestoreSites && firestoreSites.length > 0) return firestoreSites as any as HeritageSite[];
-    return HERITAGE_SITES;
+    return (firestoreSites || []) as any as HeritageSite[];
   }, [firestoreSites]);
 
   // API Key Loading
@@ -206,6 +219,69 @@ function ExploreRouteContent() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [userLocation, itineraryIds, visitedSites, allSites, toast]);
 
+  // Filter and Sort Logic
+  const filteredAndSortedSites = useMemo(() => {
+    let result = allSites.map(site => ({
+      ...site,
+      distance: userLocation ? calculateDistance(userLocation.lat, userLocation.lng, site.coordinates.lat, site.coordinates.lng) : 0
+    }));
+
+    if (selectedCity !== "All") {
+      result = result.filter(s => s.city === selectedCity);
+    }
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(s => 
+        s.name.toLowerCase().includes(q) || 
+        s.city.toLowerCase().includes(q) ||
+        (s.category && s.category.toLowerCase().includes(q))
+      );
+    }
+
+    if (isNearMeEnabled) {
+      result.sort((a, b) => a.distance - b.distance);
+    }
+
+    return result;
+  }, [allSites, userLocation, selectedCity, searchQuery, isNearMeEnabled]);
+
+  // AI Suggestions Logic (Ensure non-empty state)
+  useEffect(() => {
+    if (allSites.length > 0) {
+      let suggestions = [...allSites];
+      if (userLocation) {
+        suggestions.sort((a, b) => {
+          const distA = calculateDistance(userLocation.lat, userLocation.lng, a.coordinates.lat, a.coordinates.lng);
+          const distB = calculateDistance(userLocation.lat, userLocation.lng, b.coordinates.lat, b.coordinates.lng);
+          return distA - distB;
+        });
+      }
+      setAiSuggestions(suggestions.slice(0, 5));
+    }
+  }, [allSites, userLocation]);
+
+  const handleAiItinerary = async () => {
+    setIsAiThinking(true);
+    try {
+      const loc = userLocation || await detectLocation();
+      const result = await generatePersonalizedItinerary({
+        interests: selectedCategories.length > 0 ? selectedCategories : ["History", "Architecture"],
+        availableTimeHours: 6,
+        startingLocation: `${loc.lat}, ${loc.lng}`,
+        siteDatabase: JSON.stringify(allSites.slice(0, 30))
+      });
+      
+      const suggestedIds = result.itinerary.map(item => allSites.find(s => s.name === item.siteName)?.id).filter(Boolean) as string[];
+      setItineraryIds(suggestedIds);
+      toast({ title: "AI Plan Ready", description: "Mapping optimized heritage route." });
+    } catch (error) {
+      toast({ title: "AI Assistant Busy", description: "Could not generate AI plan.", variant: "destructive" });
+    } finally {
+      setIsAiThinking(false);
+    }
+  };
+
   const handleGenerateRoute = async (customIds?: string[]) => {
     const idsToRoute = customIds || itineraryIds;
     if (idsToRoute.length === 0) {
@@ -230,7 +306,6 @@ function ExploreRouteContent() {
         setRouteSteps(routeData.steps);
         setTotalDist(routeData.distance);
         setTotalTime(routeData.duration);
-        if (window.innerWidth < 768) setIsPanelExpanded(true); 
       } else {
         toast({ title: "Route Error", description: "Check your API key or connection.", variant: "destructive" });
       }
@@ -241,107 +316,14 @@ function ExploreRouteContent() {
     }
   };
 
-  // Auto-route when itinerary changes and has 2+ items
-  useEffect(() => {
-    if (itineraryIds.length >= 1 && orsKey) {
-      const timer = setTimeout(() => {
-        handleGenerateRoute();
-      }, 500);
-      return () => clearTimeout(timer);
-    } else if (itineraryIds.length === 0) {
-      setRouteCoords([]);
-      setRouteSteps([]);
-      setTotalDist(0);
-      setTotalTime(0);
-    }
-  }, [itineraryIds, orsKey, travelMode]);
-
-  const filteredAndSortedSites = useMemo(() => {
-    let result = allSites.map(site => ({
-      ...site,
-      distance: userLocation ? calculateDistance(userLocation.lat, userLocation.lng, site.coordinates.lat, site.coordinates.lng) : 0
-    }));
-
-    if (selectedCategories.length > 0 && (!firestoreSites || firestoreSites.length === 0)) {
-        result = result.filter(s => selectedCategories.some(cat => s.category.includes(cat)));
-    }
-
-    if (selectedCity !== "All") {
-      result = result.filter(s => s.city === selectedCity);
-    }
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(s => 
-        s.name.toLowerCase().includes(q) || 
-        s.city.toLowerCase().includes(q) ||
-        s.category.toLowerCase().includes(q)
-      );
-    }
-
-    if (isNearMeEnabled) {
-      result.sort((a, b) => a.distance - b.distance);
-    }
-
-    return result;
-  }, [allSites, userLocation, selectedCategories, selectedCity, searchQuery, isNearMeEnabled, firestoreSites]);
-
   const itinerarySites = useMemo(() => {
     return itineraryIds.map(id => allSites.find(s => s.id === id)).filter(Boolean) as HeritageSite[];
   }, [itineraryIds, allSites]);
 
-  const nearbySites = useMemo(() => {
-    if (!userLocation) return [];
-    return allSites
-      .filter(site => !itineraryIds.includes(site.id))
-      .map(site => ({
-        ...site,
-        distance: calculateDistance(userLocation.lat, userLocation.lng, site.coordinates.lat, site.coordinates.lng)
-      }))
-      .sort((a, b) => a.distance - b.distance)
-      .slice(0, 5);
-  }, [allSites, userLocation, itineraryIds]);
-
-  const toggleCategory = (label: string) => {
+  const toggleCategory = (value: string) => {
     setSelectedCategories(prev => 
-      prev.includes(label) ? prev.filter(c => c !== label) : [...prev, label]
+      prev.includes(value) ? prev.filter(c => c !== value) : [...prev, value]
     );
-  };
-
-  const handleAiItinerary = async () => {
-    if (!orsKey) {
-      setShowKeyDialog(true);
-      return;
-    }
-    setIsAiThinking(true);
-    try {
-      const loc = userLocation || await detectLocation();
-      const result = await generatePersonalizedItinerary({
-        interests: selectedCategories.length > 0 ? selectedCategories : ["History", "Architecture"],
-        availableTimeHours: 6,
-        startingLocation: `${loc.lat}, ${loc.lng}`,
-        siteDatabase: JSON.stringify(allSites.slice(0, 30))
-      });
-      
-      const suggestedIds = result.itinerary.map(item => allSites.find(s => s.name === item.siteName)?.id).filter(Boolean) as string[];
-      setItineraryIds(suggestedIds);
-      toast({ title: "AI Plan Ready", description: "Mapping optimized heritage route." });
-    } catch (error) {
-      toast({ title: "AI Assistant Busy", description: "Could not generate AI plan.", variant: "destructive" });
-    } finally {
-      setIsAiThinking(false);
-    }
-  };
-
-  const moveItineraryItem = (index: number, direction: 'up' | 'down') => {
-    setItineraryIds(prev => {
-      const newIds = [...prev];
-      const targetIndex = direction === 'up' ? index - 1 : index + 1;
-      if (targetIndex >= 0 && targetIndex < newIds.length) {
-        [newIds[index], newIds[targetIndex]] = [newIds[targetIndex], newIds[index]];
-      }
-      return newIds;
-    });
   };
 
   const saveToProfile = () => {
@@ -364,13 +346,16 @@ function ExploreRouteContent() {
     setItineraryIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
+  const centerOnSite = (site: HeritageSite) => {
+    setFocusedLocation({ lat: site.coordinates.lat, lng: site.coordinates.lng });
+  };
+
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden relative">
       <Navbar />
       
       <main className="flex-1 relative overflow-hidden">
         
-        {/* Full Screen Map Canvas */}
         <div className="absolute inset-0 z-0">
           <HeritageMap 
             userLocation={userLocation} 
@@ -380,10 +365,11 @@ function ExploreRouteContent() {
             totalTime={totalTime} 
             totalDist={totalDist} 
             onAddSite={toggleSite}
+            focusedLocation={focusedLocation}
           />
         </div>
 
-        {/* Floating Top Controls (Search + Quick Actions) */}
+        {/* Top Floating Controls */}
         <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[90vw] max-w-2xl z-50 space-y-4">
           <div className="flex gap-2 items-center">
             <div className="flex-1 relative group">
@@ -400,7 +386,6 @@ function ExploreRouteContent() {
             </Button>
           </div>
 
-          {/* Horizontal Category Scroll */}
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-2 px-1">
             <Button 
                 onClick={() => setSelectedCategories([])}
@@ -415,11 +400,11 @@ function ExploreRouteContent() {
             </Button>
             {CATEGORIES.map((cat) => {
               const Icon = cat.icon;
-              const isSelected = selectedCategories.includes(cat.label);
+              const isSelected = selectedCategories.includes(cat.value);
               return (
                 <Button 
-                  key={cat.label}
-                  onClick={() => toggleCategory(cat.label)}
+                  key={cat.value}
+                  onClick={() => toggleCategory(cat.value)}
                   variant="ghost"
                   className={cn(
                     "h-10 px-5 rounded-full shadow-sm bg-white/90 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all",
@@ -434,14 +419,13 @@ function ExploreRouteContent() {
           </div>
         </div>
 
-        {/* Explore & Itinerary Panel (Floating Side/Bottom Panel) */}
+        {/* Discovery & Itinerary Panel */}
         <div 
           className={cn(
             "fixed inset-x-0 bottom-0 z-50 transition-all duration-500 ease-in-out md:left-6 md:top-24 md:bottom-auto md:w-[320px] bg-white/95 backdrop-blur-2xl shadow-2xl border-none flex flex-col rounded-t-[2.5rem] md:rounded-[2.5rem] ring-1 ring-black/5",
             isPanelExpanded ? "h-[85vh] md:h-[calc(100vh-120px)]" : "h-[72px] md:h-14"
           )}
         >
-          {/* Header/Handle */}
           <button 
             className="w-full h-14 flex items-center justify-between px-6 shrink-0"
             onClick={() => setIsPanelExpanded(!isPanelExpanded)}
@@ -495,36 +479,80 @@ function ExploreRouteContent() {
                           <p className="text-[10px] font-black uppercase tracking-widest">Querying Archives...</p>
                       </div>
                   ) : (
-                    <div className="space-y-4 py-4">
-                        {filteredAndSortedSites.length === 0 ? (
-                            <div className="text-center py-20 opacity-40">
-                                <p className="text-[10px] font-black uppercase tracking-widest">No sites match filters.</p>
-                            </div>
-                        ) : filteredAndSortedSites.map((site) => (
-                        <Card key={site.id} className={cn(
-                            "group overflow-hidden border-none shadow-sm rounded-3xl transition-all duration-300",
-                            itineraryIds.includes(site.id) ? "bg-primary/5 ring-1 ring-primary/20" : "bg-slate-50/50 hover:bg-white hover:shadow-md"
-                        )}>
-                            <div className="flex items-center p-3 gap-4">
-                            <div className="relative w-16 h-16 flex-shrink-0 rounded-2xl overflow-hidden shadow-sm">
-                                <Image src={site.imageUrl} alt={site.name} fill className="object-cover" sizes="64px" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <h3 className="font-bold text-sm line-clamp-1 text-slate-900 leading-tight mb-1">{site.name}</h3>
-                                <p className="text-[9px] text-muted-foreground uppercase font-black tracking-tight">{site.city} • {site.distance.toFixed(1)} km</p>
-                                <Link href={`/site/${site.id}`} className="text-[10px] font-black text-primary hover:underline mt-2 inline-block">Site Details</Link>
-                            </div>
-                            <Button 
-                                size="sm" 
-                                variant={itineraryIds.includes(site.id) ? "default" : "outline"} 
-                                className={cn("h-10 w-10 p-0 rounded-2xl", itineraryIds.includes(site.id) ? 'bg-primary border-none shadow-lg' : 'border-slate-200 text-slate-400')} 
-                                onClick={() => toggleSite(site.id)}
-                            >
-                                {itineraryIds.includes(site.id) ? <X size={16} /> : <Plus size={16} />}
-                            </Button>
-                            </div>
-                        </Card>
-                        ))}
+                    <div className="space-y-6 py-4">
+                        {/* AI Recommendation Section (Never Empty) */}
+                        <div className="space-y-3">
+                           <div className="flex items-center gap-2 px-1">
+                              <Sparkles size={14} className="text-primary" />
+                              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">AI Suggested</h3>
+                           </div>
+                           <div className="space-y-2">
+                             {aiSuggestions.length === 0 ? (
+                               <p className="text-[10px] text-slate-400 italic px-1">No recommendations available</p>
+                             ) : (
+                               aiSuggestions.map(site => (
+                                 <button 
+                                  key={`suggest-${site.id}`}
+                                  onClick={() => centerOnSite(site)}
+                                  className="w-full flex items-center gap-3 p-3 bg-white rounded-2xl shadow-sm border border-slate-100 hover:border-primary/30 transition-colors text-left group"
+                                 >
+                                    <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 relative">
+                                        <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[10px] font-black text-slate-800 truncate">{site.name}</p>
+                                        <p className="text-[8px] text-slate-400 font-bold uppercase">{site.category}</p>
+                                    </div>
+                                    <Button 
+                                      size="sm" 
+                                      variant="ghost" 
+                                      className="h-8 w-8 p-0 rounded-lg text-primary"
+                                      onClick={(e) => { e.stopPropagation(); toggleSite(site.id); }}
+                                    >
+                                      {itineraryIds.includes(site.id) ? <CheckCircle2 size={16} /> : <Plus size={16} />}
+                                    </Button>
+                                 </button>
+                               ))
+                             )}
+                           </div>
+                        </div>
+
+                        {/* Main Site List */}
+                        <div className="space-y-3">
+                           <div className="flex items-center gap-2 px-1">
+                              <MapIcon size={14} className="text-slate-400" />
+                              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Nearby Markers</h3>
+                           </div>
+                           {filteredAndSortedSites.length === 0 ? (
+                              <div className="text-center py-10 opacity-40">
+                                  <p className="text-[10px] font-black uppercase tracking-widest">No sites found for this filter</p>
+                              </div>
+                          ) : filteredAndSortedSites.map((site) => (
+                            <Card key={site.id} className={cn(
+                                "group overflow-hidden border-none shadow-sm rounded-3xl transition-all duration-300",
+                                itineraryIds.includes(site.id) ? "bg-primary/5 ring-1 ring-primary/20" : "bg-slate-50/50 hover:bg-white hover:shadow-md"
+                            )}>
+                                <div className="flex items-center p-3 gap-4" onClick={() => centerOnSite(site)}>
+                                  <div className="relative w-16 h-16 flex-shrink-0 rounded-2xl overflow-hidden shadow-sm">
+                                      <Image src={site.imageUrl} alt={site.name} fill className="object-cover" sizes="64px" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                      <h3 className="font-bold text-sm line-clamp-1 text-slate-900 leading-tight mb-1">{site.name}</h3>
+                                      <p className="text-[9px] text-muted-foreground uppercase font-black tracking-tight">{site.city} • {site.distance.toFixed(1)} km</p>
+                                      <Link href={`/site/${site.id}`} className="text-[10px] font-black text-primary hover:underline mt-2 inline-block">Site Details</Link>
+                                  </div>
+                                  <Button 
+                                      size="sm" 
+                                      variant={itineraryIds.includes(site.id) ? "default" : "outline"} 
+                                      className={cn("h-10 w-10 p-0 rounded-2xl", itineraryIds.includes(site.id) ? 'bg-primary border-none shadow-lg' : 'border-slate-200 text-slate-400')} 
+                                      onClick={(e) => { e.stopPropagation(); toggleSite(site.id); }}
+                                  >
+                                      {itineraryIds.includes(site.id) ? <X size={16} /> : <Plus size={16} />}
+                                  </Button>
+                                </div>
+                            </Card>
+                          ))}
+                        </div>
                     </div>
                   )}
                 </ScrollArea>
@@ -556,32 +584,6 @@ function ExploreRouteContent() {
                           </div>
                           <p className="text-[10px] font-black text-slate-800 uppercase tracking-widest max-w-[150px]">Your route is empty.</p>
                         </div>
-
-                        {/* Quick Suggestions for Empty State */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2 px-2">
-                                <Sparkles size={14} className="text-primary" />
-                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Quick Suggestions</h4>
-                            </div>
-                            <div className="grid grid-cols-1 gap-2">
-                                {HERITAGE_SITES.filter(s => s.isMustVisit).slice(0, 3).map(site => (
-                                    <button 
-                                        key={site.id} 
-                                        onClick={() => toggleSite(site.id)}
-                                        className="flex items-center gap-3 p-3 bg-white rounded-2xl shadow-sm border border-slate-100 hover:border-primary/30 transition-colors text-left group"
-                                    >
-                                        <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0">
-                                            <Image src={site.imageUrl} alt={site.name} width={32} height={32} className="object-cover" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] font-black text-slate-800 truncate">{site.name}</p>
-                                            <p className="text-[8px] text-slate-400 font-bold uppercase">{site.city}</p>
-                                        </div>
-                                        <Plus size={14} className="text-slate-300 group-hover:text-primary transition-colors" />
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
                     </div>
                   ) : (
                     <div className="space-y-3 pb-20">
@@ -595,8 +597,20 @@ function ExploreRouteContent() {
                             <p className="text-[9px] text-slate-400 font-bold uppercase">{site.city}</p>
                           </div>
                           <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => moveItineraryItem(idx, 'up')} disabled={idx === 0} className="p-1 text-slate-300 hover:text-primary disabled:opacity-20"><ArrowUp size={14} /></button>
-                            <button onClick={() => moveItineraryItem(idx, 'down')} disabled={idx === itineraryIds.length - 1} className="p-1 text-slate-300 hover:text-primary disabled:opacity-20"><ArrowDown size={14} /></button>
+                            <button onClick={() => {
+                               setItineraryIds(prev => {
+                                 const newIds = [...prev];
+                                 if (idx > 0) [newIds[idx], newIds[idx-1]] = [newIds[idx-1], newIds[idx]];
+                                 return newIds;
+                               });
+                            }} disabled={idx === 0} className="p-1 text-slate-300 hover:text-primary disabled:opacity-20"><ArrowUp size={14} /></button>
+                            <button onClick={() => {
+                               setItineraryIds(prev => {
+                                 const newIds = [...prev];
+                                 if (idx < newIds.length - 1) [newIds[idx], newIds[idx+1]] = [newIds[idx+1], newIds[idx]];
+                                 return newIds;
+                               });
+                            }} disabled={idx === itineraryIds.length - 1} className="p-1 text-slate-300 hover:text-primary disabled:opacity-20"><ArrowDown size={14} /></button>
                           </div>
                           <button onClick={() => setItineraryIds(prev => prev.filter(id => id !== site.id))} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><X size={18} /></button>
                         </div>

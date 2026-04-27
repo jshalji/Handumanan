@@ -24,7 +24,7 @@ const destIcon = L.icon({
 });
 
 const selectedIcon = L.icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -48,19 +48,24 @@ interface HeritageMapProps {
   totalTime?: number;
   totalDist?: number;
   onAddSite: (id: string) => void;
+  focusedLocation?: { lat: number; lng: number } | null;
 }
 
 function MapController({ 
   center, 
-  routeCoordinates 
+  routeCoordinates,
+  focusedLocation
 }: { 
   center: [number, number], 
-  routeCoordinates?: [number, number][] 
+  routeCoordinates?: [number, number][],
+  focusedLocation?: { lat: number; lng: number } | null
 }) {
   const map = useMap();
 
   useEffect(() => {
-    if (routeCoordinates && routeCoordinates.length > 1) {
+    if (focusedLocation) {
+      map.setView([focusedLocation.lat, focusedLocation.lng], 16, { animate: true, duration: 1 });
+    } else if (routeCoordinates && routeCoordinates.length > 1) {
       const bounds = L.polyline(routeCoordinates).getBounds();
       map.fitBounds(bounds, { 
         padding: [100, 100], 
@@ -70,7 +75,7 @@ function MapController({
     } else if (center) {
       map.setView(center, 14, { animate: true, duration: 1 });
     }
-  }, [center, routeCoordinates, map]);
+  }, [center, routeCoordinates, focusedLocation, map]);
 
   return null;
 }
@@ -82,7 +87,8 @@ export default function HeritageMap({
   routeCoordinates,
   totalTime,
   totalDist,
-  onAddSite
+  onAddSite,
+  focusedLocation
 }: HeritageMapProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -111,14 +117,14 @@ export default function HeritageMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
-        <MapController center={center} routeCoordinates={routeCoordinates} />
+        <MapController center={center} routeCoordinates={routeCoordinates} focusedLocation={focusedLocation} />
 
         {userLocation && (
           <>
             <Circle 
               center={[userLocation.lat, userLocation.lng]} 
               radius={300} 
-              pathOptions={{ fillColor: '#3b82f6', fillOpacity: 0.15, color: '#3b82f6', weight: 1, dashArray: '5, 5' }} 
+              pathOptions={{ fillColor: '#10b981', fillOpacity: 0.15, color: '#10b981', weight: 1, dashArray: '5, 5' }} 
             />
             <Marker position={[userLocation.lat, userLocation.lng]} icon={userPulse}>
               <Popup>Current Location</Popup>
@@ -176,7 +182,7 @@ export default function HeritageMap({
           <>
             <Polyline 
               positions={routeCoordinates} 
-              color="#2563eb" 
+              color="#10b981" 
               weight={12} 
               opacity={0.15} 
               lineCap="round"
@@ -184,7 +190,7 @@ export default function HeritageMap({
             />
             <Polyline 
               positions={routeCoordinates} 
-              color="#2563eb" 
+              color="#10b981" 
               weight={7} 
               opacity={1} 
               lineCap="round"
