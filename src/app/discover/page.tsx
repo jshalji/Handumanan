@@ -44,7 +44,9 @@ import {
   TreePine,
   Building2,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  Navigation2,
+  Info
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -121,19 +123,12 @@ function ExploreRouteContent() {
     if (!db) return null;
     const colRef = collection(db, 'heritageSites');
     if (selectedCategories.length > 0) {
-      console.log("Filtering Firestore by categories:", selectedCategories);
       return query(colRef, where('category', 'in', selectedCategories));
     }
     return colRef;
   }, [db, selectedCategories]);
 
   const { data: firestoreSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
-
-  useEffect(() => {
-    if (firestoreSites) {
-      console.log("Firestore query successful. Results:", firestoreSites.length);
-    }
-  }, [firestoreSites]);
 
   // Fallback to static data if Firestore is empty or loading
   const allSites = useMemo(() => {
@@ -246,13 +241,27 @@ function ExploreRouteContent() {
     }
   };
 
+  // Auto-route when itinerary changes and has 2+ items
+  useEffect(() => {
+    if (itineraryIds.length >= 1 && orsKey) {
+      const timer = setTimeout(() => {
+        handleGenerateRoute();
+      }, 500);
+      return () => clearTimeout(timer);
+    } else if (itineraryIds.length === 0) {
+      setRouteCoords([]);
+      setRouteSteps([]);
+      setTotalDist(0);
+      setTotalTime(0);
+    }
+  }, [itineraryIds, orsKey, travelMode]);
+
   const filteredAndSortedSites = useMemo(() => {
     let result = allSites.map(site => ({
       ...site,
       distance: userLocation ? calculateDistance(userLocation.lat, userLocation.lng, site.coordinates.lat, site.coordinates.lng) : 0
     }));
 
-    // Firestore handling happens at query level, but we keep fallback filter for static data
     if (selectedCategories.length > 0 && (!firestoreSites || firestoreSites.length === 0)) {
         result = result.filter(s => selectedCategories.some(cat => s.category.includes(cat)));
     }
@@ -316,7 +325,6 @@ function ExploreRouteContent() {
       
       const suggestedIds = result.itinerary.map(item => allSites.find(s => s.name === item.siteName)?.id).filter(Boolean) as string[];
       setItineraryIds(suggestedIds);
-      handleGenerateRoute(suggestedIds);
       toast({ title: "AI Plan Ready", description: "Mapping optimized heritage route." });
     } catch (error) {
       toast({ title: "AI Assistant Busy", description: "Could not generate AI plan.", variant: "destructive" });
@@ -426,39 +434,6 @@ function ExploreRouteContent() {
           </div>
         </div>
 
-        {/* Nearby Recommendations (Bottom-Right Floating) */}
-        {itineraryIds.length > 0 && (
-          <div className="fixed bottom-10 right-10 z-[1000] w-72 animate-in fade-in slide-in-from-right-10 hidden lg:block">
-            <Card className="rounded-[2.5rem] shadow-2xl border-none p-6 bg-white/95 backdrop-blur-2xl ring-1 ring-slate-100">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                  <Sparkles size={14} className="text-accent" /> Nearby Picks
-                </h3>
-              </div>
-              <ScrollArea className="h-48">
-                <div className="space-y-3 pr-4">
-                  {nearbySites.map(site => (
-                    <div 
-                      key={site.id} 
-                      className="flex items-center gap-3 p-2 rounded-2xl hover:bg-slate-50 transition-colors cursor-pointer group"
-                      onClick={() => toggleSite(site.id)}
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden relative shadow-sm">
-                        <Image src={site.imageUrl} alt={site.name} fill className="object-cover" sizes="40px" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-black text-slate-800 truncate leading-none mb-1">{site.name}</p>
-                        <p className="text-[8px] text-slate-400 font-bold uppercase">{site.distance.toFixed(1)} km</p>
-                      </div>
-                      <Plus size={14} className="text-slate-300 group-hover:text-primary transition-colors" />
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </Card>
-          </div>
-        )}
-
         {/* Explore & Itinerary Panel (Floating Side/Bottom Panel) */}
         <div 
           className={cn(
@@ -473,9 +448,9 @@ function ExploreRouteContent() {
           >
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-xl">
-                <MapIcon size={18} className="text-primary" />
+                <Navigation2 size={18} className="text-primary" />
               </div>
-              <h2 className="font-headline text-lg font-black text-slate-900">Heritage Explorer</h2>
+              <h2 className="font-headline text-lg font-black text-slate-900">Explore Route</h2>
             </div>
             <div className="flex items-center gap-2">
                {itineraryIds.length > 0 && (
@@ -574,14 +549,42 @@ function ExploreRouteContent() {
                 
                 <ScrollArea className="flex-1 px-4 py-4">
                   {itineraryIds.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-center opacity-40">
-                      <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-6">
-                        <MapIcon size={32} className="text-slate-300" />
-                      </div>
-                      <p className="text-[10px] font-black text-slate-800 uppercase tracking-widest max-w-[150px]">Your route is empty.</p>
+                    <div className="space-y-6">
+                        <div className="flex flex-col items-center justify-center py-10 text-center opacity-40">
+                          <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                            <MapIcon size={24} className="text-slate-300" />
+                          </div>
+                          <p className="text-[10px] font-black text-slate-800 uppercase tracking-widest max-w-[150px]">Your route is empty.</p>
+                        </div>
+
+                        {/* Quick Suggestions for Empty State */}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 px-2">
+                                <Sparkles size={14} className="text-primary" />
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Quick Suggestions</h4>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2">
+                                {HERITAGE_SITES.filter(s => s.isMustVisit).slice(0, 3).map(site => (
+                                    <button 
+                                        key={site.id} 
+                                        onClick={() => toggleSite(site.id)}
+                                        className="flex items-center gap-3 p-3 bg-white rounded-2xl shadow-sm border border-slate-100 hover:border-primary/30 transition-colors text-left group"
+                                    >
+                                        <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0">
+                                            <Image src={site.imageUrl} alt={site.name} width={32} height={32} className="object-cover" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] font-black text-slate-800 truncate">{site.name}</p>
+                                            <p className="text-[8px] text-slate-400 font-bold uppercase">{site.city}</p>
+                                        </div>
+                                        <Plus size={14} className="text-slate-300 group-hover:text-primary transition-colors" />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-3 pb-20">
                       {itinerarySites.map((site, idx) => (
                         <div key={site.id} className="flex gap-4 items-center bg-white p-4 rounded-[1.5rem] shadow-sm ring-1 ring-slate-100 group border-l-4 border-l-primary animate-in fade-in slide-in-from-left-2">
                           <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-black shrink-0 shadow-lg shadow-primary/20">
@@ -606,7 +609,7 @@ function ExploreRouteContent() {
                   {routeSteps.length > 0 && (
                     <div className="bg-primary/5 p-4 rounded-3xl space-y-2 border border-primary/10">
                       <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-primary/60">
-                        <span>Trip Summary</span>
+                        <span className="flex items-center gap-1.5"><Info size={12} /> Trip Summary</span>
                         <Badge variant="outline" className="text-[9px] border-primary/20 text-primary">{totalDist.toFixed(1)} KM</Badge>
                       </div>
                       <p className="text-2xl font-black text-primary leading-none">{Math.round(totalTime)} MINS <span className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Est. Travel</span></p>
@@ -621,7 +624,7 @@ function ExploreRouteContent() {
                       onClick={() => handleGenerateRoute()} 
                       disabled={isPlanningRoute || itineraryIds.length === 0}
                     >
-                      {isPlanningRoute ? <Loader2 className="animate-spin" size={20} /> : <><RouteIcon size={18} /> Start Route</>}
+                      {isPlanningRoute ? <Loader2 className="animate-spin" size={20} /> : <><Navigation size={18} /> Start Route</>}
                     </Button>
                   </div>
                 </div>
