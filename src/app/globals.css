@@ -4,25 +4,25 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 222 47% 11%;
+    --background: 120 20% 98%;
+    --foreground: 160 50% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 160 50% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 226 70% 40%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222 47% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 38 92% 50%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 226 70% 40%;
+    --popover-foreground: 160 50% 10%;
+    --primary: 142 76% 36%;
+    --primary-foreground: 142 10% 98%;
+    --secondary: 142 20% 96%;
+    --secondary-foreground: 142 50% 15%;
+    --muted: 142 10% 95%;
+    --muted-foreground: 142 10% 45%;
+    --accent: 45 90% 50%;
+    --accent-foreground: 160 50% 10%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 142 20% 90%;
+    --input: 142 20% 90%;
+    --ring: 142 76% 36%;
     --radius: 1rem;
   }
 }
@@ -83,9 +83,9 @@
 
 /* User Location Pulse Animation */
 @keyframes user-pulse {
-  0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(30, 58, 138, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(30, 58, 138, 0); }
-  100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(30, 58, 138, 0); }
+  0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
 
 .user-location-pulse {
