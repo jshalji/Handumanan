@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Landmark, Compass, Calendar, Settings, Menu, MapPin, User as UserIcon, LogOut, Search } from 'lucide-react';
+import { Landmark, MapPin, User as UserIcon, LogOut, Search, Menu, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth } from '@/firebase';
@@ -38,7 +38,7 @@ export function Navbar() {
   };
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md h-20">
+    <nav className="sticky top-0 z-[100] w-full border-b bg-white/80 backdrop-blur-md h-20">
       <div className="container mx-auto px-4 h-full flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="bg-primary p-2 rounded-xl text-primary-foreground group-hover:scale-110 transition-all shadow-lg shadow-primary/20">
@@ -83,7 +83,7 @@ export function Navbar() {
                         <span className="text-xs font-black truncate max-w-[100px] leading-tight text-slate-900">
                           {user.displayName || user.email?.split('@')[0]}
                         </span>
-                        <span className="text-[10px] text-muted-foreground font-bold">Explorer</span>
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Explorer</span>
                       </div>
                     </Button>
                   </DropdownMenuTrigger>
@@ -107,7 +107,7 @@ export function Navbar() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <Button asChild className="rounded-2xl px-8 h-12 font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20">
+                <Button asChild className="rounded-2xl px-8 h-12 font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 transition-all active:scale-95">
                   <Link href="/auth">Login</Link>
                 </Button>
               )
