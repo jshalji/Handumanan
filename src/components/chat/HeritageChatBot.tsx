@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, X, Send, Loader2, Sparkles, MapPin, Landmark, Church, Navigation } from 'lucide-react';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { MessageCircle, X, Send, Loader2, Sparkles, MapPin, Landmark, Church, Minimize2 } from 'lucide-react';
 import { chatWithHeritageBot } from '@/ai/flows/heritage-chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase';
@@ -52,7 +52,6 @@ export function HeritageChatBot() {
         content: [{ text: m.text }]
       }));
 
-      // Get user location for context
       let userLocation = undefined;
       try {
         const pos = await new Promise<GeolocationPosition>((res, rej) => 
@@ -60,7 +59,7 @@ export function HeritageChatBot() {
         );
         userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       } catch (e) {
-        // Location denied or unavailable
+        // Location unavailable
       }
 
       const response = await chatWithHeritageBot({
@@ -79,108 +78,121 @@ export function HeritageChatBot() {
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating Action Button */}
       <Button
         onClick={() => setIsOpen(true)}
         className={cn(
-          "fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl z-[5000] transition-all duration-300",
+          "fixed bottom-6 right-6 h-16 w-16 rounded-[2rem] shadow-2xl z-[5000] transition-all duration-300 bg-primary hover:bg-primary/90 text-white shadow-primary/30",
           isOpen ? "scale-0 opacity-0" : "scale-100 opacity-100"
         )}
       >
         <MessageCircle size={28} />
       </Button>
 
-      {/* Chat Window */}
+      {/* Modern Slide-up Chat Window */}
       <Card 
         className={cn(
-          "fixed bottom-0 right-0 md:bottom-6 md:right-6 w-full md:w-[400px] h-[100dvh] md:h-[600px] z-[5001] transition-all duration-500 ease-in-out flex flex-col rounded-none md:rounded-3xl shadow-2xl border-none overflow-hidden",
+          "fixed bottom-0 right-0 md:bottom-8 md:right-8 w-full md:w-[420px] max-h-[75vh] md:max-h-[600px] z-[5001] transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) flex flex-col rounded-t-[3rem] md:rounded-[3rem] shadow-2xl border-none overflow-hidden bg-white/95 backdrop-blur-2xl ring-1 ring-black/5",
           isOpen ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 pointer-events-none"
         )}
       >
-        <CardHeader className="bg-primary text-white p-4 flex flex-row items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="bg-white/20 p-2 rounded-xl backdrop-blur-md">
-              <Sparkles size={20} />
+        <CardHeader className="bg-primary text-white p-6 flex flex-row items-center justify-between shrink-0 shadow-lg shadow-primary/20">
+          <div className="flex items-center gap-4">
+            <div className="bg-white/20 p-2.5 rounded-2xl backdrop-blur-md">
+              <Sparkles size={22} />
             </div>
             <div>
-              <CardTitle className="text-lg font-headline font-black leading-none mb-1">Handumanan Guide</CardTitle>
-              <div className="flex items-center gap-1.5 opacity-80 text-[10px] font-bold uppercase tracking-widest">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                AI Assistant
+              <CardTitle className="text-xl font-headline font-black leading-none mb-1.5">Handumanan Guide</CardTitle>
+              <div className="flex items-center gap-2 opacity-80 text-[10px] font-black uppercase tracking-widest">
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                Live Assistant
               </div>
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-full" onClick={() => setIsOpen(false)}>
-            <X size={20} />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-full h-10 w-10" onClick={() => setIsOpen(false)}>
+              <Minimize2 size={18} />
+            </Button>
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-full h-10 w-10" onClick={() => { setIsOpen(false); setMessages([{ role: 'model', text: 'Maayong adlaw! I am your Handumanan Guide. How can I help you explore Metro Cebu\'s heritage today?' }]); }}>
+              <X size={20} />
+            </Button>
+          </div>
         </CardHeader>
 
-        <CardContent className="flex-1 overflow-hidden p-0 flex flex-col bg-slate-50">
-          <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-            <div className="space-y-4 pb-4">
+        <CardContent className="flex-1 overflow-hidden p-0 flex flex-col bg-slate-50/50">
+          <ScrollArea className="flex-1 p-6" ref={scrollRef}>
+            <div className="space-y-6 pb-4">
               {messages.map((msg, i) => (
                 <div 
                   key={i} 
                   className={cn(
-                    "flex flex-col max-w-[85%] animate-in fade-in slide-in-from-bottom-2",
+                    "flex flex-col max-w-[85%] animate-in fade-in slide-in-from-bottom-4 duration-300",
                     msg.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
                   )}
                 >
                   <div className={cn(
-                    "p-4 rounded-[1.5rem] text-sm leading-relaxed shadow-sm",
+                    "p-4 rounded-[1.8rem] text-sm leading-relaxed shadow-sm font-medium",
                     msg.role === 'user' 
-                      ? "bg-primary text-white rounded-tr-none" 
-                      : "bg-white text-slate-800 rounded-tl-none ring-1 ring-slate-100"
+                      ? "bg-primary text-white rounded-tr-none shadow-primary/10" 
+                      : "bg-white text-slate-800 rounded-tl-none ring-1 ring-black/5"
                   )}>
                     {msg.text}
                   </div>
                 </div>
               ))}
               {isLoading && (
-                <div className="flex items-center gap-2 text-slate-400 p-2 italic text-xs animate-pulse">
-                  <Loader2 className="animate-spin" size={12} /> Thinking...
+                <div className="flex items-center gap-3 text-slate-400 px-2 py-4 animate-pulse">
+                  <div className="flex gap-1">
+                    <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" />
+                    <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]" />
+                    <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]" />
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Consulting Archives...</span>
                 </div>
               )}
             </div>
           </ScrollArea>
 
-          {/* Quick Replies */}
-          <div className="p-4 pt-0 overflow-x-auto scrollbar-hide flex gap-2 shrink-0">
-            {QUICK_REPLIES.map((reply, i) => {
-              const Icon = reply.icon;
-              return (
-                <Button
-                  key={i}
-                  variant="outline"
-                  size="sm"
-                  className="h-9 rounded-full whitespace-nowrap bg-white text-slate-600 border-slate-200 hover:bg-primary/5 hover:text-primary transition-all text-xs font-bold gap-2 px-4 shadow-sm"
-                  onClick={() => handleSendMessage(reply.label)}
-                >
-                  <Icon size={14} /> {reply.label}
-                </Button>
-              );
-            })}
-          </div>
+          {/* Touch-Friendly Quick Reply Chips */}
+          <ScrollArea className="w-full whitespace-nowrap pb-4 px-6 shrink-0">
+            <div className="flex gap-2">
+              {QUICK_REPLIES.map((reply, i) => {
+                const Icon = reply.icon;
+                return (
+                  <Button
+                    key={i}
+                    variant="ghost"
+                    size="sm"
+                    className="h-10 rounded-full bg-white text-slate-600 border border-slate-200 hover:bg-primary/5 hover:text-primary transition-all text-[10px] font-black uppercase tracking-widest gap-2 px-5 shadow-sm"
+                    onClick={() => handleSendMessage(reply.label)}
+                  >
+                    <Icon size={14} /> {reply.label}
+                  </Button>
+                );
+              })}
+            </div>
+            <ScrollBar orientation="horizontal" className="hidden" />
+          </ScrollArea>
         </CardContent>
 
-        <CardFooter className="p-4 bg-white border-t shrink-0">
+        <CardFooter className="p-6 bg-white border-t shrink-0">
           <form 
             onSubmit={(e) => { e.preventDefault(); handleSendMessage(input); }} 
-            className="flex w-full items-center gap-2"
+            className="flex w-full items-center gap-3"
           >
             <Input
-              placeholder="Ask anything about Cebu's heritage..."
+              placeholder="Ask about Cebuano heritage..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="rounded-2xl h-12 bg-slate-50 border-none shadow-inner text-sm font-medium"
+              className="rounded-2xl h-14 bg-slate-50 border-none shadow-inner text-sm font-bold px-6 focus-visible:ring-1 focus-visible:ring-primary/20"
             />
             <Button 
               type="submit" 
               size="icon" 
-              className="h-12 w-12 rounded-2xl shrink-0 shadow-lg" 
+              className="h-14 w-14 rounded-2xl shrink-0 shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 text-white" 
               disabled={isLoading || !input.trim()}
             >
-              <Send size={18} />
+              <Send size={20} />
             </Button>
           </form>
         </CardFooter>

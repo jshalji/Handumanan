@@ -13,7 +13,7 @@ import { generatePersonalizedItinerary } from '@/ai/flows/generate-personalized-
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -23,7 +23,6 @@ import {
   Loader2, 
   Sparkles, 
   Clock, 
-  ArrowRight, 
   Route as RouteIcon, 
   Map as MapIcon, 
   Search,
@@ -32,15 +31,18 @@ import {
   Footprints,
   BrainCircuit,
   Save,
-  Key,
   X,
   Plus,
   ArrowUp,
   ArrowDown,
   CheckCircle2,
-  Info,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  History,
+  Church,
+  Landmark,
+  TreePine,
+  Building2
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFirestore, useUser } from '@/firebase';
@@ -66,18 +68,17 @@ import {
 
 const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), { 
   ssr: false,
-  loading: () => <div className="h-full w-full bg-slate-50 flex items-center justify-center font-black uppercase tracking-widest text-xs opacity-50">Loading Mapping Engine...</div>
+  loading: () => <div className="h-full w-full bg-slate-100 flex items-center justify-center font-black uppercase tracking-widest text-[10px] opacity-30">Map Initializing...</div>
 });
 
 const CATEGORIES = [
-  "All",
-  "Churches & Religious Heritage Sites",
-  "Ancestral Houses & Heritage Residences",
-  "Museums & Cultural Institutions",
-  "Historical Landmarks & Monuments",
-  "Plazas, Parks & Public Spaces",
-  "Government & Historic Buildings",
-  "Cultural & Religious (Non-Catholic Sites)"
+  { label: "All", icon: MapIcon },
+  { label: "Churches & Religious Heritage Sites", icon: Church, short: "Churches" },
+  { label: "Ancestral Houses & Heritage Residences", icon: History, short: "Ancestral" },
+  { label: "Museums & Cultural Institutions", icon: Landmark, short: "Museums" },
+  { label: "Historical Landmarks & Monuments", icon: Landmark, short: "Landmarks" },
+  { label: "Plazas, Parks & Public Spaces", icon: TreePine, short: "Parks" },
+  { label: "Government & Historic Buildings", icon: Building2, short: "Buildings" }
 ];
 
 const CITIES = ["All", "Cebu City", "Lapu-Lapu City", "Mandaue City", "Talisay City"];
@@ -211,7 +212,7 @@ function ExploreRouteContent() {
         setRouteSteps(routeData.steps);
         setTotalDist(routeData.distance);
         setTotalTime(routeData.duration);
-        setIsPanelExpanded(false); // Collapse to show map
+        setIsPanelExpanded(false); 
       } else {
         toast({ title: "Route Error", description: "Check your API key or connection.", variant: "destructive" });
       }
@@ -222,7 +223,6 @@ function ExploreRouteContent() {
     }
   };
 
-  // URL Site ID handling
   useEffect(() => {
     if (siteIdFromUrl && allSites.length > 0 && orsKey && userLocation) {
       if (!itineraryIds.includes(siteIdFromUrl)) {
@@ -232,7 +232,6 @@ function ExploreRouteContent() {
     }
   }, [siteIdFromUrl, orsKey, userLocation, allSites]);
 
-  // Site Filtering Logic
   const filteredAndSortedSites = useMemo(() => {
     let result = allSites.map(site => ({
       ...site,
@@ -267,7 +266,6 @@ function ExploreRouteContent() {
     return itineraryIds.map(id => allSites.find(s => s.id === id)).filter(Boolean) as HeritageSite[];
   }, [itineraryIds, allSites]);
 
-  // Recommendations logic
   const nearbySites = useMemo(() => {
     if (!userLocation) return [];
     return allSites
@@ -334,12 +332,13 @@ function ExploreRouteContent() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background overflow-hidden">
+    <div className="flex flex-col h-screen bg-background overflow-hidden relative">
       <Navbar />
-      <main className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+      
+      <main className="flex-1 relative overflow-hidden">
         
-        {/* Map Container */}
-        <div className="flex-1 h-full relative z-0">
+        {/* Full Screen Map Canvas */}
+        <div className="absolute inset-0 z-0">
           <HeritageMap 
             userLocation={userLocation} 
             sites={filteredAndSortedSites} 
@@ -348,156 +347,184 @@ function ExploreRouteContent() {
             totalTime={totalTime} 
             totalDist={totalDist} 
           />
-          
-          {/* Floating Controls */}
-          <div className="absolute top-4 left-4 right-4 z-[1000] flex gap-2">
+        </div>
+
+        {/* Floating Top Controls (Search + Quick Actions) */}
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[90vw] max-w-2xl z-50 space-y-4">
+          <div className="flex gap-2 items-center">
             <div className="flex-1 relative group">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <Input 
-                placeholder="Find a site..." 
-                className="pl-10 h-12 rounded-2xl shadow-xl border-none bg-white/95 backdrop-blur-xl w-full font-bold text-sm" 
+                placeholder="Find a heritage site..." 
+                className="pl-11 h-14 rounded-2xl shadow-2xl border-none bg-white/90 backdrop-blur-xl w-full font-bold text-sm ring-1 ring-black/5" 
                 value={searchQuery} 
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setIsPanelExpanded(true)}
               />
             </div>
-            <Button size="icon" className="h-12 w-12 rounded-2xl shadow-xl bg-white text-slate-600 hover:bg-slate-50 border-none" onClick={detectLocation}>
+            <Button size="icon" className="h-14 w-14 rounded-2xl shadow-2xl bg-white text-slate-600 hover:bg-slate-50 border-none ring-1 ring-black/5" onClick={detectLocation}>
               {loading ? <Loader2 className="animate-spin" size={20} /> : <LocateFixed size={20} />}
             </Button>
           </div>
 
-          {/* Navigation Overlay Stats */}
-          {routeSteps.length > 0 && !isPanelExpanded && (
-            <div className="absolute top-20 right-4 z-[1000] animate-in fade-in slide-in-from-right-4">
-              <Card className="p-3 rounded-2xl shadow-2xl bg-primary text-white border-none flex items-center gap-3">
-                <Navigation size={18} />
-                <div className="text-xs font-black uppercase tracking-widest">
-                  {Math.round(totalTime)}m • {totalDist.toFixed(1)}km
-                </div>
-              </Card>
+          {/* Horizontal Category Scroll */}
+          <ScrollArea className="w-full pb-2">
+            <div className="flex gap-2 items-center px-1">
+              {CATEGORIES.map((cat) => {
+                const Icon = cat.icon;
+                const isSelected = selectedCategory === cat.label;
+                return (
+                  <Button 
+                    key={cat.label}
+                    onClick={() => setSelectedCategory(cat.label)}
+                    variant="ghost"
+                    className={cn(
+                      "h-10 px-4 rounded-full shadow-sm bg-white/80 backdrop-blur-md border border-white/50 text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all",
+                      isSelected ? "bg-primary text-white shadow-primary/20 scale-105" : "text-slate-600 hover:bg-white"
+                    )}
+                  >
+                    <Icon size={14} className="mr-2" />
+                    {cat.short || cat.label}
+                  </Button>
+                );
+              })}
             </div>
-          )}
-
-          {/* Nearby Picks Modal - BOTTOM RIGHT */}
-          {itineraryIds.length > 0 && !isPanelExpanded && (
-            <div className="fixed bottom-10 right-10 z-[1000] w-72 md:w-80 animate-in fade-in slide-in-from-bottom-10">
-              <Card className="rounded-[2.5rem] shadow-2xl border-none p-6 bg-white/95 backdrop-blur-2xl ring-1 ring-slate-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Nearby Picks</h3>
-                  <Sparkles size={14} className="text-primary" />
-                </div>
-                <ScrollArea className="h-48 pr-4">
-                  <div className="space-y-3">
-                    {nearbySites.map(site => (
-                      <div 
-                        key={site.id} 
-                        className="flex items-center gap-3 p-2 rounded-2xl hover:bg-slate-50 transition-colors cursor-pointer group"
-                        onClick={() => {
-                          if (!itineraryIds.includes(site.id)) {
-                            const newIds = [...itineraryIds, site.id];
-                            setItineraryIds(newIds);
-                            handleGenerateRoute(newIds);
-                            toast({ title: "Site Added", description: `Rerouting to ${site.name}` });
-                          }
-                        }}
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden relative">
-                          <Image src={site.imageUrl} alt={site.name} fill className="object-cover" sizes="40px" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-black text-slate-800 truncate leading-none mb-1 group-hover:text-primary transition-colors">{site.name}</p>
-                          <p className="text-[8px] text-slate-400 font-bold uppercase">{site.distance.toFixed(1)} km • {site.city}</p>
-                        </div>
-                        <Plus size={14} className="text-slate-300 group-hover:text-primary" />
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </Card>
-            </div>
-          )}
+            <ScrollBar orientation="horizontal" className="hidden" />
+          </ScrollArea>
         </div>
 
-        {/* Sidebar / Bottom Panel */}
+        {/* Navigation Info Card (Bottom-Center Floating) */}
+        {routeSteps.length > 0 && !isPanelExpanded && (
+          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-[1000] animate-in fade-in slide-in-from-bottom-6">
+            <Card className="p-4 rounded-[2rem] shadow-2xl bg-primary text-white border-none flex items-center gap-6 min-w-[280px]">
+              <div className="flex items-center gap-3 pr-6 border-r border-white/20">
+                <div className="p-2 bg-white/20 rounded-xl">
+                  <Navigation size={20} />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Travel Time</p>
+                  <p className="text-lg font-black">{Math.round(totalTime)}m</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Distance</p>
+                <p className="text-lg font-black">{totalDist.toFixed(1)}km</p>
+              </div>
+              <Button size="icon" variant="ghost" className="ml-auto rounded-full hover:bg-white/10" onClick={() => { setRouteCoords([]); setRouteSteps([]); }}>
+                <X size={18} />
+              </Button>
+            </Card>
+          </div>
+        )}
+
+        {/* Nearby Recommendations (Bottom-Right Floating) */}
+        {itineraryIds.length > 0 && !isPanelExpanded && (
+          <div className="fixed bottom-10 right-10 z-[1000] w-72 animate-in fade-in slide-in-from-right-10 hidden lg:block">
+            <Card className="rounded-[2.5rem] shadow-2xl border-none p-6 bg-white/95 backdrop-blur-2xl ring-1 ring-slate-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                  <Sparkles size={14} className="text-primary" /> Nearby Picks
+                </h3>
+              </div>
+              <ScrollArea className="h-48">
+                <div className="space-y-3 pr-4">
+                  {nearbySites.map(site => (
+                    <div 
+                      key={site.id} 
+                      className="flex items-center gap-3 p-2 rounded-2xl hover:bg-slate-50 transition-colors cursor-pointer group"
+                      onClick={() => {
+                        const newIds = [...itineraryIds, site.id];
+                        setItineraryIds(newIds);
+                        handleGenerateRoute(newIds);
+                        toast({ title: "Site Added", description: `Rerouting to include ${site.name}` });
+                      }}
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden relative shadow-sm">
+                        <Image src={site.imageUrl} alt={site.name} fill className="object-cover" sizes="40px" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-black text-slate-800 truncate leading-none mb-1">{site.name}</p>
+                        <p className="text-[8px] text-slate-400 font-bold uppercase">{site.distance.toFixed(1)} km</p>
+                      </div>
+                      <Plus size={14} className="text-slate-300 group-hover:text-primary transition-colors" />
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </Card>
+          </div>
+        )}
+
+        {/* Explore & Itinerary Panel (Floating Side/Bottom Panel) */}
         <div 
           className={cn(
-            "fixed inset-x-0 bottom-0 z-50 transition-all duration-500 ease-in-out md:relative md:inset-auto md:w-[350px] lg:w-[400px] md:h-full bg-white shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.2)] md:shadow-none flex flex-col rounded-t-[2.5rem] md:rounded-none",
-            isPanelExpanded ? "h-[85vh]" : "h-[72px] md:h-full"
+            "fixed inset-x-0 bottom-0 z-50 transition-all duration-500 ease-in-out md:left-6 md:top-24 md:bottom-auto md:w-[380px] bg-white/95 backdrop-blur-2xl shadow-2xl border-none flex flex-col rounded-t-[2.5rem] md:rounded-[2.5rem] ring-1 ring-black/5",
+            isPanelExpanded ? "h-[85vh] md:h-[calc(100vh-120px)]" : "h-[72px] md:h-14"
           )}
         >
-          {/* Mobile Handle */}
+          {/* Header/Handle */}
           <button 
-            className="md:hidden w-full h-8 flex items-center justify-center pt-2 pb-1"
+            className="w-full h-14 flex items-center justify-between px-6 pt-1"
             onClick={() => setIsPanelExpanded(!isPanelExpanded)}
           >
-            <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-xl">
+                <MapIcon size={18} className="text-primary" />
+              </div>
+              <h2 className="font-headline text-lg font-black text-slate-900">Explore Heritage</h2>
+            </div>
+            <div className="flex items-center gap-2">
+               {itineraryIds.length > 0 && (
+                <Badge className="bg-primary text-white border-none rounded-full h-5 min-w-5 flex items-center justify-center text-[10px] font-black">
+                  {itineraryIds.length}
+                </Badge>
+              )}
+              {isPanelExpanded ? <ChevronDown size={20} className="text-slate-400" /> : <ChevronUp size={20} className="text-slate-400" />}
+            </div>
           </button>
 
-          {/* Panel Header */}
-          <div className="px-6 pb-4 border-b flex items-center justify-between">
-            <h2 className="font-headline text-xl font-black text-slate-900 flex items-center gap-2">
-              <MapIcon size={20} className="text-primary" /> Discovery
-            </h2>
-            <button 
-              className="md:hidden p-2 text-slate-400"
-              onClick={() => setIsPanelExpanded(!isPanelExpanded)}
-            >
-              {isPanelExpanded ? <ChevronDown size={24} /> : <ChevronUp size={24} />}
-            </button>
-          </div>
-
-          <div className={cn("flex-1 flex flex-col overflow-hidden", !isPanelExpanded && "hidden md:flex")}>
+          <div className={cn("flex-1 flex flex-col overflow-hidden", !isPanelExpanded && "hidden")}>
             <Tabs defaultValue="discovery" className="flex-1 flex flex-col overflow-hidden">
-              <TabsList className="grid grid-cols-2 mx-4 mt-4 h-11 bg-slate-100 rounded-xl p-1">
-                <TabsTrigger value="discovery" className="rounded-lg text-[9px] font-black uppercase tracking-widest">Heritage Sites</TabsTrigger>
-                <TabsTrigger value="navigation" className="rounded-lg text-[9px] font-black uppercase tracking-widest">My Itinerary {itineraryIds.length > 0 && `(${itineraryIds.length})`}</TabsTrigger>
+              <TabsList className="grid grid-cols-2 mx-4 mt-2 h-12 bg-slate-100/50 rounded-2xl p-1.5">
+                <TabsTrigger value="discovery" className="rounded-xl text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">Discovery</TabsTrigger>
+                <TabsTrigger value="navigation" className="rounded-xl text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">My Trip</TabsTrigger>
               </TabsList>
 
               <TabsContent value="discovery" className="flex-1 overflow-hidden p-0 m-0 flex flex-col">
-                <div className="p-4 space-y-3 bg-slate-50/50">
-                  <div className="grid grid-cols-2 gap-2">
-                    <Select value={selectedCity} onValueChange={setSelectedCity}>
-                      <SelectTrigger className="h-10 rounded-xl bg-white border-none shadow-sm font-bold text-[10px] uppercase tracking-wider">
-                        <SelectValue placeholder="City" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CITIES.map(c => <SelectItem key={c} value={c} className="text-[10px] font-bold">{c}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="h-10 rounded-xl bg-white border-none shadow-sm font-bold text-[10px] uppercase tracking-wider">
-                        <SelectValue placeholder="Category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CATEGORIES.map(c => <SelectItem key={c} value={c} className="text-[10px] font-bold">{c}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-white rounded-xl shadow-sm border border-slate-100">
+                <div className="p-4 bg-slate-50/50 border-b space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-white rounded-2xl shadow-sm border border-slate-100">
                     <div className="flex items-center gap-2">
                       <LocateFixed size={14} className={isNearMeEnabled ? "text-primary" : "text-slate-400"} />
                       <Label htmlFor="near-me-toggle" className="text-[10px] font-black uppercase tracking-widest text-slate-600">Near Me Only</Label>
                     </div>
                     <Switch id="near-me-toggle" checked={isNearMeEnabled} onCheckedChange={setIsNearMeEnabled} className="scale-75 origin-right" />
                   </div>
+                  <Select value={selectedCity} onValueChange={setSelectedCity}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-white border-none shadow-sm font-bold text-xs uppercase tracking-wider px-4">
+                      <SelectValue placeholder="All Cities" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CITIES.map(c => <SelectItem key={c} value={c} className="text-xs font-bold">{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
+
                 <ScrollArea className="flex-1 px-4">
-                  <div className="space-y-3 py-4">
+                  <div className="space-y-4 py-4">
                     {filteredAndSortedSites.map((site) => (
-                      <Card key={site.id} className="group overflow-hidden border-none shadow-sm rounded-2xl bg-slate-50/80 hover:bg-white transition-colors">
-                        <div className="flex items-center p-3 gap-3">
-                          <div className="relative w-14 h-14 flex-shrink-0 rounded-xl overflow-hidden shadow-sm">
-                            <Image src={site.imageUrl} alt={site.name} fill className="object-cover" sizes="56px" />
+                      <Card key={site.id} className="group overflow-hidden border-none shadow-sm rounded-3xl bg-slate-50/50 hover:bg-white hover:shadow-md transition-all">
+                        <div className="flex items-center p-3 gap-4">
+                          <div className="relative w-16 h-16 flex-shrink-0 rounded-2xl overflow-hidden shadow-sm">
+                            <Image src={site.imageUrl} alt={site.name} fill className="object-cover" sizes="64px" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-[12px] line-clamp-1 text-slate-900">{site.name}</h3>
-                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-tighter">{site.city} • {site.distance.toFixed(1)} km</p>
-                            <Link href={`/site/${site.id}`} className="text-[8px] font-black text-blue-600 uppercase hover:underline">Details</Link>
+                            <h3 className="font-bold text-sm line-clamp-1 text-slate-900 leading-tight mb-1">{site.name}</h3>
+                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-tight">{site.city} • {site.distance.toFixed(1)} km</p>
+                            <Link href={`/site/${site.id}`} className="text-[10px] font-black text-primary hover:underline mt-2 inline-block">Learn More</Link>
                           </div>
                           <Button 
                             size="sm" 
                             variant={itineraryIds.includes(site.id) ? "default" : "outline"} 
-                            className={cn("h-10 w-10 p-0 rounded-xl font-black", itineraryIds.includes(site.id) ? 'bg-primary border-none text-white' : 'border-primary/20 text-primary')} 
+                            className={cn("h-10 w-10 p-0 rounded-2xl", itineraryIds.includes(site.id) ? 'bg-primary border-none shadow-lg' : 'border-slate-200 text-slate-400')} 
                             onClick={() => setItineraryIds(prev => prev.includes(site.id) ? prev.filter(i => i !== site.id) : [...prev, site.id])}
                           >
                             {itineraryIds.includes(site.id) ? <X size={16} /> : <Plus size={16} />}
@@ -507,75 +534,66 @@ function ExploreRouteContent() {
                     ))}
                   </div>
                 </ScrollArea>
-                <div className="p-4 border-t bg-white">
-                  <Button variant="outline" className="w-full h-12 rounded-2xl font-black text-[10px] uppercase tracking-widest border-2 border-dashed" onClick={handleAiItinerary} disabled={isAiThinking}>
-                    {isAiThinking ? <Loader2 className="animate-spin mr-2" /> : <BrainCircuit size={16} className="mr-2 text-primary" />} AI Suggested Itinerary
+                
+                <div className="p-6 border-t bg-white/80">
+                  <Button variant="outline" className="w-full h-14 rounded-[2rem] font-black text-[10px] uppercase tracking-widest border-2 border-dashed border-primary/20 hover:border-primary/40 text-primary" onClick={handleAiItinerary} disabled={isAiThinking}>
+                    {isAiThinking ? <Loader2 className="animate-spin mr-2" /> : <BrainCircuit size={18} className="mr-2" />} AI Suggested Itinerary
                   </Button>
                 </div>
               </TabsContent>
 
               <TabsContent value="navigation" className="flex-1 overflow-hidden p-0 m-0 flex flex-col">
-                <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
-                   <div className="flex bg-slate-200 p-1 rounded-lg w-40">
-                    <button onClick={() => setTravelMode('driving-car')} className={cn("flex-1 py-1 text-[8px] font-black uppercase tracking-widest rounded transition-all flex items-center justify-center gap-1", travelMode === 'driving-car' ? 'bg-white shadow-sm text-primary' : 'text-slate-500')}><Car size={10} /> Drive</button>
-                    <button onClick={() => setTravelMode('foot-walking')} className={cn("flex-1 py-1 text-[8px] font-black uppercase tracking-widest rounded transition-all flex items-center justify-center gap-1", travelMode === 'foot-walking' ? 'bg-white shadow-sm text-primary' : 'text-slate-500')}><Footprints size={10} /> Walk</button>
+                <div className="p-4 bg-slate-50/50 border-b flex items-center justify-between">
+                   <div className="flex bg-slate-200/50 p-1 rounded-xl w-40">
+                    <button onClick={() => setTravelMode('driving-car')} className={cn("flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2", travelMode === 'driving-car' ? 'bg-white shadow-sm text-primary' : 'text-slate-500')}><Car size={12} /> Drive</button>
+                    <button onClick={() => setTravelMode('foot-walking')} className={cn("flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2", travelMode === 'foot-walking' ? 'bg-white shadow-sm text-primary' : 'text-slate-500')}><Footprints size={12} /> Walk</button>
                   </div>
-                  <Button variant="ghost" size="sm" className="text-[9px] font-black uppercase text-slate-400" onClick={() => { setItineraryIds([]); setRouteCoords([]); setRouteSteps([]); }}>Clear All</Button>
+                  <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase text-slate-400 hover:text-red-500" onClick={() => { setItineraryIds([]); setRouteCoords([]); setRouteSteps([]); }}>Clear Trip</Button>
                 </div>
+                
                 <ScrollArea className="flex-1 px-4 py-4">
                   {itineraryIds.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center opacity-40">
-                      <MapIcon size={48} className="mb-4 text-slate-300" />
-                      <p className="text-xs font-black text-slate-800 uppercase tracking-widest">Select stops to route</p>
+                      <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-6">
+                        <MapIcon size={32} className="text-slate-300" />
+                      </div>
+                      <p className="text-[10px] font-black text-slate-800 uppercase tracking-widest max-w-[150px]">Your trip is empty. Add sites to start routing.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {itinerarySites.map((site, idx) => (
-                        <div key={site.id} className="flex gap-3 items-center bg-white p-3 rounded-2xl shadow-sm ring-1 ring-slate-100 border-l-4 border-l-primary">
-                          <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center text-[11px] font-black shrink-0 shadow-lg">
-                            {visitedSites.includes(site.id) ? <CheckCircle2 size={14} className="text-green-400" /> : idx + 1}
+                        <div key={site.id} className="flex gap-4 items-center bg-white p-4 rounded-[1.5rem] shadow-sm ring-1 ring-slate-100 group border-l-4 border-l-primary">
+                          <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-black shrink-0 shadow-lg shadow-primary/20">
+                            {visitedSites.includes(site.id) ? <CheckCircle2 size={16} className="text-white" /> : idx + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[12px] font-black text-slate-800 truncate leading-none">{site.name}</p>
-                            <p className="text-[8px] text-slate-400 font-black uppercase mt-1">{site.city}</p>
+                            <p className="text-sm font-black text-slate-800 truncate leading-none mb-1">{site.name}</p>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase">{site.city}</p>
                           </div>
-                          <div className="flex flex-col gap-0.5">
+                          <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => moveItineraryItem(idx, 'up')} disabled={idx === 0} className="p-1 text-slate-300 hover:text-primary disabled:opacity-20"><ArrowUp size={14} /></button>
                             <button onClick={() => moveItineraryItem(idx, 'down')} disabled={idx === itineraryIds.length - 1} className="p-1 text-slate-300 hover:text-primary disabled:opacity-20"><ArrowDown size={14} /></button>
                           </div>
-                          <button onClick={() => setItineraryIds(prev => prev.filter(id => id !== site.id))} className="p-2 text-slate-300 hover:text-red-500"><X size={16} /></button>
+                          <button onClick={() => setItineraryIds(prev => prev.filter(id => id !== site.id))} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><X size={18} /></button>
                         </div>
                       ))}
                     </div>
                   )}
                 </ScrollArea>
                 
-                {/* STICKY FOOTER ACTIONS */}
-                <div className="p-6 border-t bg-white shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)] space-y-4">
-                  {routeSteps.length > 0 && (
-                    <Card className="bg-primary p-5 rounded-[2rem] text-white shadow-xl space-y-3 border-none animate-in fade-in zoom-in-95">
-                      <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest opacity-80">
-                        <span>ESTIMATED STATS</span>
-                        <div className="flex items-center gap-1"><Clock size={10} /> {Math.round(totalTime)} MIN</div>
-                      </div>
-                      <h4 className="text-lg font-black leading-tight flex items-center gap-2">
-                        <Navigation size={18} className="text-white/60" />
-                        {totalDist.toFixed(1)} KM TOTAL
-                      </h4>
-                      <div className="grid grid-cols-2 gap-2 pt-1">
-                        <Button variant="ghost" className="h-10 text-[9px] font-black uppercase text-white bg-white/10 hover:bg-white/20 rounded-xl" onClick={() => { setItineraryIds([]); setRouteCoords([]); setRouteSteps([]); }}>Reset</Button>
-                        <Button variant="ghost" className="h-10 text-[9px] font-black uppercase text-white bg-white/10 hover:bg-white/20 rounded-xl" onClick={saveToProfile}><Save size={12} className="mr-2" /> Save Trip</Button>
-                      </div>
-                    </Card>
-                  )}
-
-                  <Button 
-                    className="w-full rounded-2xl h-14 bg-primary hover:bg-primary/90 text-white font-black text-xs tracking-widest uppercase shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50" 
-                    onClick={() => handleGenerateRoute()} 
-                    disabled={isPlanningRoute || itineraryIds.length === 0}
-                  >
-                    {isPlanningRoute ? <Loader2 className="animate-spin" size={20} /> : <><RouteIcon size={18} /> GENERATE ROAD ROUTE</>}
-                  </Button>
+                <div className="p-6 border-t bg-white space-y-4">
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1 h-14 rounded-[2rem] font-black text-[10px] uppercase tracking-widest border-2" onClick={saveToProfile} disabled={itineraryIds.length === 0}>
+                      <Save size={16} className="mr-2" /> Save Trip
+                    </Button>
+                    <Button 
+                      className="flex-[2] rounded-[2rem] h-14 bg-primary hover:bg-primary/90 text-white font-black text-[10px] tracking-widest uppercase shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50 shadow-primary/30" 
+                      onClick={() => handleGenerateRoute()} 
+                      disabled={isPlanningRoute || itineraryIds.length === 0}
+                    >
+                      {isPlanningRoute ? <Loader2 className="animate-spin" size={20} /> : <><RouteIcon size={18} /> Generate Route</>}
+                    </Button>
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>
@@ -584,13 +602,22 @@ function ExploreRouteContent() {
 
         {/* API Key Dialog */}
         <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
-          <DialogContent className="w-[90vw] max-w-md rounded-3xl p-6">
+          <DialogContent className="w-[90vw] max-w-md rounded-[2.5rem] p-8">
             <DialogHeader>
-              <DialogTitle className="font-headline text-2xl font-bold">Navigation Service</DialogTitle>
-              <DialogDescription className="text-slate-500 text-sm py-4">To draw road-accurate routes, please enter your free API key from <a href="https://openrouteservice.org" target="_blank" className="text-primary font-bold hover:underline">openrouteservice.org</a>.</DialogDescription>
+              <div className="w-16 h-16 rounded-3xl bg-primary/10 flex items-center justify-center text-primary mb-6">
+                <Navigation size={32} />
+              </div>
+              <DialogTitle className="font-headline text-3xl font-black">Activation Required</DialogTitle>
+              <DialogDescription className="text-slate-500 text-sm py-4 leading-relaxed">
+                To enable street-level road accurate navigation, please provide an API key from <a href="https://openrouteservice.org" target="_blank" className="text-primary font-bold hover:underline decoration-2">openrouteservice.org</a>.
+              </DialogDescription>
             </DialogHeader>
-            <Input placeholder="Enter API Key" value={tempKey} onChange={(e) => setTempKey(e.target.value)} className="rounded-xl h-12 mb-4" />
-            <DialogFooter><Button type="button" className="w-full h-14 rounded-2xl font-bold" onClick={handleSaveKey}>Activate Routing</Button></DialogFooter>
+            <Input placeholder="PASTE_API_KEY_HERE" value={tempKey} onChange={(e) => setTempKey(e.target.value)} className="rounded-2xl h-14 bg-slate-50 border-none px-6 font-mono text-xs" />
+            <DialogFooter className="mt-8">
+              <Button type="button" className="w-full h-16 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20" onClick={handleSaveKey}>
+                Enable Navigation
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
