@@ -36,10 +36,12 @@ import {
   Route,
   Trash2,
   Star,
-  Info
+  Info,
+  Home,
+  Building2
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, limit } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
@@ -64,9 +66,12 @@ const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), {
 
 const CATEGORIES = [
   { label: "Churches", value: "Churches & Religious Heritage Sites", icon: Church },
+  { label: "Ancestral Houses", value: "Ancestral Houses & Heritage Residences", icon: Home },
   { label: "Museums", value: "Museums & Cultural Institutions", icon: Landmark },
-  { label: "Landmarks", value: "Historical Landmarks & Monuments", icon: Landmark },
-  { label: "Parks", value: "Plazas, Parks & Public Spaces", icon: TreePine }
+  { label: "Landmarks", value: "Historical Landmarks & Monuments", icon: MapPin },
+  { label: "Parks", value: "Plazas, Parks & Public Spaces", icon: TreePine },
+  { label: "Government", value: "Government & Historic Buildings", icon: Building2 },
+  { label: "Other Cultural", value: "Cultural & Religious (Non-Catholic Sites)", icon: Sparkles }
 ];
 
 function ExploreRouteContent() {
@@ -99,7 +104,8 @@ function ExploreRouteContent() {
     if (!db) return null;
     const colRef = collection(db, 'heritageSites');
     if (selectedCategories.length > 0) {
-      console.log("[DEBUG] Querying categories:", selectedCategories);
+      console.log("[DEBUG] Filtering categories:", selectedCategories);
+      // Firestore 'in' operator supports up to 10 items
       return query(colRef, where('category', 'in', selectedCategories));
     }
     return colRef;
@@ -108,9 +114,12 @@ function ExploreRouteContent() {
   const { data: firestoreSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
 
   const allSites = useMemo(() => {
-    // If firestore is empty, fallback to local data for prototype
+    // Standardize coordinates for map usage
     const source = (firestoreSites && firestoreSites.length > 0) ? firestoreSites : HERITAGE_SITES;
-    return source as any as HeritageSite[];
+    return (source as any[]).map(site => ({
+      ...site,
+      coordinates: site.coordinates || { lat: site.latitude || 0, lng: site.longitude || 0 }
+    })) as HeritageSite[];
   }, [firestoreSites]);
 
   // API Key Loading
@@ -174,16 +183,20 @@ function ExploreRouteContent() {
     return result;
   }, [allSites, userLocation, searchQuery, isNearMeEnabled]);
 
+  // Enhanced AI Recommendations logic
   const aiSuggestions = useMemo(() => {
     let suggestions = [...allSites];
     if (userLocation) {
+      // Sort by proximity
       suggestions.sort((a, b) => {
         const distA = calculateDistance(userLocation.lat, userLocation.lng, a.coordinates.lat, a.coordinates.lng);
         const distB = calculateDistance(userLocation.lat, userLocation.lng, b.coordinates.lat, b.coordinates.lng);
         return distA - distB;
       });
     } else {
+      // Show must-visit/featured sites if location unavailable
       suggestions = suggestions.filter(s => s.isMustVisit);
+      if (suggestions.length === 0) suggestions = [...allSites].slice(0, 5);
     }
     
     return suggestions.slice(0, 5).map(s => ({
