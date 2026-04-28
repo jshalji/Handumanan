@@ -36,7 +36,8 @@ import {
   Compass,
   Settings,
   Clock,
-  Plus
+  Plus,
+  Building2
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, serverTimestamp } from 'firebase/firestore';
@@ -74,11 +75,13 @@ const CITY_COORDS: Record<string, { lat: number; lng: number; zoom: number }> = 
 };
 
 const CATEGORIES = [
-  { label: "Churches", value: "Churches & Religious Heritage Sites", icon: Church },
-  { label: "Museums", value: "Museums & Cultural Institutions", icon: Landmark },
-  { label: "Landmarks", value: "Historical Landmarks & Monuments", icon: MapPin },
-  { label: "Parks", value: "Plazas, Parks & Public Spaces", icon: TreePine },
-  { label: "Houses", value: "Ancestral Houses & Heritage Residences", icon: Home }
+  { label: "Churches & Religious Sites", value: "Churches & Religious Heritage Sites", icon: Church },
+  { label: "Ancestral Houses & Residences", value: "Ancestral Houses & Heritage Residences", icon: Home },
+  { label: "Museums & Cultural Institutions", value: "Museums & Cultural Institutions", icon: Landmark },
+  { label: "Historical Landmarks", value: "Historical Landmarks & Monuments", icon: MapPin },
+  { label: "Plazas, Parks & Spaces", value: "Plazas, Parks & Public Spaces", icon: TreePine },
+  { label: "Government & Historic Buildings", value: "Government & Historic Buildings", icon: Building2 },
+  { label: "Cultural & Non-Catholic Sites", value: "Cultural & Religious (Non-Catholic Sites)", icon: Church }
 ];
 
 const TIME_PRESETS = [
@@ -125,6 +128,8 @@ function ExploreRouteContent() {
   const [orsKey, setOrsKey] = useState<string>('');
   const [showKeyDialog, setShowKeyDialog] = useState(false);
   const [tempKey, setTempKey] = useState('');
+
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const db = useFirestore();
 
@@ -243,12 +248,26 @@ function ExploreRouteContent() {
       ...site,
       distance: userLocation ? calculateDistance(userLocation.lat, userLocation.lng, site.coordinates.lat, site.coordinates.lng) : 0
     }));
-    if (searchQuery) {
+    if (searchQuery && !showSuggestions) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(s => s.name.toLowerCase().includes(q) || s.city.toLowerCase().includes(q));
+      result = result.filter(s => 
+        s.name.toLowerCase().includes(q) || 
+        s.city.toLowerCase().includes(q) ||
+        s.category.toLowerCase().includes(q)
+      );
     }
     return result;
-  }, [allSites, userLocation, searchQuery]);
+  }, [allSites, userLocation, searchQuery, showSuggestions]);
+
+  const searchSuggestions = useMemo(() => {
+    if (!searchQuery || searchQuery.length < 1) return [];
+    const q = searchQuery.toLowerCase();
+    return HERITAGE_SITES.filter(s => 
+      s.name.toLowerCase().includes(q) || 
+      s.city.toLowerCase().includes(q) ||
+      s.category.toLowerCase().includes(q)
+    ).slice(0, 8);
+  }, [searchQuery]);
 
   const aiSuggestions = useMemo(() => {
     let recommendations = allSites.map(s => {
@@ -283,6 +302,12 @@ function ExploreRouteContent() {
     setFocusedLocation({ lat: site.coordinates.lat, lng: site.coordinates.lng });
     setIsNavigating(false);
     if ('vibrate' in navigator) navigator.vibrate(50);
+  };
+
+  const handleSuggestionClick = (site: HeritageSite) => {
+    setSearchQuery(site.name);
+    setShowSuggestions(false);
+    centerOnSite(site);
   };
 
   const handleGeneratePlanner = async () => {
@@ -365,7 +390,7 @@ function ExploreRouteContent() {
 
       {/* TOP HEADER (SEARCH + MENU) */}
       <div className="absolute top-4 left-4 right-4 z-50 flex flex-col items-start gap-3 pointer-events-none md:max-w-[340px] md:right-auto md:top-6 md:left-6">
-        <div className="flex gap-2 items-center pointer-events-auto w-full">
+        <div className="flex gap-2 items-center pointer-events-auto w-full relative">
           <Button 
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
             size="icon" 
@@ -380,8 +405,36 @@ function ExploreRouteContent() {
               placeholder="Search heritage..." 
               className="pl-10 h-11 rounded-2xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full font-bold text-[12px] ring-1 ring-black/5" 
               value={searchQuery} 
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
             />
+
+            {/* AUTOCOMPLETE DROPDOWN */}
+            {showSuggestions && searchQuery && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl overflow-hidden z-[60] ring-1 ring-black/5 pointer-events-auto max-h-[250px] overflow-y-auto">
+                {searchSuggestions.length > 0 ? (
+                  <div className="py-2">
+                    {searchSuggestions.map((site) => (
+                      <div 
+                        key={site.id} 
+                        className="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-none flex flex-col gap-0.5"
+                        onClick={() => handleSuggestionClick(site)}
+                      >
+                        <p className="text-[12px] font-black text-slate-900 leading-tight">{site.name}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                          {site.city} • {site.category.split(' & ')[0]}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-[11px] font-bold text-slate-400">No results found</div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -398,7 +451,7 @@ function ExploreRouteContent() {
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 bg-primary/10 rounded-lg text-primary"><Compass size={16} /></div>
                   <span className="text-[11px] font-black uppercase tracking-wider text-slate-900">
-                    {selectedCity ? `${selectedCity}` : 'Discover'}
+                    {selectedCity ? (selectedCategory ? `${selectedCity} > ${selectedCategory.split(' & ')[0]}` : selectedCity) : 'Discover'}
                   </span>
                 </div>
                 {isPanelExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
@@ -432,20 +485,22 @@ function ExploreRouteContent() {
                     {selectedCity && (
                       <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
                         <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Step 2: Category</p>
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="grid grid-cols-1 gap-1.5">
                           {CATEGORIES.map(cat => (
                             <button 
                               key={cat.value} 
                               onClick={() => setSelectedCategory(selectedCategory === cat.value ? null : cat.value)} 
                               className={cn(
-                                "flex items-center gap-2 px-3 py-2 rounded-xl transition-all border",
+                                "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all border text-left leading-snug h-auto min-h-[44px]",
                                 selectedCategory === cat.value 
                                   ? "bg-slate-900 text-white border-slate-900 shadow-lg" 
                                   : "bg-white border-slate-100 text-slate-600 hover:border-primary/30"
                               )}
                             >
-                              <cat.icon size={12} />
-                              <span className="text-[10px] font-bold">{cat.label}</span>
+                              <div className={cn("shrink-0", selectedCategory === cat.value ? "text-white" : "text-primary/70")}>
+                                <cat.icon size={14} />
+                              </div>
+                              <span className="text-[10px] font-bold break-words">{cat.label}</span>
                             </button>
                           ))}
                         </div>
@@ -460,7 +515,9 @@ function ExploreRouteContent() {
                       </div>
                       
                       {filteredAndSortedSites.length === 0 ? (
-                        <p className="text-[10px] text-center text-slate-400 font-bold py-4">No heritage sites found for this selection.</p>
+                        <p className="text-[10px] text-center text-slate-400 font-bold py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                          {selectedCategory ? "No heritage sites found under this category." : "No heritage sites found for this selection."}
+                        </p>
                       ) : (
                         <div className="space-y-2">
                           {aiSuggestions.map(site => (
@@ -701,7 +758,7 @@ function ExploreRouteContent() {
       {/* NAVIGATION DRAWER */}
       <div 
         className={cn(
-          "fixed left-0 top-0 bottom-0 z-[100] bg-white shadow-2xl transition-transform duration-500 ease-in-out flex flex-col border-r",
+          "fixed left-0 top-0 bottom-0 z-[100] bg-white shadow-2xl transition-transform duration-500 ease-in-out flex flex-col border-r pointer-events-auto",
           isMobile ? "w-[180px]" : "w-[220px]",
           isDrawerOpen ? "translate-x-0" : "-translate-x-full"
         )}
@@ -725,8 +782,8 @@ function ExploreRouteContent() {
                      </AccordionTrigger>
                      <AccordionContent>
                         <div className="space-y-1">
-                           {filteredAndSortedSites.slice(0, 12).map(site => (
-                             <div key={site.id} onClick={() => { centerOnSite(site); setIsDrawerOpen(false); }} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer group">
+                           {allSites.slice(0, 12).map(site => (
+                             <div key={site.id} onClick={() => { handleSuggestionClick(site); setIsDrawerOpen(false); }} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer group">
                                 <div className="relative w-6 h-6 rounded-md overflow-hidden shrink-0 shadow-sm">
                                    <img src={site.imageUrl} alt={site.name} className="h-full w-full object-cover" />
                                 </div>
