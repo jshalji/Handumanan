@@ -39,7 +39,8 @@ import {
   ArrowDown,
   Clock,
   Compass,
-  Settings
+  Settings,
+  Info
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, serverTimestamp } from 'firebase/firestore';
@@ -109,6 +110,7 @@ function ExploreRouteContent() {
   const [alertedSites, setAlertedSites] = useState<string[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isPanelExpanded, setIsPanelExpanded] = useState(true);
+  const [expandedSuggestionId, setExpandedSuggestionId] = useState<string | null>(null);
 
   const [isGeneratingPlanner, setIsGeneratingPlanner] = useState(false);
   const [plannerStart, setPlannerStart] = useState('Cebu City Center');
@@ -345,7 +347,7 @@ function ExploreRouteContent() {
       </div>
 
       {/* TOP HEADER (SEARCH + MENU) */}
-      <div className="absolute top-4 left-4 right-4 z-50 flex flex-col items-start gap-3 pointer-events-none md:max-w-[320px] md:right-auto md:top-6 md:left-6">
+      <div className="absolute top-4 left-4 right-4 z-50 flex flex-col items-start gap-3 pointer-events-none md:max-w-[280px] md:right-auto md:top-6 md:left-6">
         <div className="flex gap-2 items-center pointer-events-auto w-full">
           <Button 
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
@@ -378,7 +380,9 @@ function ExploreRouteContent() {
               >
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 bg-primary/10 rounded-lg text-primary"><Compass size={16} /></div>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-900">Discover</span>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-900">
+                    {selectedCity ? `${selectedCity}${selectedCategory ? ' > ' + selectedCategory.split(' & ')[0] : ''}` : 'Discover'}
+                  </span>
                 </div>
                 {isPanelExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
               </div>
@@ -434,26 +438,73 @@ function ExploreRouteContent() {
                     {/* Smart Suggestions */}
                     <div className="space-y-3 pt-4 border-t border-slate-100">
                       <div className="flex items-center justify-between">
-                        <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">AI Suggestions</p>
-                        <Badge variant="outline" className="text-[7px] font-black opacity-50 px-1.5 h-4">SMART</Badge>
+                        <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Smart Suggestions</p>
+                        <Badge variant="outline" className="text-[7px] font-black opacity-50 px-1.5 h-4">AI RANKED</Badge>
                       </div>
-                      <div className="space-y-2">
-                        {aiSuggestions.map(site => (
-                          <div 
-                            key={site.id} 
-                            onClick={() => centerOnSite(site)} 
-                            className="group bg-white rounded-2xl border border-slate-100 p-2.5 hover:border-primary/30 transition-all cursor-pointer flex gap-3 items-center"
-                          >
-                            <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0">
-                              <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                      
+                      {filteredAndSortedSites.length === 0 ? (
+                        <p className="text-[10px] text-center text-slate-400 font-bold py-4">No heritage sites found for this selection.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {aiSuggestions.map(site => (
+                            <div 
+                              key={site.id} 
+                              className="group bg-white rounded-2xl border border-slate-100 p-2.5 hover:border-primary/30 transition-all cursor-pointer flex flex-col gap-2"
+                              onClick={() => {
+                                if (expandedSuggestionId === site.id) {
+                                  setExpandedSuggestionId(null);
+                                } else {
+                                  setExpandedSuggestionId(site.id);
+                                  centerOnSite(site);
+                                }
+                              }}
+                            >
+                              <div className="flex gap-3 items-center">
+                                <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0">
+                                  <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h4 className={cn(
+                                    "text-[11px] font-black text-slate-900 leading-tight transition-all",
+                                    expandedSuggestionId !== site.id && "line-clamp-2"
+                                  )}>
+                                    {site.name}
+                                  </h4>
+                                  <p className="text-[8px] font-bold text-slate-400 uppercase">{site.city} • {site.distance?.toFixed(1)}km</p>
+                                </div>
+                                <div className="shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-slate-50 text-slate-300">
+                                  {expandedSuggestionId === site.id ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                </div>
+                              </div>
+                              
+                              {expandedSuggestionId === site.id && (
+                                <div className="px-1 pb-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                  <p className="text-[9px] text-slate-500 leading-relaxed italic mb-2">
+                                    {site.description.length > 100 ? site.description.substring(0, 100) + '...' : site.description}
+                                  </p>
+                                  <div className="flex gap-2">
+                                    <Button 
+                                      size="sm" 
+                                      className="h-7 text-[8px] font-black uppercase rounded-lg flex-1 bg-slate-900"
+                                      onClick={(e) => { e.stopPropagation(); centerOnSite(site); }}
+                                    >
+                                      <LocateFixed size={10} className="mr-1" /> View Map
+                                    </Button>
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      className="h-7 text-[8px] font-black uppercase rounded-lg flex-1 border-slate-100"
+                                      onClick={(e) => { e.stopPropagation(); toggleSite(site.id); }}
+                                    >
+                                      {itineraryIds.includes(site.id) ? 'Remove' : 'Add Stop'}
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-[11px] font-black text-slate-900 truncate">{site.name}</h4>
-                              <p className="text-[8px] font-bold text-slate-400 uppercase">{site.city} • {site.distance?.toFixed(1)}km</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </ScrollArea>
@@ -546,18 +597,22 @@ function ExploreRouteContent() {
         >
           {loading ? <Loader2 className="animate-spin" size={20} /> : <LocateFixed size={20} />}
         </Button>
-        {/* Chatbot bubble is handled globally in layout, but spacer/position matches user request */}
         <div className="h-14 w-14" /> 
       </div>
 
       {/* NAVIGATION DRAWER (HAMBURGER MENU) */}
-      <div className={cn(
-        "fixed left-0 top-0 bottom-0 z-[100] bg-white shadow-2xl transition-transform duration-500 ease-in-out flex flex-col",
-        isMobile ? "w-[180px]" : "w-[220px]",
-        isDrawerOpen ? "translate-x-0" : "-translate-x-full"
-      )}>
+      <div 
+        className={cn(
+          "fixed left-0 top-0 bottom-0 z-[100] bg-white shadow-2xl transition-transform duration-500 ease-in-out flex flex-col",
+          isMobile ? "w-[180px]" : "w-[220px]",
+          isDrawerOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
          <div className="p-5 flex items-center justify-between border-b shrink-0 bg-white">
-            <h2 className="font-headline text-lg font-black text-primary truncate">Handumanan</h2>
+            <div>
+              <h2 className="font-headline text-lg font-black text-primary truncate leading-none">Handumanan</h2>
+              <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-1">Menu Navigator</p>
+            </div>
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setIsDrawerOpen(false)}>
               <X size={16} />
             </Button>
@@ -567,7 +622,9 @@ function ExploreRouteContent() {
             <div className="p-4 space-y-6">
                <Accordion type="multiple" defaultValue={["planner"]} className="space-y-4">
                   <AccordionItem value="planner" className="border-none">
-                     <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">AI Route Planner</AccordionTrigger>
+                     <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">
+                       AI Route Planner
+                     </AccordionTrigger>
                      <AccordionContent>
                         <div className="bg-slate-50 p-3 rounded-xl space-y-4 border border-slate-100">
                            <div className="space-y-1.5">
@@ -576,11 +633,11 @@ function ExploreRouteContent() {
                            </div>
                            
                            <div className="grid grid-cols-2 gap-1.5">
-                              <Button variant="outline" onClick={() => handleGeneratePlanner(4)} disabled={isGeneratingPlanner} className="h-8 rounded-lg text-[8px] font-black uppercase border-slate-200 bg-white hover:bg-primary/5 hover:text-primary transition-all">
-                                Half-Day (4h)
+                              <Button variant="outline" onClick={() => handleGeneratePlanner(4)} disabled={isGeneratingPlanner} className="h-8 rounded-lg text-[8px] font-black uppercase border-slate-200 bg-white hover:bg-primary/5 hover:text-primary transition-all px-1">
+                                Half-Day
                               </Button>
-                              <Button variant="outline" onClick={() => handleGeneratePlanner(8)} disabled={isGeneratingPlanner} className="h-8 rounded-lg text-[8px] font-black uppercase border-slate-200 bg-white hover:bg-primary/5 hover:text-primary transition-all">
-                                Full-Day (8h)
+                              <Button variant="outline" onClick={() => handleGeneratePlanner(8)} disabled={isGeneratingPlanner} className="h-8 rounded-lg text-[8px] font-black uppercase border-slate-200 bg-white hover:bg-primary/5 hover:text-primary transition-all px-1">
+                                Full-Day
                               </Button>
                            </div>
 
@@ -589,7 +646,6 @@ function ExploreRouteContent() {
                            </Button>
                         </div>
 
-                        {/* Itinerary Manager inside Sidebar */}
                         {itineraryIds.length > 0 && (
                           <div className="mt-4 space-y-3">
                              <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Active Itinerary</p>
@@ -600,7 +656,7 @@ function ExploreRouteContent() {
                                   return (
                                     <div key={id} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-100 group">
                                       <span className="text-[10px] font-black text-primary w-4">{idx + 1}</span>
-                                      <p className="text-[9px] font-bold text-slate-700 flex-1 truncate">{site.name}</p>
+                                      <p className="text-[9px] font-bold text-slate-700 flex-1 whitespace-normal break-words leading-tight">{site.name}</p>
                                       <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowUp size={10} /></button>
                                         <button onClick={() => moveItem(idx, 'down')} disabled={idx === itineraryIds.length - 1} className="p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowDown size={10} /></button>
@@ -621,7 +677,9 @@ function ExploreRouteContent() {
                   </AccordionItem>
 
                   <AccordionItem value="directory" className="border-none">
-                     <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">Quick Directory</AccordionTrigger>
+                     <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">
+                       Quick Directory
+                     </AccordionTrigger>
                      <AccordionContent>
                         <div className="space-y-1">
                            {filteredAndSortedSites.slice(0, 8).map(site => (
@@ -629,7 +687,7 @@ function ExploreRouteContent() {
                                 <div className="relative w-6 h-6 rounded-md overflow-hidden shrink-0 shadow-sm">
                                    <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
                                 </div>
-                                <p className="text-[9px] font-bold text-slate-900 leading-tight truncate flex-1">{site.name}</p>
+                                <p className="text-[9px] font-bold text-slate-900 leading-tight whitespace-normal break-words flex-1">{site.name}</p>
                              </div>
                            ))}
                         </div>
