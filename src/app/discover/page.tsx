@@ -364,7 +364,7 @@ function ExploreRouteContent() {
       </div>
 
       {/* TOP HEADER (SEARCH + MENU) */}
-      <div className="absolute top-4 left-4 right-4 z-50 flex flex-col items-start gap-3 pointer-events-none md:max-w-[320px] md:right-auto md:top-6 md:left-6">
+      <div className="absolute top-4 left-4 right-4 z-50 flex flex-col items-start gap-3 pointer-events-none md:max-w-[340px] md:right-auto md:top-6 md:left-6">
         <div className="flex gap-2 items-center pointer-events-auto w-full">
           <Button 
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
@@ -389,10 +389,10 @@ function ExploreRouteContent() {
         {!isNavigating && (
            <Card className={cn(
              "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 w-full rounded-[1.5rem] flex flex-col transition-all duration-300 relative overflow-hidden",
-             isPanelExpanded ? (isMobile ? "max-h-[60vh]" : "max-h-[70vh]") : "max-h-[56px]"
+             isPanelExpanded ? (isMobile ? "max-h-[65vh]" : "max-h-[70vh]") : "max-h-[56px]"
            )}>
               <div 
-                className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50/50 rounded-t-[1.5rem] shrink-0"
+                className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50/50 rounded-t-[1.5rem] shrink-0 border-b border-slate-100/50"
                 onClick={() => setIsPanelExpanded(!isPanelExpanded)}
               >
                 <div className="flex items-center gap-2">
@@ -405,8 +405,8 @@ function ExploreRouteContent() {
               </div>
 
               {isPanelExpanded && (
-                <ScrollArea className="flex-1">
-                  <div className="px-4 space-y-6 pt-2 pb-8">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide overscroll-contain touch-auto">
+                  <div className="px-4 space-y-6 pt-4 pb-12">
                     {/* Step 1: City - 2 Col Grid */}
                     <div className="space-y-3">
                       <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Step 1: City</p>
@@ -416,7 +416,7 @@ function ExploreRouteContent() {
                             key={city} 
                             onClick={() => handleCitySelect(city)} 
                             className={cn(
-                              "text-[10px] font-bold py-2 px-2 rounded-xl transition-all border min-h-[44px] leading-tight flex items-center justify-center text-center whitespace-normal break-word",
+                              "text-[10px] font-bold py-2 px-2 rounded-xl transition-all border min-h-[44px] leading-tight flex items-center justify-center text-center whitespace-normal break-words",
                               selectedCity === city 
                                 ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" 
                                 : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
@@ -466,12 +466,12 @@ function ExploreRouteContent() {
                           {aiSuggestions.map(site => (
                             <div 
                               key={site.id} 
-                              className="bg-white rounded-xl border border-slate-100 p-2 hover:border-primary/30 transition-all flex items-center gap-3 group overflow-hidden"
+                              className="bg-white rounded-xl border border-slate-100 p-2 hover:border-primary/30 transition-all flex items-center gap-3 group overflow-hidden w-full"
                             >
                               <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0">
                                 <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
                               </div>
-                              <div className="flex-1 min-w-0" onClick={() => centerOnSite(site)}>
+                              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => centerOnSite(site)}>
                                 <h4 className="text-[10px] font-black text-slate-900 leading-tight truncate">{site.name}</h4>
                                 <p className="text-[8px] font-bold text-slate-400 uppercase">{site.city} • {site.distance?.toFixed(1)}km</p>
                               </div>
@@ -559,7 +559,7 @@ function ExploreRouteContent() {
 
                     {/* Itinerary List */}
                     {itineraryIds.length > 0 && (
-                      <div className="mt-4 space-y-3 pb-4">
+                      <div className="mt-4 space-y-3 pb-8">
                          <div className="flex items-center justify-between">
                            <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Active Itinerary</p>
                            <Badge className="text-[7px] h-4 bg-primary/10 text-primary border-none">
@@ -574,7 +574,7 @@ function ExploreRouteContent() {
                                 <div key={id} className="space-y-1">
                                   <div className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-100 group">
                                     <span className="text-[10px] font-black text-primary w-4">{idx + 1}</span>
-                                    <div className="flex-1 min-w-0">
+                                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => centerOnSite(site)}>
                                       <p className="text-[9px] font-bold text-slate-700 whitespace-normal break-words leading-tight">{site.name}</p>
                                       <p className="text-[7px] font-black text-slate-400 uppercase tracking-tighter mt-0.5">~30m visit</p>
                                     </div>
@@ -603,10 +603,10 @@ function ExploreRouteContent() {
                     )}
 
                   </div>
-                </ScrollArea>
+                </div>
               )}
               {/* Bottom Scroll Cue */}
-              {isPanelExpanded && <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />}
+              {isPanelExpanded && <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />}
            </Card>
         )}
       </div>
