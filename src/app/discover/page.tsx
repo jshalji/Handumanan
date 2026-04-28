@@ -11,18 +11,16 @@ import { generatePersonalizedItinerary, type GeneratePersonalizedItineraryOutput
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { 
   Navigation, 
   Loader2, 
-  Sparkles, 
   Search,
   LocateFixed,
   X,
-  Plus,
   Route,
   Home,
   Save,
@@ -31,16 +29,11 @@ import {
   TreePine,
   Menu,
   Settings,
-  BellRing,
-  ChevronUp,
-  ChevronDown,
   Trash2,
   MapPin,
   ChevronRight,
   ArrowLeft,
-  AlertCircle,
-  Minimize2,
-  Maximize2
+  Save as SaveIcon
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, serverTimestamp } from 'firebase/firestore';
@@ -60,7 +53,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion";
+} from "@/accordion";
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), { 
@@ -120,7 +113,6 @@ function ExploreRouteContent() {
 
   const db = useFirestore();
 
-  // Sync route data with localStorage for Chatbot context
   useEffect(() => {
     if (itineraryIds.length > 0) {
       const context = {
@@ -270,15 +262,6 @@ function ExploreRouteContent() {
     setItineraryIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  const moveStop = (index: number, direction: 'up' | 'down') => {
-    const newIds = [...itineraryIds];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex >= 0 && targetIndex < newIds.length) {
-      [newIds[index], newIds[targetIndex]] = [newIds[targetIndex], newIds[index]];
-      setItineraryIds(newIds);
-    }
-  };
-
   const centerOnSite = (site: HeritageSite | any) => {
     setFocusedLocation({ lat: site.coordinates.lat, lng: site.coordinates.lng });
     setIsNavigating(false);
@@ -346,7 +329,7 @@ function ExploreRouteContent() {
       <div className="absolute top-4 left-4 right-4 z-50 flex flex-col items-start gap-3 pointer-events-none md:max-w-[360px] md:right-auto md:top-6 md:left-6">
         <div className="flex gap-2 items-center pointer-events-auto w-full">
           <Button 
-            onClick={() => setIsDrawerOpen(true)}
+            onClick={() => setIsDrawerOpen(!isDrawerOpen)}
             size="icon" 
             className="h-12 w-12 shrink-0 rounded-2xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
           >
@@ -368,7 +351,7 @@ function ExploreRouteContent() {
           </Button>
         </div>
 
-        {/* DISCOVER PATH (SCROLLABLE FILTERS ON MOBILE) */}
+        {/* DISCOVER PATH (FLOATING UNDER SEARCH) */}
         <div className="pointer-events-auto bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-xl w-full ring-1 ring-black/5 overflow-hidden hidden md:block">
            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-2">
@@ -414,6 +397,29 @@ function ExploreRouteContent() {
            </div>
         </div>
 
+        {/* SMART SUGGESTIONS (DIRECTLY BELOW DISCOVER PATH) */}
+        <div className="pointer-events-auto bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-xl w-full ring-1 ring-black/5 overflow-hidden hidden md:block">
+           <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+              <div className="p-1.5 bg-accent/10 rounded-lg text-accent"><Navigation size={14} /></div>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Smart Suggestions</span>
+           </div>
+           <div className="p-2 max-h-[220px] overflow-y-auto">
+              <div className="space-y-1">
+                 {aiSuggestions.map(site => (
+                   <div key={site.id} onClick={() => centerOnSite(site)} className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-xl cursor-pointer group">
+                      <div className="relative w-8 h-8 rounded-lg overflow-hidden shrink-0 shadow-sm border border-white">
+                         <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                         <p className="text-[11px] font-bold text-slate-900 leading-none truncate group-hover:text-primary transition-colors">{site.name}</p>
+                         <p className="text-[8px] text-slate-400 uppercase font-black tracking-tight">{site.city} • {site.distance?.toFixed(1)}km</p>
+                      </div>
+                   </div>
+                 ))}
+              </div>
+           </div>
+        </div>
+
         {/* MOBILE HORIZONTAL FILTERS */}
         <div className="md:hidden w-full overflow-x-auto scrollbar-hide pointer-events-auto flex gap-2 pb-1">
           {CITIES.map(city => (
@@ -442,7 +448,7 @@ function ExploreRouteContent() {
                     <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
                     <div>
                       <p className="text-[10px] font-black uppercase text-primary">Heading to</p>
-                      <h4 className="text-[14px] font-black text-slate-900 leading-tight">{itinerarySites[0].name}</h4>
+                      <h4 className="text-[14px] font-black text-slate-900 leading-tight whitespace-normal break-words">{itinerarySites[0].name}</h4>
                     </div>
                   </div>
                   <Button variant="ghost" size="icon" className="rounded-full" onClick={(e) => { e.stopPropagation(); setIsNavigating(false); }}>
@@ -471,7 +477,7 @@ function ExploreRouteContent() {
               {!isMobile && (
                 <div className="space-y-1">
                   <p className="text-[10px] font-black uppercase text-primary">Next Stop</p>
-                  <h4 className="text-[16px] font-black text-slate-900 leading-tight">{itinerarySites[0].name}</h4>
+                  <h4 className="text-[16px] font-black text-slate-900 leading-tight whitespace-normal break-words">{itinerarySites[0].name}</h4>
                 </div>
               )}
 
@@ -499,70 +505,70 @@ function ExploreRouteContent() {
         </div>
       )}
 
-      {/* DRAWER (HAMBURGER MENU) */}
-      <Dialog open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-        <DialogContent className="fixed left-0 top-0 bottom-0 w-[280px] max-w-[80vw] h-full p-0 border-none bg-white rounded-none shadow-2xl transition-transform data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left duration-300">
-           <div className="flex flex-col h-full">
-              <DialogHeader className="p-6 flex items-center justify-between border-b flex-row space-y-0">
-                 <DialogTitle className="font-headline text-2xl font-black text-primary">Handumanan</DialogTitle>
-                 <DialogDescription className="sr-only">Main menu for heritage discovery and trip planning.</DialogDescription>
-                 <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setIsDrawerOpen(false)}><X size={20} /></Button>
-              </DialogHeader>
-              
-              <ScrollArea className="flex-1">
-                <div className="p-5 space-y-6">
-                   <Accordion type="multiple" defaultValue={["planner"]} className="space-y-4">
-                      <AccordionItem value="planner" className="border-none">
-                         <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">AI Trip Planner</AccordionTrigger>
-                         <AccordionContent>
-                            <div className="bg-slate-50 p-4 rounded-3xl space-y-4 border border-slate-100">
-                               <div className="space-y-2">
-                                  <Label className="text-[10px] font-black uppercase text-slate-400">Start Location</Label>
-                                  <Input value={plannerStart} onChange={(e) => setPlannerStart(e.target.value)} className="h-10 rounded-xl border-none shadow-sm text-[12px] font-bold" />
-                               </div>
-                               <div className="space-y-3">
-                                  <div className="flex justify-between text-[10px] font-black uppercase text-slate-400">
-                                     <span>Available Time</span>
-                                     <span className="text-primary">{plannerTime[0]} Hours</span>
-                                  </div>
-                                  <Slider value={plannerTime} onValueChange={setPlannerTime} max={12} min={2} step={1} />
-                               </div>
-                               <Button onClick={() => { handleGeneratePlanner(); setIsDrawerOpen(false); }} disabled={isGeneratingPlanner} className="w-full rounded-2xl h-11 bg-primary text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
-                                  {isGeneratingPlanner ? <Loader2 className="animate-spin" size={16} /> : "Build Route"}
-                               </Button>
-                            </div>
-                         </AccordionContent>
-                      </AccordionItem>
+      {/* NAVIGATION DRAWER (HAMBURGER MENU) - CUSTOM SLIDING DIV (NON-MODAL) */}
+      <div className={cn(
+        "fixed left-0 top-0 bottom-0 z-[100] bg-white shadow-2xl transition-transform duration-500 ease-in-out flex flex-col",
+        isMobile ? "w-[180px]" : "w-[220px]",
+        isDrawerOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+         <div className="p-6 flex items-center justify-between border-b shrink-0 bg-white">
+            <h2 className="font-headline text-xl font-black text-primary truncate">Menu</h2>
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setIsDrawerOpen(false)}>
+              <X size={18} />
+            </Button>
+         </div>
+         
+         <ScrollArea className="flex-1">
+            <div className="p-4 space-y-6">
+               <Accordion type="multiple" defaultValue={["planner"]} className="space-y-4">
+                  <AccordionItem value="planner" className="border-none">
+                     <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">AI Trip Planner</AccordionTrigger>
+                     <AccordionContent>
+                        <div className="bg-slate-50 p-3 rounded-2xl space-y-4 border border-slate-100">
+                           <div className="space-y-1.5">
+                              <Label className="text-[9px] font-black uppercase text-slate-400">Start</Label>
+                              <Input value={plannerStart} onChange={(e) => setPlannerStart(e.target.value)} className="h-9 rounded-xl border-none shadow-sm text-[11px] font-bold" />
+                           </div>
+                           <div className="space-y-2">
+                              <div className="flex justify-between text-[9px] font-black uppercase text-slate-400">
+                                 <span>Time</span>
+                                 <span className="text-primary">{plannerTime[0]}h</span>
+                              </div>
+                              <Slider value={plannerTime} onValueChange={setPlannerTime} max={12} min={2} step={1} />
+                           </div>
+                           <Button onClick={() => { handleGeneratePlanner(); setIsDrawerOpen(false); }} disabled={isGeneratingPlanner} className="w-full rounded-xl h-9 bg-primary text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
+                              {isGeneratingPlanner ? <Loader2 className="animate-spin" size={14} /> : "Build Route"}
+                           </Button>
+                        </div>
+                     </AccordionContent>
+                  </AccordionItem>
 
-                      <AccordionItem value="directory" className="border-none">
-                         <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Explore Sites</AccordionTrigger>
-                         <AccordionContent>
-                            <div className="space-y-2">
-                               {filteredAndSortedSites.slice(0, 15).map(site => (
-                                 <div key={site.id} onClick={() => { centerOnSite(site); setIsDrawerOpen(false); }} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-2xl cursor-pointer group">
-                                    <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-sm shrink-0">
-                                       <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                       <p className="text-[12px] font-bold text-slate-900 leading-tight break-words">{site.name}</p>
-                                       <p className="text-[9px] text-slate-400 uppercase font-black">{site.city}</p>
-                                    </div>
-                                 </div>
-                               ))}
-                            </div>
-                         </AccordionContent>
-                      </AccordionItem>
-                   </Accordion>
+                  <AccordionItem value="directory" className="border-none">
+                     <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">Explore Sites</AccordionTrigger>
+                     <AccordionContent>
+                        <div className="space-y-1">
+                           {filteredAndSortedSites.slice(0, 10).map(site => (
+                             <div key={site.id} onClick={() => { centerOnSite(site); setIsDrawerOpen(false); }} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded-xl cursor-pointer group">
+                                <div className="relative w-7 h-7 rounded-lg overflow-hidden shrink-0 shadow-sm">
+                                   <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                   <p className="text-[10px] font-bold text-slate-900 leading-tight whitespace-normal break-words">{site.name}</p>
+                                </div>
+                             </div>
+                           ))}
+                        </div>
+                     </AccordionContent>
+                  </AccordionItem>
+               </Accordion>
 
-                   <div className="pt-4 space-y-1 border-t">
-                      <Link href="/" className="flex items-center gap-3 p-3.5 hover:bg-slate-50 rounded-2xl text-slate-600 font-bold transition-all"><Home size={18} /> Home</Link>
-                      <Link href="/profile" className="flex items-center gap-3 p-3.5 hover:bg-slate-50 rounded-2xl text-slate-600 font-bold transition-all"><Settings size={18} /> My Profile</Link>
-                   </div>
-                </div>
-              </ScrollArea>
-           </div>
-        </DialogContent>
-      </Dialog>
+               <div className="pt-4 space-y-1 border-t">
+                  <Link href="/" className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl text-slate-600 font-bold transition-all text-sm"><Home size={16} /> Home</Link>
+                  <Link href="/profile" className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl text-slate-600 font-bold transition-all text-sm"><Settings size={16} /> Profile</Link>
+               </div>
+            </div>
+         </ScrollArea>
+      </div>
 
       {/* ITINERARY MANAGER (BOTTOM CENTER DESKTOP) */}
       {itineraryIds.length > 0 && !isNavigating && (
@@ -598,14 +604,14 @@ function ExploreRouteContent() {
                   <Navigation size={16} className="mr-2" /> Start Now
                </Button>
                <Button variant="outline" onClick={handleSavePlanner} className="w-12 h-12 rounded-2xl border-2 border-slate-100 flex items-center justify-center p-0">
-                  <Save size={20} className="text-slate-400" />
+                  <SaveIcon size={20} className="text-slate-400" />
                </Button>
             </div>
           </Card>
         </div>
       )}
 
-      {/* KEY CONFIG DIALOG */}
+      {/* KEY CONFIG DIALOG (KEEP AS MODAL) */}
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
         <DialogContent className="max-w-md rounded-[2.5rem] p-10 border-none shadow-3xl bg-white/95 backdrop-blur-2xl">
           <DialogHeader>
