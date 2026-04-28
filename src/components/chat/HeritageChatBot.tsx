@@ -18,14 +18,14 @@ interface Message {
 const QUICK_REPLIES = [
   { label: 'Nearby Sites', icon: MapPin },
   { label: 'Museums', icon: Landmark },
-  { label: 'Churches', icon: Church },
-  { label: 'Plan My Trip', icon: Sparkles },
+  { label: 'Oldest Churches', icon: Church },
+  { label: 'Spanish Houses', icon: Sparkles },
 ];
 
 export function HeritageChatBot() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'model', text: 'Maayong adlaw! I am your Handumanan Guide. How can I help you explore Metro Cebu\'s heritage today?' }
+    { role: 'model', text: 'Maayong adlaw! I am your Handumanan Guide. Ask me anything about Metro Cebu\'s heritage sites!' }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -59,7 +59,7 @@ export function HeritageChatBot() {
         );
         userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       } catch (e) {
-        // Location unavailable
+        // Location unavailable - the bot will fallback to popularity search
       }
 
       const response = await chatWithHeritageBot({
@@ -70,7 +70,7 @@ export function HeritageChatBot() {
 
       setMessages(prev => [...prev, { role: 'model', text: response.text }]);
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'model', text: 'Sorry, I couldn\'t process that. Try again.' }]);
+      setMessages(prev => [...prev, { role: 'model', text: 'Sorry, I couldn\'t process that right now. Please try again.' }]);
     } finally {
       setIsLoading(false);
     }
@@ -78,7 +78,6 @@ export function HeritageChatBot() {
 
   return (
     <>
-      {/* Floating Action Button */}
       <Button
         onClick={() => setIsOpen(true)}
         className={cn(
@@ -89,7 +88,6 @@ export function HeritageChatBot() {
         <MessageCircle size={28} />
       </Button>
 
-      {/* Modern Slide-up Chat Window */}
       <Card 
         className={cn(
           "fixed bottom-0 right-0 md:bottom-8 md:right-8 w-full md:w-[420px] max-h-[75vh] md:max-h-[600px] z-[5001] transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) flex flex-col rounded-t-[3rem] md:rounded-[3rem] shadow-2xl border-none overflow-hidden bg-white/95 backdrop-blur-2xl ring-1 ring-black/5",
@@ -102,7 +100,7 @@ export function HeritageChatBot() {
               <Sparkles size={22} />
             </div>
             <div>
-              <CardTitle className="text-xl font-headline font-black leading-none mb-1.5">Handumanan Guide</CardTitle>
+              <CardTitle className="text-xl font-headline font-black leading-none mb-1.5">Heritage Guide</CardTitle>
               <div className="flex items-center gap-2 opacity-80 text-[10px] font-black uppercase tracking-widest">
                 <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                 Live Assistant
@@ -113,7 +111,7 @@ export function HeritageChatBot() {
             <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-full h-10 w-10" onClick={() => setIsOpen(false)}>
               <Minimize2 size={18} />
             </Button>
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-full h-10 w-10" onClick={() => { setIsOpen(false); setMessages([{ role: 'model', text: 'Maayong adlaw! I am your Handumanan Guide. How can I help you explore Metro Cebu\'s heritage today?' }]); }}>
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-full h-10 w-10" onClick={() => { setIsOpen(false); setMessages([{ role: 'model', text: 'Maayong adlaw! I am your Handumanan Guide. Ask me anything about Metro Cebu\'s heritage sites!' }]); }}>
               <X size={20} />
             </Button>
           </div>
@@ -153,7 +151,6 @@ export function HeritageChatBot() {
             </div>
           </ScrollArea>
 
-          {/* Touch-Friendly Quick Reply Chips */}
           <ScrollArea className="w-full whitespace-nowrap pb-4 px-6 shrink-0">
             <div className="flex gap-2">
               {QUICK_REPLIES.map((reply, i) => {
@@ -181,7 +178,7 @@ export function HeritageChatBot() {
             className="flex w-full items-center gap-3"
           >
             <Input
-              placeholder="Ask about Cebuano heritage..."
+              placeholder="Ask about Cebuano history..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               className="rounded-2xl h-14 bg-slate-50 border-none shadow-inner text-sm font-bold px-6 focus-visible:ring-1 focus-visible:ring-primary/20"
