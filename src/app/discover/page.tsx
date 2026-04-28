@@ -53,7 +53,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/accordion";
+} from "@/components/ui/accordion";
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), { 
