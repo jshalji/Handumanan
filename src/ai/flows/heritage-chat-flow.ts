@@ -4,7 +4,6 @@
  * 
  * - heritageChatFlow - Handles conversational AI for heritage site inquiries.
  * - searchSitesTool - Searches the site database using real site logic.
- * - addToItineraryTool - Simulates site addition logic for user interaction.
  */
 
 import { ai } from '@/ai/genkit';
@@ -23,6 +22,11 @@ const HeritageChatInputSchema = z.object({
     lng: z.number(),
   }).optional(),
   userId: z.string().optional(),
+  currentRoute: z.object({
+    stops: z.array(z.string()),
+    totalDistance: z.number(),
+    estimatedTime: z.number(),
+  }).optional(),
 });
 
 const HeritageChatOutputSchema = z.object({
@@ -54,64 +58,45 @@ const searchSitesTool = ai.defineTool(
                           site.description.toLowerCase().includes(q);
       const matchesCity = city ? site.city.toLowerCase() === city : true;
       return matchesQuery && matchesCity;
-    }).slice(0, 5);
+    }).slice(0, 3);
   }
 );
-
-// Tool to trigger site focus on map
-const focusSiteOnMapTool = ai.defineTool(
-  {
-    name: 'focusSiteOnMap',
-    description: 'Centers the user\'s map view on a specific heritage site.',
-    inputSchema: z.object({
-      siteName: z.string().describe('Exact name of the site to focus on.'),
-    }),
-    outputSchema: z.string(),
-  },
-  async (input) => {
-    const site = HERITAGE_SITES.find(s => s.name.toLowerCase() === input.siteName.toLowerCase());
-    if (site) return `Centering map on ${site.name} at [${site.coordinates.lat}, ${site.coordinates.lng}].`;
-    return `Site "${input.siteName}" not found.`;
-  }
-);
-
-const heritageChatPrompt = ai.definePrompt({
-  name: 'heritageChatPrompt',
-  tools: [searchSitesTool, focusSiteOnMapTool],
-  system: `You are the "Handumanan Guide", an expert virtual tour guide for Metro Cebu.
-  
-  CONTEXT:
-  - You help users find "Heritage Treasures" in Cebu, Mandaue, Talisay, and Lapu-Lapu.
-  - You have access to real site data via searchSites tool.
-  
-  GOALS:
-  1. ANSWER QUERIES: Provide short, engaging summaries (2-3 sentences).
-  2. PROVIDE RECOMMENDATIONS: If the user asks for "nearby" or "popular" places, use searchSites and recommend 3 specific sites.
-  3. SMART ACTIONS: If a user expresses strong interest in a site, offer to "Show it on the map" using focusSiteOnMap.
-  
-  STYLE:
-  - Be conversational, helpful, and proud of Cebuano heritage.
-  - Keep responses under 4 sentences.
-  - Use simple language.
-  `,
-  prompt: '{{{message}}}',
-});
 
 export async function chatWithHeritageBot(input: HeritageChatInput): Promise<HeritageChatOutput> {
   const lastMessage = input.history[input.history.length - 1].content[0].text;
   
+  const routeContext = input.currentRoute ? 
+    `The user has an active route with ${input.currentRoute.stops.length} stops: ${input.currentRoute.stops.join(', ')}. 
+     Total distance is ${input.currentRoute.totalDistance.toFixed(1)} km, taking approx ${Math.round(input.currentRoute.estimatedTime)} mins.` : 
+    "No active route yet.";
+
   const { text } = await ai.generate({
     prompt: lastMessage,
     history: input.history.slice(0, -1),
-    tools: [searchSitesTool, focusSiteOnMapTool],
+    tools: [searchSitesTool],
     model: 'googleai/gemini-2.5-flash',
+    system: `You are the "Handumanan Guide", an expert virtual tour guide for Metro Cebu.
+    
+    CONTEXT:
+    - You help users find heritage sites and understand their active travel route.
+    - Active Route Info: ${routeContext}
+    - Use real data from the searchSites tool if the user asks for details about a landmark.
+    
+    GOALS:
+    1. ANSWER ROUTE QUERIES: If asked about the next stop, distance, or time, use the provided Route Info.
+    2. PROVIDE LANDMARK INFO: Use searchSites to get the overview and significance of sites.
+    3. STAY CONCISE: Keep responses to 2-4 sentences max. Use simple, natural language.
+    
+    STYLE:
+    - Friendly, helpful, and Cebuano-proud.
+    - If asked an unrelated question, politely say: "I can only help with Metro Cebu heritage sites and route information."`,
     config: {
       temperature: 0.7,
     }
   });
 
   return {
-    text: text || "I'm sorry, I couldn't find details on that. Try asking about local museums or churches in Cebu.",
+    text: text || "I'm sorry, I couldn't find details on that right now. Try asking about your next stop or a specific museum.",
     suggestedAction: 'none'
   };
 }
