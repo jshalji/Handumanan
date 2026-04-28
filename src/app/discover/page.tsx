@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { HeritageSite, HERITAGE_SITES } from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation } from '@/lib/location-utils';
 import { getRouteMulti } from '@/lib/routing-service';
-import { generatePersonalizedItinerary, type GeneratePersonalizedItineraryOutput } from '@/ai/flows/generate-personalized-itinerary';
+import { generatePersonalizedItinerary } from '@/ai/flows/generate-personalized-itinerary';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +33,9 @@ import {
   MapPin,
   ChevronRight,
   ArrowLeft,
+  ChevronUp,
+  ChevronDown,
+  Sparkles,
   Save as SaveIcon
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
@@ -102,6 +105,7 @@ function ExploreRouteContent() {
   
   const [alertedSites, setAlertedSites] = useState<string[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
 
   const [isGeneratingPlanner, setIsGeneratingPlanner] = useState(false);
   const [plannerStart, setPlannerStart] = useState('Cebu City Center');
@@ -266,6 +270,7 @@ function ExploreRouteContent() {
     setFocusedLocation({ lat: site.coordinates.lat, lng: site.coordinates.lng });
     setIsNavigating(false);
     if ('vibrate' in navigator) navigator.vibrate(50);
+    if (isMobile) setIsSheetExpanded(false);
   };
 
   const handleGeneratePlanner = async () => {
@@ -350,84 +355,6 @@ function ExploreRouteContent() {
             {loading ? <Loader2 className="animate-spin" size={20} /> : <LocateFixed size={20} />}
           </Button>
         </div>
-
-        {/* DISCOVER PATH (FLOATING UNDER SEARCH) */}
-        <div className="pointer-events-auto bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-xl w-full ring-1 ring-black/5 overflow-hidden hidden md:block">
-           <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div className="flex items-center gap-2">
-                 <div className="p-1.5 bg-primary/10 rounded-lg text-primary"><MapPin size={14} /></div>
-                 <div className="flex flex-col">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Discover Path</span>
-                    <div className="text-[11px] font-black text-slate-900 leading-tight">
-                       {selectedCity ? <span className="text-primary">{selectedCity} {selectedCategory && `> ${selectedCategory.split(' ')[0]}`}</span> : "Select City"}
-                    </div>
-                 </div>
-              </div>
-              {(selectedCity || selectedCategory) && (
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-300 hover:text-red-500 rounded-full" onClick={() => { setSelectedCity(null); setSelectedCategory(null); setIsNavigating(false); }}>
-                  <X size={14} />
-                </Button>
-              )}
-           </div>
-           <div className="p-2 max-h-[220px] overflow-y-auto">
-              {!selectedCity ? (
-                <div className="space-y-1">
-                  {CITIES.map(city => (
-                    <button key={city} onClick={() => handleCitySelect(city)} className="w-full flex items-center justify-between p-2.5 hover:bg-slate-50 rounded-xl transition-all group">
-                      <span className="text-[12px] font-bold text-slate-700 group-hover:text-primary">{city}</span>
-                      <ChevronRight size={14} className="text-slate-200 group-hover:text-primary" />
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <button onClick={() => { setSelectedCity(null); setSelectedCategory(null); }} className="w-full flex items-center gap-2 p-2 mb-1 text-[10px] font-black uppercase text-primary hover:bg-primary/5 rounded-lg">
-                    <ArrowLeft size={12} /> Back to Cities
-                  </button>
-                  {CATEGORIES.map(cat => (
-                    <button key={cat.value} onClick={() => setSelectedCategory(selectedCategory === cat.value ? null : cat.value)} className={cn("w-full flex items-center justify-between p-2.5 rounded-xl transition-all group border-2", selectedCategory === cat.value ? "bg-primary/5 border-primary" : "hover:bg-slate-50 border-transparent")}>
-                      <div className="flex items-center gap-3">
-                         <cat.icon size={15} className={selectedCategory === cat.value ? "text-primary" : "text-slate-400"} />
-                         <span className={cn("text-[12px] font-bold text-left", selectedCategory === cat.value ? "text-primary" : "text-slate-700")}>{cat.label}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-           </div>
-        </div>
-
-        {/* SMART SUGGESTIONS (DIRECTLY BELOW DISCOVER PATH) */}
-        <div className="pointer-events-auto bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-xl w-full ring-1 ring-black/5 overflow-hidden hidden md:block">
-           <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-              <div className="p-1.5 bg-accent/10 rounded-lg text-accent"><Navigation size={14} /></div>
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Smart Suggestions</span>
-           </div>
-           <div className="p-2 max-h-[220px] overflow-y-auto">
-              <div className="space-y-1">
-                 {aiSuggestions.map(site => (
-                   <div key={site.id} onClick={() => centerOnSite(site)} className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-xl cursor-pointer group">
-                      <div className="relative w-8 h-8 rounded-lg overflow-hidden shrink-0 shadow-sm border border-white">
-                         <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                         <p className="text-[11px] font-bold text-slate-900 leading-none truncate group-hover:text-primary transition-colors">{site.name}</p>
-                         <p className="text-[8px] text-slate-400 uppercase font-black tracking-tight">{site.city} • {site.distance?.toFixed(1)}km</p>
-                      </div>
-                   </div>
-                 ))}
-              </div>
-           </div>
-        </div>
-
-        {/* MOBILE HORIZONTAL FILTERS */}
-        <div className="md:hidden w-full overflow-x-auto scrollbar-hide pointer-events-auto flex gap-2 pb-1">
-          {CITIES.map(city => (
-            <Button key={city} onClick={() => handleCitySelect(city)} size="sm" variant={selectedCity === city ? "default" : "secondary"} className="rounded-full shadow-lg h-9 text-[11px] font-black uppercase whitespace-nowrap px-4 border-none">
-              {city.split(' ')[0]}
-            </Button>
-          ))}
-        </div>
       </div>
 
       {/* NAVIGATION ACTIVE STATUS (TOP RIGHT ON DESKTOP, BOTTOM SHEET ON MOBILE) */}
@@ -505,7 +432,145 @@ function ExploreRouteContent() {
         </div>
       )}
 
-      {/* NAVIGATION DRAWER (HAMBURGER MENU) - CUSTOM SLIDING DIV (NON-MODAL) */}
+      {/* DISCOVERY BOTTOM SHEET */}
+      <div className={cn(
+        "fixed bottom-0 left-0 right-0 z-[60] bg-white/95 backdrop-blur-2xl shadow-[0_-10px_40px_-5px_rgba(0,0,0,0.1)] transition-all duration-500 ease-in-out border-t border-slate-100",
+        isSheetExpanded ? "h-[60vh]" : "h-20",
+        isNavigating && "hidden"
+      )}>
+        {/* Toggle Handle */}
+        <div 
+          onClick={() => setIsSheetExpanded(!isSheetExpanded)}
+          className="h-20 flex items-center justify-between px-6 cursor-pointer hover:bg-slate-50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-xl text-primary"><Search size={20} /></div>
+            <div>
+              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Explore Heritage</p>
+              <p className="text-[13px] font-black text-slate-900 leading-none">
+                {selectedCity ? (
+                  <span className="text-primary">{selectedCity} {selectedCategory && `> ${selectedCategory.split(' ')[0]}`}</span>
+                ) : (
+                  "Discover Path | Smart Suggestions"
+                )}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {(selectedCity || selectedCategory) && (
+               <Button variant="ghost" size="sm" className="h-8 text-[9px] font-black uppercase text-slate-400 hover:text-red-500" onClick={(e) => { e.stopPropagation(); setSelectedCity(null); setSelectedCategory(null); }}>
+                 Clear
+               </Button>
+            )}
+            <div className="p-2 rounded-full bg-slate-100">
+              {isSheetExpanded ? <ChevronDown size={20} className="text-slate-500" /> : <ChevronUp size={20} className="text-slate-500" />}
+            </div>
+          </div>
+        </div>
+
+        <ScrollArea className="h-[calc(60vh-80px)] px-6 pb-12">
+          <div className="space-y-8 py-4">
+            {/* Discover Path Content */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-primary/10 text-primary border-none text-[9px] font-black uppercase">Step 1</Badge>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Select Location</h3>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {CITIES.map(city => (
+                  <button 
+                    key={city} 
+                    onClick={() => handleCitySelect(city)} 
+                    className={cn(
+                      "flex flex-col items-center justify-center p-4 rounded-3xl transition-all border-2",
+                      selectedCity === city 
+                        ? "bg-primary/5 border-primary shadow-lg shadow-primary/5 scale-[1.02]" 
+                        : "bg-slate-50 border-transparent hover:bg-slate-100"
+                    )}
+                  >
+                    <MapPin size={24} className={cn("mb-2", selectedCity === city ? "text-primary" : "text-slate-400")} />
+                    <span className={cn("text-[11px] font-bold text-center", selectedCity === city ? "text-primary" : "text-slate-600")}>{city}</span>
+                  </button>
+                ))}
+              </div>
+
+              {selectedCity && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-primary/10 text-primary border-none text-[9px] font-black uppercase">Step 2</Badge>
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Filter Category</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {CATEGORIES.map(cat => (
+                      <button 
+                        key={cat.value} 
+                        onClick={() => setSelectedCategory(selectedCategory === cat.value ? null : cat.value)} 
+                        className={cn(
+                          "flex items-center gap-3 px-5 py-3 rounded-2xl transition-all border-2",
+                          selectedCategory === cat.value 
+                            ? "bg-primary border-primary text-white shadow-xl shadow-primary/20 scale-[1.05]" 
+                            : "bg-white border-slate-100 text-slate-600 hover:border-primary/30"
+                        )}
+                      >
+                        <cat.icon size={16} />
+                        <span className="text-[12px] font-black uppercase tracking-tight">{cat.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Smart Suggestions Content */}
+            <div className="pt-8 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-accent/10 rounded-lg text-accent"><Sparkles size={16} /></div>
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Smart Suggestions</h3>
+                </div>
+                <Badge variant="outline" className="text-[8px] font-black opacity-50">AI POWERED</Badge>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {aiSuggestions.map(site => (
+                  <div 
+                    key={site.id} 
+                    onClick={() => centerOnSite(site)} 
+                    className="group bg-white rounded-[2rem] border border-slate-100 p-3 hover:border-primary/30 hover:shadow-2xl transition-all cursor-pointer flex gap-4 items-center"
+                  >
+                    <div className="relative w-16 h-16 rounded-2xl overflow-hidden shrink-0 shadow-inner">
+                      <Image src={site.imageUrl} alt={site.name} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-[13px] font-black text-slate-900 leading-tight truncate mb-1">{site.name}</h4>
+                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider mb-2">{site.city} • {site.distance?.toFixed(1)}km</p>
+                      <div className="flex gap-1">
+                        {site.tags.slice(0, 2).map(tag => (
+                          <span key={tag} className="text-[7px] font-black uppercase px-2 py-0.5 bg-slate-50 text-slate-400 rounded-full border border-slate-100">#{tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="p-2 text-slate-200 group-hover:text-primary transition-colors">
+                      <ChevronRight size={20} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* No Results Fallback */}
+            {filteredAndSortedSites.length === 0 && (
+              <div className="py-20 text-center space-y-4 bg-slate-50/50 rounded-[3rem]">
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm text-slate-200"><MapPin size={32} /></div>
+                <p className="text-sm font-bold text-slate-400">No heritage sites found for this selection.</p>
+                <Button variant="ghost" className="text-[10px] font-black uppercase text-primary" onClick={() => { setSelectedCity(null); setSelectedCategory(null); }}>Reset Filters</Button>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* NAVIGATION DRAWER (HAMBURGER MENU) */}
       <div className={cn(
         "fixed left-0 top-0 bottom-0 z-[100] bg-white shadow-2xl transition-transform duration-500 ease-in-out flex flex-col",
         isMobile ? "w-[180px]" : "w-[220px]",
@@ -570,11 +635,11 @@ function ExploreRouteContent() {
          </ScrollArea>
       </div>
 
-      {/* ITINERARY MANAGER (BOTTOM CENTER DESKTOP) */}
+      {/* ITINERARY MANAGER (ANCHORED ABOVE BOTTOM SHEET HANDLE) */}
       {itineraryIds.length > 0 && !isNavigating && (
         <div className={cn(
-          "absolute bottom-10 left-1/2 -translate-x-1/2 z-[60] w-full max-w-[360px] px-4 pointer-events-none transition-all duration-500",
-          isMobile ? "bottom-20" : "bottom-10"
+          "absolute left-1/2 -translate-x-1/2 z-[55] w-full max-w-[360px] px-4 pointer-events-none transition-all duration-500",
+          isSheetExpanded ? "bottom-[62vh]" : "bottom-24"
         )}>
           <Card className="pointer-events-auto rounded-[2.5rem] shadow-2xl bg-white/95 backdrop-blur-2xl p-5 ring-1 ring-black/5">
             <div className="flex items-center justify-between mb-4">
@@ -600,7 +665,7 @@ function ExploreRouteContent() {
             </div>
 
             <div className="flex gap-2">
-               <Button onClick={() => { setIsNavigating(true); setIsNavCollapsed(false); }} className="flex-1 rounded-2xl h-12 bg-primary text-white font-black text-[11px] uppercase tracking-widest shadow-xl shadow-primary/20">
+               <Button onClick={() => { setIsNavigating(true); setIsNavCollapsed(false); setIsSheetExpanded(false); }} className="flex-1 rounded-2xl h-12 bg-primary text-white font-black text-[11px] uppercase tracking-widest shadow-xl shadow-primary/20">
                   <Navigation size={16} className="mr-2" /> Start Now
                </Button>
                <Button variant="outline" onClick={handleSavePlanner} className="w-12 h-12 rounded-2xl border-2 border-slate-100 flex items-center justify-center p-0">
@@ -611,7 +676,7 @@ function ExploreRouteContent() {
         </div>
       )}
 
-      {/* KEY CONFIG DIALOG (KEEP AS MODAL) */}
+      {/* KEY CONFIG DIALOG */}
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
         <DialogContent className="max-w-md rounded-[2.5rem] p-10 border-none shadow-3xl bg-white/95 backdrop-blur-2xl">
           <DialogHeader>
