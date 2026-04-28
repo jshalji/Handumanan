@@ -26,7 +26,6 @@ import {
   Route,
   Home,
   Save,
-  Globe,
   Church,
   Landmark,
   TreePine,
@@ -113,19 +112,12 @@ function ExploreRouteContent() {
     if (!db) return null;
     const colRef = collection(db, 'heritageSites');
     
-    // IF city + category selected
     if (selectedCity && selectedCategory) {
       return query(colRef, where('city', '==', selectedCity), where('category', '==', selectedCategory));
     }
-    // IF only city selected
     if (selectedCity) {
       return query(colRef, where('city', '==', selectedCity));
     }
-    
-    // Default: Show nothing or everything? 
-    // Prompt implies guided experience, but we'll show all by default if no city is chosen 
-    // OR we can choose to hide until city is selected. 
-    // Let's show all for better UX unless specifically selecting.
     return colRef;
   }, [db, selectedCity, selectedCategory]);
 
@@ -133,11 +125,22 @@ function ExploreRouteContent() {
 
   const allSites = useMemo(() => {
     const source = (firestoreSites && firestoreSites.length > 0) ? firestoreSites : HERITAGE_SITES;
-    return source.map(site => ({
+    
+    // Final defensive client-side filtering to ensure strict matching
+    let result = source.map(site => ({
       ...site,
       coordinates: site.coordinates || { lat: site.latitude || 0, lng: site.longitude || 0 }
     })) as HeritageSite[];
-  }, [firestoreSites]);
+
+    if (selectedCity) {
+      result = result.filter(s => s.city === selectedCity);
+    }
+    if (selectedCategory) {
+      result = result.filter(s => s.category === selectedCategory);
+    }
+
+    return result;
+  }, [firestoreSites, selectedCity, selectedCategory]);
 
   useEffect(() => {
     const savedKey = localStorage.getItem('ors_api_key');
@@ -181,8 +184,8 @@ function ExploreRouteContent() {
   }, [detectLocation]);
 
   const itinerarySites = useMemo(() => {
-    return itineraryIds.map(id => allSites.find(s => s.id === id)).filter(Boolean) as HeritageSite[];
-  }, [itineraryIds, allSites]);
+    return itineraryIds.map(id => HERITAGE_SITES.find(s => s.id === id)).filter(Boolean) as HeritageSite[];
+  }, [itineraryIds]);
 
   useEffect(() => {
     if (!userLocation || itinerarySites.length === 0) return;
@@ -225,19 +228,24 @@ function ExploreRouteContent() {
   }, [allSites, userLocation, searchQuery]);
 
   const aiSuggestions = useMemo(() => {
-    let recommendations = allSites.map(s => {
-      const dist = userLocation ? calculateDistance(userLocation.lat, userLocation.lng, s.coordinates.lat, s.coordinates.lng) : 100;
+    // If we have filtered sites by city/category, prioritize suggesting from THAT set
+    const pool = filteredAndSortedSites.length > 0 ? filteredAndSortedSites : allSites.map(s => ({
+      ...s,
+      distance: userLocation ? calculateDistance(userLocation.lat, userLocation.lng, s.coordinates.lat, s.coordinates.lng) : 100
+    }));
+
+    let recommendations = pool.map(s => {
       const popularityBonus = s.isMustVisit ? 2 : 0;
       const ratingBonus = (s.rating || 4) / 2;
-      const distScore = Math.max(0, 10 - dist); 
+      const distScore = userLocation ? Math.max(0, 10 - s.distance) : 0; 
       const totalScore = distScore + popularityBonus + ratingBonus;
       
-      return { ...s, distance: dist, score: totalScore };
+      return { ...s, score: totalScore };
     });
     
     recommendations.sort((a, b) => b.score - a.score);
     return recommendations.slice(0, 5);
-  }, [allSites, userLocation]);
+  }, [allSites, userLocation, filteredAndSortedSites]);
 
   useEffect(() => {
     const fetchRoute = async () => {
@@ -277,6 +285,7 @@ function ExploreRouteContent() {
 
   const centerOnSite = (site: HeritageSite | any) => {
     setFocusedLocation({ lat: site.coordinates.lat, lng: site.coordinates.lng });
+    if ('vibrate' in navigator) navigator.vibrate(50);
   };
 
   const handleGeneratePlanner = async () => {
@@ -291,12 +300,12 @@ function ExploreRouteContent() {
       setPlannerResult(output);
       
       const suggestedIds = output.itinerary
-        .map(item => allSites.find(s => s.name.toLowerCase() === item.siteName.toLowerCase())?.id)
+        .map(item => HERITAGE_SITES.find(s => s.name.toLowerCase() === item.siteName.toLowerCase())?.id)
         .filter((id): id is string => !!id);
       
       if (suggestedIds.length > 0) {
         setItineraryIds(suggestedIds);
-        const firstSite = allSites.find(s => s.id === suggestedIds[0]);
+        const firstSite = HERITAGE_SITES.find(s => s.id === suggestedIds[0]);
         if (firstSite) centerOnSite(firstSite);
       }
       toast({ title: "Itinerary Ready", description: "Logical route generated based on your location." });
@@ -338,9 +347,9 @@ function ExploreRouteContent() {
         />
       </div>
 
-      {/* GOOGLE MAPS STYLE TOP-LEFT HEADER */}
-      <div className="absolute top-6 left-6 z-50 flex flex-col items-start gap-4 pointer-events-none">
-        <div className="flex gap-2 items-center pointer-events-auto">
+      {/* TOP-LEFT SIDECAR: DISCOVER PATH + SMART SUGGESTIONS */}
+      <div className="absolute top-6 left-6 z-50 flex flex-col items-start gap-4 pointer-events-none w-[280px] md:w-[320px]">
+        <div className="flex gap-2 items-center pointer-events-auto w-full">
           <Button 
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
             size="icon" 
@@ -349,10 +358,10 @@ function ExploreRouteContent() {
             <Menu size={20} />
           </Button>
 
-          <div className="relative group w-72 md:w-80 lg:w-96">
+          <div className="relative group flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={18} />
             <Input 
-              placeholder="Search heritage sites..." 
+              placeholder="Search sites..." 
               className="pl-12 h-12 rounded-2xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full font-bold text-sm ring-1 ring-black/5" 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -364,8 +373,8 @@ function ExploreRouteContent() {
           </Button>
         </div>
 
-        {/* SEQUENTIAL FILTER MENU */}
-        <div className="pointer-events-auto bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-xl w-[280px] md:w-[320px] ring-1 ring-black/5 overflow-hidden transition-all duration-300">
+        {/* SEQUENTIAL FILTER MENU (DISCOVER PATH) */}
+        <div className="pointer-events-auto bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-xl w-full ring-1 ring-black/5 overflow-hidden transition-all duration-300">
            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-2">
                  <div className="p-1.5 bg-primary/10 rounded-lg text-primary">
@@ -376,11 +385,11 @@ function ExploreRouteContent() {
                     <div className="flex items-center gap-1 text-[11px] font-black text-slate-900 leading-tight">
                        {selectedCity ? (
                          <>
-                           <span>{selectedCity.split(' ')[0]}</span>
+                           <span className={cn(selectedCity ? "text-primary" : "")}>{selectedCity}</span>
                            {selectedCategory && (
                              <>
                                <ChevronRight size={10} className="text-slate-300" />
-                               <span className="text-primary">{selectedCategory.split(' ')[0]}</span>
+                               <span className="text-primary truncate max-w-[80px]">{selectedCategory.split(' ')[0]}</span>
                              </>
                            )}
                          </>
@@ -397,7 +406,7 @@ function ExploreRouteContent() {
               )}
            </div>
 
-           <div className="p-2 overflow-y-auto max-h-[300px]">
+           <div className="p-2 overflow-y-auto max-h-[260px]">
               {!selectedCity ? (
                 <div className="space-y-1">
                   {CITIES.map(city => (
@@ -417,7 +426,7 @@ function ExploreRouteContent() {
                     onClick={() => { setSelectedCity(null); setSelectedCategory(null); }}
                     className="w-full flex items-center gap-2 p-2 mb-2 text-[10px] font-black uppercase text-primary hover:bg-primary/5 rounded-lg transition-colors"
                   >
-                    <ArrowLeft size={12} /> Change City
+                    <ArrowLeft size={12} /> Back to Cities
                   </button>
                   {CATEGORIES.map(cat => {
                     const Icon = cat.icon;
@@ -433,7 +442,7 @@ function ExploreRouteContent() {
                       >
                         <div className="flex items-center gap-3">
                            <Icon size={16} className={cn(isSelected ? "text-primary" : "text-slate-400 group-hover:text-primary")} />
-                           <span className={cn("text-xs font-bold", isSelected ? "text-primary" : "text-slate-700 group-hover:text-primary")}>
+                           <span className={cn("text-xs font-bold text-left", isSelected ? "text-primary" : "text-slate-700 group-hover:text-primary")}>
                               {cat.label}
                            </span>
                         </div>
@@ -441,9 +450,47 @@ function ExploreRouteContent() {
                       </button>
                     );
                   })}
+                  {filteredAndSortedSites.length === 0 && (
+                    <p className="text-[10px] text-slate-400 italic p-4 text-center">No heritage sites found for this selection.</p>
+                  )}
                 </div>
               )}
            </div>
+        </div>
+
+        {/* SMART SUGGESTIONS (DIRECTLY BELOW DISCOVER PATH) */}
+        <div className="pointer-events-auto bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-xl w-full ring-1 ring-black/5 overflow-hidden transition-all duration-300">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+               <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-primary/10 rounded-lg text-primary">
+                     <Sparkles size={14} />
+                  </div>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900">Smart Suggestions</h3>
+               </div>
+            </div>
+            <div className="p-1.5 max-h-[300px] overflow-y-auto scrollbar-hide">
+               {aiSuggestions.map(site => (
+                 <button 
+                  key={site.id} 
+                  onClick={() => centerOnSite(site)}
+                  className="w-full flex items-center gap-2 p-2 hover:bg-slate-50 rounded-xl transition-all text-left group"
+                 >
+                    <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 relative shadow-sm">
+                       <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                       <p className="text-[10px] font-bold text-slate-900 leading-tight break-words">{site.name}</p>
+                       <p className="text-[8px] font-black text-primary uppercase mt-0.5">
+                        {userLocation ? `${site.distance.toFixed(1)} km away` : site.category.split(' ')[0]}
+                       </p>
+                    </div>
+                    <Plus size={14} className="text-slate-200 group-hover:text-primary transition-colors shrink-0" onClick={(e) => { e.stopPropagation(); toggleSite(site.id); }} />
+                 </button>
+               ))}
+               {!aiSuggestions.length && (
+                 <p className="text-[9px] p-6 text-center text-slate-400 font-medium italic">No recommendations available</p>
+               )}
+            </div>
         </div>
       </div>
 
@@ -476,13 +523,13 @@ function ExploreRouteContent() {
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-2">
-                    {filteredAndSortedSites.slice(0, 8).map((site) => (
+                    {filteredAndSortedSites.slice(0, 12).map((site) => (
                       <div key={site.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-all cursor-pointer group" onClick={() => centerOnSite(site)}>
                         <div className="relative w-8 h-8 rounded-lg overflow-hidden shadow-sm shrink-0">
                           <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-bold text-slate-900 truncate leading-tight">{site.name}</p>
+                          <p className="text-[10px] font-bold text-slate-900 leading-tight whitespace-normal break-words overflow-wrap-anywhere">{site.name}</p>
                           <p className="text-[8px] text-slate-400 uppercase font-black">{site.city}</p>
                         </div>
                       </div>
@@ -496,7 +543,7 @@ function ExploreRouteContent() {
 
               <AccordionItem value="planner" className="border-none">
                 <AccordionTrigger className="hover:no-underline py-0 mb-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Auto Itinerary
+                  AI Planner
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="bg-slate-50 p-4 rounded-2xl space-y-3">
@@ -506,7 +553,7 @@ function ExploreRouteContent() {
                       </div>
                       <div className="space-y-1">
                         <div className="flex justify-between text-[8px] font-black uppercase text-slate-400">
-                          <span>Available Time</span>
+                          <span>Time Available</span>
                           <span className="text-primary">{plannerTime[0]}h</span>
                         </div>
                         <Slider value={plannerTime} onValueChange={setPlannerTime} max={12} min={2} step={1} className="py-1" />
@@ -526,7 +573,7 @@ function ExploreRouteContent() {
               </Link>
               <div className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl transition-all text-slate-600 hover:text-primary cursor-pointer" onClick={() => setShowKeyDialog(true)}>
                  <Settings size={16} />
-                 <span className="text-[11px] font-bold">Engine Config</span>
+                 <span className="text-[11px] font-bold">Config</span>
               </div>
             </div>
           </div>
@@ -534,15 +581,16 @@ function ExploreRouteContent() {
         <div className="p-4 border-t bg-slate-50/50">
            <div className="flex items-center gap-2 mb-1">
               <BellRing size={12} className="text-primary" />
-              <span className="text-[8px] font-black uppercase tracking-widest text-slate-900">Arrival Alerts</span>
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-900">Live Alerts</span>
            </div>
            <p className="text-[8px] text-slate-400 font-medium leading-tight">Vibrating alerts active (20m range).</p>
         </div>
       </div>
 
+      {/* ITINERARY MANAGER (BOTTOM-CENTER) */}
       {itineraryIds.length > 0 && (
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-[70] w-full max-w-sm px-4">
-          <Card className="rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border-none bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 overflow-hidden">
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-[70] w-full max-w-sm px-4 pointer-events-none">
+          <Card className="rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border-none bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 overflow-hidden pointer-events-auto">
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -550,8 +598,8 @@ function ExploreRouteContent() {
                     <Route size={16} />
                   </div>
                   <div>
-                    <h4 className="text-[8px] font-black uppercase tracking-widest text-slate-400">Custom Trip</h4>
-                    <p className="text-xs font-black text-slate-900 leading-none">{itinerarySites.length} Stops Active</p>
+                    <h4 className="text-[8px] font-black uppercase tracking-widest text-slate-400">Active Trip</h4>
+                    <p className="text-xs font-black text-slate-900 leading-none">{itinerarySites.length} Stops Planned</p>
                   </div>
                 </div>
                 <div className="flex gap-1">
@@ -595,7 +643,7 @@ function ExploreRouteContent() {
 
               <div className="flex gap-2">
                  <Button className="flex-1 rounded-xl bg-primary text-white font-black text-[9px] uppercase tracking-widest h-11 shadow-lg shadow-primary/20">
-                    <Navigation size={14} className="mr-1.5" /> Start Trip
+                    <Navigation size={14} className="mr-1.5" /> Start Navigation
                  </Button>
                  <Button variant="outline" className="h-11 w-11 rounded-xl border-2 border-slate-100 text-slate-400 hover:bg-slate-50" onClick={handleSavePlanner}>
                     <Save size={16} />
@@ -604,47 +652,6 @@ function ExploreRouteContent() {
             </div>
           </Card>
         </div>
-      )}
-
-      {/* SMART RECOMMENDATIONS SIDE CARD */}
-      {!itineraryIds.length && (
-         <div className="absolute bottom-10 right-10 z-50 w-64 hidden md:block">
-            <Card className="rounded-3xl border-none bg-white/95 backdrop-blur-2xl shadow-xl ring-1 ring-black/5 overflow-hidden">
-                <div className="p-4 border-b border-slate-50 flex items-center justify-between">
-                   <div className="flex items-center gap-2">
-                      <div className="p-1.5 bg-primary/10 rounded-lg text-primary">
-                         <Sparkles size={14} />
-                      </div>
-                      <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-900">Smart Suggestions</h3>
-                   </div>
-                </div>
-                <div className="p-1.5 max-h-64 overflow-y-auto scrollbar-hide">
-                   {aiSuggestions.map(site => (
-                     <button 
-                      key={site.id} 
-                      onClick={() => centerOnSite(site)}
-                      className="w-full flex items-center gap-2 p-2 hover:bg-slate-50 rounded-xl transition-all text-left group"
-                     >
-                        <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 relative shadow-sm">
-                           <div className="relative w-full h-full">
-                              <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
-                           </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                           <p className="text-[10px] font-bold text-slate-900 truncate">{site.name}</p>
-                           <p className="text-[8px] font-black text-primary uppercase">
-                            {userLocation ? `${site.distance.toFixed(1)} km away` : 'Popular Site'}
-                           </p>
-                        </div>
-                        <Plus size={14} className="text-slate-200 group-hover:text-primary transition-colors shrink-0" onClick={(e) => { e.stopPropagation(); toggleSite(site.id); }} />
-                     </button>
-                   ))}
-                   {!aiSuggestions.length && (
-                     <p className="text-[9px] p-4 text-center text-slate-400 font-medium italic">No recommendations available</p>
-                   )}
-                </div>
-            </Card>
-         </div>
       )}
 
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
