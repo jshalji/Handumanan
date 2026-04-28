@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, Suspense, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -9,38 +9,34 @@ import { calculateDistance, getCurrentLocation } from '@/lib/location-utils';
 import { getRouteMulti } from '@/lib/routing-service';
 import { generatePersonalizedItinerary } from '@/ai/flows/generate-personalized-itinerary';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
 import { 
   Navigation, 
   Loader2, 
   Search,
   LocateFixed,
   X,
-  Route,
   Home,
-  Save,
   Church,
   Landmark,
   TreePine,
   Menu,
   Trash2,
   MapPin,
-  ChevronRight,
   ChevronUp,
   ChevronDown,
   Sparkles,
   Save as SaveIcon,
   ArrowUp,
   ArrowDown,
-  Clock,
   Compass,
   Settings,
-  Info
+  Clock,
+  Plus
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, serverTimestamp } from 'firebase/firestore';
@@ -85,6 +81,13 @@ const CATEGORIES = [
   { label: "Houses", value: "Ancestral Houses & Heritage Residences", icon: Home }
 ];
 
+const TIME_PRESETS = [
+  { label: '1h', value: 1 },
+  { label: '2h', value: 2 },
+  { label: 'Half-Day', value: 4 },
+  { label: 'Full-Day', value: 8 },
+];
+
 function ExploreRouteContent() {
   const { user } = useUser();
   const { toast } = useToast();
@@ -110,11 +113,14 @@ function ExploreRouteContent() {
   const [alertedSites, setAlertedSites] = useState<string[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isPanelExpanded, setIsPanelExpanded] = useState(true);
-  const [expandedSuggestionId, setExpandedSuggestionId] = useState<string | null>(null);
+  const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
 
   const [isGeneratingPlanner, setIsGeneratingPlanner] = useState(false);
   const [plannerStart, setPlannerStart] = useState('Cebu City Center');
-  const [plannerTime, setPlannerTime] = useState([4]);
+  const [plannerTimeType, setPlannerTimeType] = useState<'preset' | 'custom'>('preset');
+  const [selectedPresetTime, setSelectedPresetTime] = useState(4);
+  const [customHours, setCustomHours] = useState('3');
+  const [customMinutes, setCustomMinutes] = useState('30');
 
   const [orsKey, setOrsKey] = useState<string>('');
   const [showKeyDialog, setShowKeyDialog] = useState(false);
@@ -250,8 +256,8 @@ function ExploreRouteContent() {
       return { ...s, score: (s.isMustVisit ? 2 : 0) + (s.rating || 4) / 2 + (Math.max(0, 10 - dist)) };
     });
     recommendations.sort((a, b) => b.score - a.score);
-    return recommendations.slice(0, 5);
-  }, [allSites, userLocation]);
+    return recommendations.slice(0, showMoreSuggestions ? 10 : 3);
+  }, [allSites, userLocation, showMoreSuggestions]);
 
   useEffect(() => {
     const fetchRoute = async () => {
@@ -279,8 +285,19 @@ function ExploreRouteContent() {
     if ('vibrate' in navigator) navigator.vibrate(50);
   };
 
-  const handleGeneratePlanner = async (time?: number) => {
-    const hours = time || plannerTime[0];
+  const handleGeneratePlanner = async () => {
+    let hours = selectedPresetTime;
+    if (plannerTimeType === 'custom') {
+      const h = parseInt(customHours) || 0;
+      const m = parseInt(customMinutes) || 0;
+      hours = h + (m / 60);
+    }
+    
+    if (hours <= 0) {
+      toast({ title: "Invalid Time", description: "Please specify your travel duration.", variant: "destructive" });
+      return;
+    }
+
     setIsGeneratingPlanner(true);
     try {
       const output = await generatePersonalizedItinerary({
@@ -296,7 +313,7 @@ function ExploreRouteContent() {
         setItineraryIds(suggestedIds);
         centerOnSite(HERITAGE_SITES.find(s => s.id === suggestedIds[0]));
       }
-      toast({ title: "Itinerary Ready", description: `Route generated for ${hours} hours.` });
+      toast({ title: "Itinerary Ready", description: `Route generated for ${hours.toFixed(1)} hours.` });
     } catch (error) {
       toast({ title: "Planner Busy", description: "Please try again in a moment.", variant: "destructive" });
     } finally {
@@ -371,11 +388,11 @@ function ExploreRouteContent() {
         {/* FLOATING DISCOVERY PANEL */}
         {!isNavigating && (
            <Card className={cn(
-             "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 w-full rounded-[1.5rem] flex flex-col transition-all duration-300",
-             isPanelExpanded ? "max-h-[50vh]" : "max-h-[56px]"
+             "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 w-full rounded-[1.5rem] flex flex-col transition-all duration-300 relative overflow-hidden",
+             isPanelExpanded ? (isMobile ? "max-h-[60vh]" : "max-h-[70vh]") : "max-h-[56px]"
            )}>
               <div 
-                className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50/50 rounded-t-[1.5rem]"
+                className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50/50 rounded-t-[1.5rem] shrink-0"
                 onClick={() => setIsPanelExpanded(!isPanelExpanded)}
               >
                 <div className="flex items-center gap-2">
@@ -388,8 +405,8 @@ function ExploreRouteContent() {
               </div>
 
               {isPanelExpanded && (
-                <ScrollArea className="flex-1 px-4 pb-4">
-                  <div className="space-y-6 pt-2">
+                <ScrollArea className="flex-1 pb-4">
+                  <div className="px-4 space-y-6 pt-2 pb-8">
                     {/* Step 1: City */}
                     <div className="space-y-3">
                       <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Step 1: Location</p>
@@ -411,7 +428,7 @@ function ExploreRouteContent() {
                       </div>
                     </div>
 
-                    {/* Step 2: Category (Unlocked) */}
+                    {/* Step 2: Category */}
                     {selectedCity && (
                       <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
                         <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Step 2: Category</p>
@@ -449,71 +466,46 @@ function ExploreRouteContent() {
                           {aiSuggestions.map(site => (
                             <div 
                               key={site.id} 
-                              className="group bg-white rounded-2xl border border-slate-100 p-2.5 hover:border-primary/30 transition-all cursor-pointer flex flex-col gap-2"
-                              onClick={() => {
-                                if (expandedSuggestionId === site.id) {
-                                  setExpandedSuggestionId(null);
-                                } else {
-                                  setExpandedSuggestionId(site.id);
-                                  centerOnSite(site);
-                                }
-                              }}
+                              className="bg-white rounded-xl border border-slate-100 p-2 hover:border-primary/30 transition-all flex items-center gap-3 group"
                             >
-                              <div className="flex gap-3 items-center">
-                                <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0">
-                                  <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <h4 className={cn(
-                                    "text-[11px] font-black text-slate-900 leading-tight transition-all",
-                                    expandedSuggestionId !== site.id && "line-clamp-2"
-                                  )}>
-                                    {site.name}
-                                  </h4>
-                                  <p className="text-[8px] font-bold text-slate-400 uppercase">{site.city} • {site.distance?.toFixed(1)}km</p>
-                                </div>
-                                <div className="shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-slate-50 text-slate-300">
-                                  {expandedSuggestionId === site.id ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                                </div>
+                              <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0">
+                                <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
                               </div>
-                              
-                              {expandedSuggestionId === site.id && (
-                                <div className="px-1 pb-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                  <p className="text-[9px] text-slate-500 leading-relaxed italic mb-2">
-                                    {site.description.length > 100 ? site.description.substring(0, 100) + '...' : site.description}
-                                  </p>
-                                  <div className="flex gap-2">
-                                    <Button 
-                                      size="sm" 
-                                      className="h-7 text-[8px] font-black uppercase rounded-lg flex-1 bg-slate-900"
-                                      onClick={(e) => { e.stopPropagation(); centerOnSite(site); }}
-                                    >
-                                      <LocateFixed size={10} className="mr-1" /> View Map
-                                    </Button>
-                                    <Button 
-                                      size="sm" 
-                                      variant="outline"
-                                      className="h-7 text-[8px] font-black uppercase rounded-lg flex-1 border-slate-100"
-                                      onClick={(e) => { e.stopPropagation(); toggleSite(site.id); }}
-                                    >
-                                      {itineraryIds.includes(site.id) ? 'Remove' : 'Add Stop'}
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
+                              <div className="flex-1 min-w-0" onClick={() => centerOnSite(site)}>
+                                <h4 className="text-[10px] font-black text-slate-900 leading-tight truncate">{site.name}</h4>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase">{site.city} • {site.distance?.toFixed(1)}km</p>
+                              </div>
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                className="h-7 w-7 rounded-lg text-primary hover:bg-primary/5"
+                                onClick={() => toggleSite(site.id)}
+                              >
+                                {itineraryIds.includes(site.id) ? <X size={14} className="text-red-500" /> : <Plus size={14} />}
+                              </Button>
                             </div>
                           ))}
+                          
+                          <Button 
+                            variant="ghost" 
+                            className="w-full h-8 text-[9px] font-black uppercase text-slate-400 hover:text-primary hover:bg-primary/5"
+                            onClick={() => setShowMoreSuggestions(!showMoreSuggestions)}
+                          >
+                            {showMoreSuggestions ? "Show Less" : "See More Suggestions"}
+                          </Button>
                         </div>
                       )}
                     </div>
                   </div>
                 </ScrollArea>
               )}
+              {/* Bottom Scroll Cue */}
+              {isPanelExpanded && <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />}
            </Card>
         )}
       </div>
 
-      {/* NAVIGATION ACTIVE STATUS (TOP RIGHT) */}
+      {/* NAVIGATION ACTIVE STATUS */}
       {isNavigating && userLocation && itinerarySites.length > 0 && (
         <div className={cn(
           "absolute z-[70] transition-all duration-500 pointer-events-none",
@@ -588,7 +580,7 @@ function ExploreRouteContent() {
         </div>
       )}
 
-      {/* BOTTOM RIGHT CONTROLS STACK */}
+      {/* BOTTOM RIGHT CONTROLS */}
       <div className="absolute bottom-6 right-6 z-[65] flex flex-col gap-3 pointer-events-none">
         <Button 
           onClick={detectLocation}
@@ -600,7 +592,7 @@ function ExploreRouteContent() {
         <div className="h-14 w-14" /> 
       </div>
 
-      {/* NAVIGATION DRAWER (HAMBURGER MENU) */}
+      {/* NAVIGATION DRAWER */}
       <div 
         className={cn(
           "fixed left-0 top-0 bottom-0 z-[100] bg-white shadow-2xl transition-transform duration-500 ease-in-out flex flex-col",
@@ -628,46 +620,98 @@ function ExploreRouteContent() {
                      <AccordionContent>
                         <div className="bg-slate-50 p-3 rounded-xl space-y-4 border border-slate-100">
                            <div className="space-y-1.5">
-                              <Label className="text-[9px] font-black uppercase text-slate-400">Starting At</Label>
+                              <Label className="text-[9px] font-black uppercase text-slate-400">Start Location</Label>
                               <Input value={plannerStart} onChange={(e) => setPlannerStart(e.target.value)} className="h-8 rounded-lg border-none shadow-sm text-[10px] font-bold bg-white" />
                            </div>
                            
-                           <div className="grid grid-cols-2 gap-1.5">
-                              <Button variant="outline" onClick={() => handleGeneratePlanner(4)} disabled={isGeneratingPlanner} className="h-8 rounded-lg text-[8px] font-black uppercase border-slate-200 bg-white hover:bg-primary/5 hover:text-primary transition-all px-1">
-                                Half-Day
-                              </Button>
-                              <Button variant="outline" onClick={() => handleGeneratePlanner(8)} disabled={isGeneratingPlanner} className="h-8 rounded-lg text-[8px] font-black uppercase border-slate-200 bg-white hover:bg-primary/5 hover:text-primary transition-all px-1">
-                                Full-Day
-                              </Button>
+                           <div className="space-y-2">
+                             <Label className="text-[9px] font-black uppercase text-slate-400">Travel Duration</Label>
+                             <div className="flex flex-wrap gap-1">
+                               {TIME_PRESETS.map(preset => (
+                                 <button 
+                                   key={preset.value}
+                                   onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
+                                   className={cn(
+                                     "px-2 py-1.5 rounded-md text-[8px] font-black uppercase border transition-all",
+                                     plannerTimeType === 'preset' && selectedPresetTime === preset.value
+                                      ? "bg-primary text-white border-primary shadow-sm"
+                                      : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
+                                   )}
+                                 >
+                                   {preset.label}
+                                 </button>
+                               ))}
+                               <button 
+                                 onClick={() => setPlannerTimeType('custom')}
+                                 className={cn(
+                                   "px-2 py-1.5 rounded-md text-[8px] font-black uppercase border transition-all",
+                                   plannerTimeType === 'custom'
+                                    ? "bg-primary text-white border-primary shadow-sm"
+                                    : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
+                                 )}
+                               >
+                                 Custom
+                               </button>
+                             </div>
+
+                             {plannerTimeType === 'custom' && (
+                               <div className="flex gap-2 items-center animate-in fade-in slide-in-from-top-1">
+                                 <div className="flex-1 space-y-1">
+                                   <Label className="text-[7px] font-black text-slate-400">HRS</Label>
+                                   <Input type="number" value={customHours} onChange={(e) => setCustomHours(e.target.value)} className="h-7 text-[10px] p-1.5 text-center" min="0" max="12" />
+                                 </div>
+                                 <span className="pt-4 text-slate-300">:</span>
+                                 <div className="flex-1 space-y-1">
+                                   <Label className="text-[7px] font-black text-slate-400">MINS</Label>
+                                   <Input type="number" value={customMinutes} onChange={(e) => setCustomMinutes(e.target.value)} className="h-7 text-[10px] p-1.5 text-center" min="0" max="59" />
+                                 </div>
+                               </div>
+                             )}
                            </div>
 
-                           <Button onClick={() => handleGeneratePlanner()} disabled={isGeneratingPlanner} className="w-full rounded-lg h-9 bg-primary text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
-                              {isGeneratingPlanner ? <Loader2 className="animate-spin" size={14} /> : "Custom Build"}
+                           <Button onClick={handleGeneratePlanner} disabled={isGeneratingPlanner} className="w-full rounded-lg h-9 bg-primary text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
+                              {isGeneratingPlanner ? <Loader2 className="animate-spin" size={14} /> : "Build My Route"}
                            </Button>
                         </div>
 
                         {itineraryIds.length > 0 && (
                           <div className="mt-4 space-y-3">
-                             <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Active Itinerary</p>
+                             <div className="flex items-center justify-between">
+                               <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Active Itinerary</p>
+                               <Badge className="text-[7px] h-4 bg-primary/10 text-primary border-none">
+                                 {Math.round(totalTime)} MIN TOTAL
+                               </Badge>
+                             </div>
                              <div className="space-y-1.5">
                                 {itineraryIds.map((id, idx) => {
                                   const site = HERITAGE_SITES.find(s => s.id === id);
                                   if (!site) return null;
                                   return (
-                                    <div key={id} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-100 group">
-                                      <span className="text-[10px] font-black text-primary w-4">{idx + 1}</span>
-                                      <p className="text-[9px] font-bold text-slate-700 flex-1 whitespace-normal break-words leading-tight">{site.name}</p>
-                                      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowUp size={10} /></button>
-                                        <button onClick={() => moveItem(idx, 'down')} disabled={idx === itineraryIds.length - 1} className="p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowDown size={10} /></button>
-                                        <button onClick={() => toggleSite(id)} className="p-0.5 text-slate-400 hover:text-red-500"><Trash2 size={10} /></button>
+                                    <div key={id} className="space-y-1">
+                                      <div className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-100 group">
+                                        <span className="text-[10px] font-black text-primary w-4">{idx + 1}</span>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-[9px] font-bold text-slate-700 whitespace-normal break-words leading-tight">{site.name}</p>
+                                          <p className="text-[7px] font-black text-slate-400 uppercase tracking-tighter mt-0.5">~30m visit</p>
+                                        </div>
+                                        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                          <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowUp size={10} /></button>
+                                          <button onClick={() => moveItem(idx, 'down')} disabled={idx === itineraryIds.length - 1} className="p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowDown size={10} /></button>
+                                          <button onClick={() => toggleSite(id)} className="p-0.5 text-slate-400 hover:text-red-500"><Trash2 size={10} /></button>
+                                        </div>
                                       </div>
+                                      {idx < itineraryIds.length - 1 && (
+                                        <div className="flex items-center gap-2 ml-4 pl-0.5 border-l-2 border-dashed border-slate-100 h-4">
+                                          <Clock size={8} className="text-slate-300" />
+                                          <span className="text-[7px] font-black text-slate-300 uppercase">Transit</span>
+                                        </div>
+                                      )}
                                     </div>
                                   )
                                 })}
                              </div>
                              <div className="flex gap-1.5 pt-2">
-                                <Button onClick={() => { setIsNavigating(true); setIsDrawerOpen(false); }} className="flex-1 h-8 rounded-lg bg-slate-900 text-[8px] font-black uppercase tracking-widest">Start Now</Button>
+                                <Button onClick={() => { setIsNavigating(true); setIsDrawerOpen(false); }} className="flex-1 h-8 rounded-lg bg-slate-900 text-[8px] font-black uppercase tracking-widest">Start Trip</Button>
                                 <Button onClick={handleSavePlanner} variant="outline" className="h-8 w-8 p-0 rounded-lg"><SaveIcon size={14} /></Button>
                                 <Button onClick={() => setItineraryIds([])} variant="ghost" className="h-8 w-8 p-0 rounded-lg text-red-500"><Trash2 size={14} /></Button>
                              </div>
@@ -685,7 +729,7 @@ function ExploreRouteContent() {
                            {filteredAndSortedSites.slice(0, 8).map(site => (
                              <div key={site.id} onClick={() => { centerOnSite(site); setIsDrawerOpen(false); }} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer group">
                                 <div className="relative w-6 h-6 rounded-md overflow-hidden shrink-0 shadow-sm">
-                                   <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                                   <img src={site.imageUrl} alt={site.name} className="h-full w-full object-cover" />
                                 </div>
                                 <p className="text-[9px] font-bold text-slate-900 leading-tight whitespace-normal break-words flex-1">{site.name}</p>
                              </div>
