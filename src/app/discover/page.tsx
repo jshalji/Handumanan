@@ -503,10 +503,11 @@ function ExploreRouteContent() {
       <Dialog open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
         <DialogContent className="fixed left-0 top-0 bottom-0 w-[280px] max-w-[80vw] h-full p-0 border-none bg-white rounded-none shadow-2xl transition-transform data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left duration-300">
            <div className="flex flex-col h-full">
-              <div className="p-6 flex items-center justify-between border-b">
-                 <span className="font-headline text-2xl font-black text-primary">Handumanan</span>
+              <DialogHeader className="p-6 flex items-center justify-between border-b flex-row space-y-0">
+                 <DialogTitle className="font-headline text-2xl font-black text-primary">Handumanan</DialogTitle>
+                 <DialogDescription className="sr-only">Main menu for heritage discovery and trip planning.</DialogDescription>
                  <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setIsDrawerOpen(false)}><X size={20} /></Button>
-              </div>
+              </DialogHeader>
               
               <ScrollArea className="flex-1">
                 <div className="p-5 space-y-6">
