@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, Suspense, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -28,15 +28,18 @@ import {
   Landmark,
   TreePine,
   Menu,
-  Settings,
   Trash2,
   MapPin,
   ChevronRight,
-  ArrowLeft,
   ChevronUp,
   ChevronDown,
   Sparkles,
-  Save as SaveIcon
+  Save as SaveIcon,
+  ArrowUp,
+  ArrowDown,
+  Clock,
+  Compass,
+  Settings
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, serverTimestamp } from 'firebase/firestore';
@@ -105,7 +108,7 @@ function ExploreRouteContent() {
   
   const [alertedSites, setAlertedSites] = useState<string[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(true);
 
   const [isGeneratingPlanner, setIsGeneratingPlanner] = useState(false);
   const [plannerStart, setPlannerStart] = useState('Cebu City Center');
@@ -187,13 +190,15 @@ function ExploreRouteContent() {
     try {
       const loc = await getCurrentLocation();
       setUserLocation(loc);
+      setRecenterKey(prev => prev + 1);
       return loc;
     } catch (err) {
+      toast({ title: "Location Error", description: "Unable to retrieve your location.", variant: "destructive" });
       return null;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     detectLocation();
@@ -270,15 +275,15 @@ function ExploreRouteContent() {
     setFocusedLocation({ lat: site.coordinates.lat, lng: site.coordinates.lng });
     setIsNavigating(false);
     if ('vibrate' in navigator) navigator.vibrate(50);
-    if (isMobile) setIsSheetExpanded(false);
   };
 
-  const handleGeneratePlanner = async () => {
+  const handleGeneratePlanner = async (time?: number) => {
+    const hours = time || plannerTime[0];
     setIsGeneratingPlanner(true);
     try {
       const output = await generatePersonalizedItinerary({
         startingLocation: plannerStart,
-        availableTimeHours: plannerTime[0],
+        availableTimeHours: hours,
         interests: ["General Interest"],
         siteDatabase: JSON.stringify(HERITAGE_SITES)
       });
@@ -289,7 +294,7 @@ function ExploreRouteContent() {
         setItineraryIds(suggestedIds);
         centerOnSite(HERITAGE_SITES.find(s => s.id === suggestedIds[0]));
       }
-      toast({ title: "Itinerary Ready", description: "Path generated based on proximity." });
+      toast({ title: "Itinerary Ready", description: `Route generated for ${hours} hours.` });
     } catch (error) {
       toast({ title: "Planner Busy", description: "Please try again in a moment.", variant: "destructive" });
     } finally {
@@ -311,6 +316,15 @@ function ExploreRouteContent() {
     toast({ title: "Trip Saved", description: "Find it in your profile." });
   };
 
+  const moveItem = (index: number, direction: 'up' | 'down') => {
+    const newIds = [...itineraryIds];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex >= 0 && targetIndex < newIds.length) {
+      [newIds[index], newIds[targetIndex]] = [newIds[targetIndex], newIds[index]];
+      setItineraryIds(newIds);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden relative font-body select-none">
       
@@ -330,101 +344,192 @@ function ExploreRouteContent() {
         />
       </div>
 
-      {/* TOP HEADER (MENU + SEARCH) */}
-      <div className="absolute top-4 left-4 right-4 z-50 flex flex-col items-start gap-3 pointer-events-none md:max-w-[360px] md:right-auto md:top-6 md:left-6">
+      {/* TOP HEADER (SEARCH + MENU) */}
+      <div className="absolute top-4 left-4 right-4 z-50 flex flex-col items-start gap-3 pointer-events-none md:max-w-[320px] md:right-auto md:top-6 md:left-6">
         <div className="flex gap-2 items-center pointer-events-auto w-full">
           <Button 
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
             size="icon" 
-            className="h-12 w-12 shrink-0 rounded-2xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
+            className="h-11 w-11 shrink-0 rounded-2xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
           >
             <Menu size={20} />
           </Button>
 
           <div className="relative group flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={18} />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={16} />
             <Input 
-              placeholder="Search heritage sites..." 
-              className="pl-11 h-12 rounded-2xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full font-bold text-[13px] ring-1 ring-black/5" 
+              placeholder="Search heritage..." 
+              className="pl-10 h-11 rounded-2xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full font-bold text-[12px] ring-1 ring-black/5" 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-
-          <Button size="icon" className="h-12 w-12 shrink-0 rounded-2xl shadow-xl bg-white/95 backdrop-blur-xl text-primary md:hidden" onClick={detectLocation}>
-            {loading ? <Loader2 className="animate-spin" size={20} /> : <LocateFixed size={20} />}
-          </Button>
         </div>
+
+        {/* FLOATING DISCOVERY PANEL */}
+        {!isNavigating && (
+           <Card className={cn(
+             "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 w-full rounded-[1.5rem] flex flex-col transition-all duration-300",
+             isPanelExpanded ? "max-h-[50vh]" : "max-h-[56px]"
+           )}>
+              <div 
+                className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50/50 rounded-t-[1.5rem]"
+                onClick={() => setIsPanelExpanded(!isPanelExpanded)}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-primary/10 rounded-lg text-primary"><Compass size={16} /></div>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-900">Discover</span>
+                </div>
+                {isPanelExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+              </div>
+
+              {isPanelExpanded && (
+                <ScrollArea className="flex-1 px-4 pb-4">
+                  <div className="space-y-6 pt-2">
+                    {/* Step 1: City */}
+                    <div className="space-y-3">
+                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Step 1: Location</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {CITIES.map(city => (
+                          <button 
+                            key={city} 
+                            onClick={() => handleCitySelect(city)} 
+                            className={cn(
+                              "text-[10px] font-bold py-2.5 px-2 rounded-xl transition-all border",
+                              selectedCity === city 
+                                ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" 
+                                : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
+                            )}
+                          >
+                            {city}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Step 2: Category (Unlocked) */}
+                    {selectedCity && (
+                      <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                        <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Step 2: Category</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {CATEGORIES.map(cat => (
+                            <button 
+                              key={cat.value} 
+                              onClick={() => setSelectedCategory(selectedCategory === cat.value ? null : cat.value)} 
+                              className={cn(
+                                "flex items-center gap-2 px-3 py-2 rounded-xl transition-all border",
+                                selectedCategory === cat.value 
+                                  ? "bg-slate-900 text-white border-slate-900 shadow-lg" 
+                                  : "bg-white border-slate-100 text-slate-600 hover:border-primary/30"
+                              )}
+                            >
+                              <cat.icon size={12} />
+                              <span className="text-[10px] font-bold">{cat.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Smart Suggestions */}
+                    <div className="space-y-3 pt-4 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">AI Suggestions</p>
+                        <Badge variant="outline" className="text-[7px] font-black opacity-50 px-1.5 h-4">SMART</Badge>
+                      </div>
+                      <div className="space-y-2">
+                        {aiSuggestions.map(site => (
+                          <div 
+                            key={site.id} 
+                            onClick={() => centerOnSite(site)} 
+                            className="group bg-white rounded-2xl border border-slate-100 p-2.5 hover:border-primary/30 transition-all cursor-pointer flex gap-3 items-center"
+                          >
+                            <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0">
+                              <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-[11px] font-black text-slate-900 truncate">{site.name}</h4>
+                              <p className="text-[8px] font-bold text-slate-400 uppercase">{site.city} • {site.distance?.toFixed(1)}km</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </ScrollArea>
+              )}
+           </Card>
+        )}
       </div>
 
-      {/* NAVIGATION ACTIVE STATUS (TOP RIGHT ON DESKTOP, BOTTOM SHEET ON MOBILE) */}
+      {/* NAVIGATION ACTIVE STATUS (TOP RIGHT) */}
       {isNavigating && userLocation && itinerarySites.length > 0 && (
         <div className={cn(
           "absolute z-[70] transition-all duration-500 pointer-events-none",
-          isMobile ? "bottom-0 left-0 right-0" : "top-6 right-6 w-[320px]"
+          isMobile ? "bottom-0 left-0 right-0" : "top-6 right-6 w-[280px]"
         )}>
           <Card className={cn(
             "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5",
-            isMobile ? "rounded-t-[2.5rem]" : "rounded-3xl p-5"
+            isMobile ? "rounded-t-[2rem]" : "rounded-[1.5rem] p-4"
           )}>
             {isMobile && (
               <div className="p-4 flex flex-col items-center" onClick={() => setIsNavCollapsed(!isNavCollapsed)}>
-                <div className="w-10 h-1 rounded-full bg-slate-200 mb-4" />
-                <div className="w-full flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+                <div className="w-8 h-1 rounded-full bg-slate-200 mb-4" />
+                <div className="w-full flex items-center justify-between px-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
                     <div>
-                      <p className="text-[10px] font-black uppercase text-primary">Heading to</p>
-                      <h4 className="text-[14px] font-black text-slate-900 leading-tight whitespace-normal break-words">{itinerarySites[0].name}</h4>
+                      <p className="text-[8px] font-black uppercase text-primary tracking-widest leading-none mb-1">Navigation Active</p>
+                      <h4 className="text-[13px] font-black text-slate-900 leading-tight truncate max-w-[180px]">{itinerarySites[0].name}</h4>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="rounded-full" onClick={(e) => { e.stopPropagation(); setIsNavigating(false); }}>
-                    <X size={20} />
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setIsNavigating(false); }}>
+                    <X size={18} />
                   </Button>
                 </div>
               </div>
             )}
 
             <div className={cn(
-              "px-5 pb-8 space-y-5 transition-all",
+              "px-4 pb-6 space-y-4",
               isMobile && isNavCollapsed ? "hidden" : "block"
             )}>
               {!isMobile && (
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-[10px] font-black uppercase text-slate-400">Navigating</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">On Route</span>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-red-500" onClick={() => setIsNavigating(false)}>
-                    <X size={18} />
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-300 hover:text-red-500" onClick={() => setIsNavigating(false)}>
+                    <X size={16} />
                   </Button>
                 </div>
               )}
 
               {!isMobile && (
-                <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-primary">Next Stop</p>
-                  <h4 className="text-[16px] font-black text-slate-900 leading-tight whitespace-normal break-words">{itinerarySites[0].name}</h4>
+                <div className="space-y-0.5">
+                  <p className="text-[8px] font-black uppercase text-primary tracking-widest">Next Destination</p>
+                  <h4 className="text-[14px] font-black text-slate-900 leading-tight">{itinerarySites[0].name}</h4>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                  <p className="text-[9px] font-black uppercase text-slate-400 mb-0.5">Remaining</p>
-                  <p className="text-[18px] font-black text-primary leading-none">{totalDist.toFixed(1)} KM</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-center">
+                  <p className="text-[8px] font-black uppercase text-slate-400 tracking-tighter mb-0.5">Remain</p>
+                  <p className="text-[14px] font-black text-primary leading-none">{totalDist.toFixed(1)} KM</p>
                 </div>
-                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                  <p className="text-[9px] font-black uppercase text-slate-400 mb-0.5">ETA</p>
-                  <p className="text-[18px] font-black text-primary leading-none">{Math.round(totalTime)} MIN</p>
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-center">
+                  <p className="text-[8px] font-black uppercase text-slate-400 tracking-tighter mb-0.5">ETA</p>
+                  <p className="text-[14px] font-black text-primary leading-none">{Math.round(totalTime)} MIN</p>
                 </div>
               </div>
 
               <div className="flex gap-2">
-                <Button onClick={handleRecenter} className="flex-1 rounded-2xl h-12 bg-slate-900 text-white font-black text-[11px] uppercase tracking-widest shadow-xl">
+                <Button onClick={handleRecenter} className="flex-1 rounded-xl h-10 bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest">
                   Recenter
                 </Button>
-                <Button onClick={() => setIsNavigating(false)} variant="outline" className="flex-1 rounded-2xl h-12 border-2 border-slate-100 text-slate-500 font-black text-[11px] uppercase tracking-widest">
-                  Stop
+                <Button onClick={() => setIsNavigating(false)} variant="outline" className="flex-1 rounded-xl h-10 border-slate-100 text-slate-500 font-black text-[10px] uppercase tracking-widest">
+                  End
                 </Button>
               </div>
             </div>
@@ -432,142 +537,17 @@ function ExploreRouteContent() {
         </div>
       )}
 
-      {/* DISCOVERY BOTTOM SHEET */}
-      <div className={cn(
-        "fixed bottom-0 left-0 right-0 z-[60] bg-white/95 backdrop-blur-2xl shadow-[0_-10px_40px_-5px_rgba(0,0,0,0.1)] transition-all duration-500 ease-in-out border-t border-slate-100",
-        isSheetExpanded ? "h-[60vh]" : "h-20",
-        isNavigating && "hidden"
-      )}>
-        {/* Toggle Handle */}
-        <div 
-          onClick={() => setIsSheetExpanded(!isSheetExpanded)}
-          className="h-20 flex items-center justify-between px-6 cursor-pointer hover:bg-slate-50 transition-colors"
+      {/* BOTTOM RIGHT CONTROLS STACK */}
+      <div className="absolute bottom-6 right-6 z-[65] flex flex-col gap-3 pointer-events-none">
+        <Button 
+          onClick={detectLocation}
+          size="icon" 
+          className="h-12 w-12 rounded-2xl shadow-2xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 pointer-events-auto ring-1 ring-black/5"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-xl text-primary"><Search size={20} /></div>
-            <div>
-              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Explore Heritage</p>
-              <p className="text-[13px] font-black text-slate-900 leading-none">
-                {selectedCity ? (
-                  <span className="text-primary">{selectedCity} {selectedCategory && `> ${selectedCategory.split(' ')[0]}`}</span>
-                ) : (
-                  "Discover Path | Smart Suggestions"
-                )}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {(selectedCity || selectedCategory) && (
-               <Button variant="ghost" size="sm" className="h-8 text-[9px] font-black uppercase text-slate-400 hover:text-red-500" onClick={(e) => { e.stopPropagation(); setSelectedCity(null); setSelectedCategory(null); }}>
-                 Clear
-               </Button>
-            )}
-            <div className="p-2 rounded-full bg-slate-100">
-              {isSheetExpanded ? <ChevronDown size={20} className="text-slate-500" /> : <ChevronUp size={20} className="text-slate-500" />}
-            </div>
-          </div>
-        </div>
-
-        <ScrollArea className="h-[calc(60vh-80px)] px-6 pb-12">
-          <div className="space-y-8 py-4">
-            {/* Discover Path Content */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2">
-                <Badge className="bg-primary/10 text-primary border-none text-[9px] font-black uppercase">Step 1</Badge>
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Select Location</h3>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {CITIES.map(city => (
-                  <button 
-                    key={city} 
-                    onClick={() => handleCitySelect(city)} 
-                    className={cn(
-                      "flex flex-col items-center justify-center p-4 rounded-3xl transition-all border-2",
-                      selectedCity === city 
-                        ? "bg-primary/5 border-primary shadow-lg shadow-primary/5 scale-[1.02]" 
-                        : "bg-slate-50 border-transparent hover:bg-slate-100"
-                    )}
-                  >
-                    <MapPin size={24} className={cn("mb-2", selectedCity === city ? "text-primary" : "text-slate-400")} />
-                    <span className={cn("text-[11px] font-bold text-center", selectedCity === city ? "text-primary" : "text-slate-600")}>{city}</span>
-                  </button>
-                ))}
-              </div>
-
-              {selectedCity && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-primary/10 text-primary border-none text-[9px] font-black uppercase">Step 2</Badge>
-                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Filter Category</h3>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {CATEGORIES.map(cat => (
-                      <button 
-                        key={cat.value} 
-                        onClick={() => setSelectedCategory(selectedCategory === cat.value ? null : cat.value)} 
-                        className={cn(
-                          "flex items-center gap-3 px-5 py-3 rounded-2xl transition-all border-2",
-                          selectedCategory === cat.value 
-                            ? "bg-primary border-primary text-white shadow-xl shadow-primary/20 scale-[1.05]" 
-                            : "bg-white border-slate-100 text-slate-600 hover:border-primary/30"
-                        )}
-                      >
-                        <cat.icon size={16} />
-                        <span className="text-[12px] font-black uppercase tracking-tight">{cat.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Smart Suggestions Content */}
-            <div className="pt-8 border-t border-slate-100">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-accent/10 rounded-lg text-accent"><Sparkles size={16} /></div>
-                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Smart Suggestions</h3>
-                </div>
-                <Badge variant="outline" className="text-[8px] font-black opacity-50">AI POWERED</Badge>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {aiSuggestions.map(site => (
-                  <div 
-                    key={site.id} 
-                    onClick={() => centerOnSite(site)} 
-                    className="group bg-white rounded-[2rem] border border-slate-100 p-3 hover:border-primary/30 hover:shadow-2xl transition-all cursor-pointer flex gap-4 items-center"
-                  >
-                    <div className="relative w-16 h-16 rounded-2xl overflow-hidden shrink-0 shadow-inner">
-                      <Image src={site.imageUrl} alt={site.name} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-[13px] font-black text-slate-900 leading-tight truncate mb-1">{site.name}</h4>
-                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider mb-2">{site.city} • {site.distance?.toFixed(1)}km</p>
-                      <div className="flex gap-1">
-                        {site.tags.slice(0, 2).map(tag => (
-                          <span key={tag} className="text-[7px] font-black uppercase px-2 py-0.5 bg-slate-50 text-slate-400 rounded-full border border-slate-100">#{tag}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="p-2 text-slate-200 group-hover:text-primary transition-colors">
-                      <ChevronRight size={20} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* No Results Fallback */}
-            {filteredAndSortedSites.length === 0 && (
-              <div className="py-20 text-center space-y-4 bg-slate-50/50 rounded-[3rem]">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm text-slate-200"><MapPin size={32} /></div>
-                <p className="text-sm font-bold text-slate-400">No heritage sites found for this selection.</p>
-                <Button variant="ghost" className="text-[10px] font-black uppercase text-primary" onClick={() => { setSelectedCity(null); setSelectedCategory(null); }}>Reset Filters</Button>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
+          {loading ? <Loader2 className="animate-spin" size={20} /> : <LocateFixed size={20} />}
+        </Button>
+        {/* Chatbot bubble is handled globally in layout, but spacer/position matches user request */}
+        <div className="h-14 w-14" /> 
       </div>
 
       {/* NAVIGATION DRAWER (HAMBURGER MENU) */}
@@ -576,10 +556,10 @@ function ExploreRouteContent() {
         isMobile ? "w-[180px]" : "w-[220px]",
         isDrawerOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-         <div className="p-6 flex items-center justify-between border-b shrink-0 bg-white">
-            <h2 className="font-headline text-xl font-black text-primary truncate">Menu</h2>
+         <div className="p-5 flex items-center justify-between border-b shrink-0 bg-white">
+            <h2 className="font-headline text-lg font-black text-primary truncate">Handumanan</h2>
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setIsDrawerOpen(false)}>
-              <X size={18} />
+              <X size={16} />
             </Button>
          </div>
          
@@ -587,39 +567,69 @@ function ExploreRouteContent() {
             <div className="p-4 space-y-6">
                <Accordion type="multiple" defaultValue={["planner"]} className="space-y-4">
                   <AccordionItem value="planner" className="border-none">
-                     <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">AI Trip Planner</AccordionTrigger>
+                     <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">AI Route Planner</AccordionTrigger>
                      <AccordionContent>
-                        <div className="bg-slate-50 p-3 rounded-2xl space-y-4 border border-slate-100">
+                        <div className="bg-slate-50 p-3 rounded-xl space-y-4 border border-slate-100">
                            <div className="space-y-1.5">
-                              <Label className="text-[9px] font-black uppercase text-slate-400">Start</Label>
-                              <Input value={plannerStart} onChange={(e) => setPlannerStart(e.target.value)} className="h-9 rounded-xl border-none shadow-sm text-[11px] font-bold" />
+                              <Label className="text-[9px] font-black uppercase text-slate-400">Starting At</Label>
+                              <Input value={plannerStart} onChange={(e) => setPlannerStart(e.target.value)} className="h-8 rounded-lg border-none shadow-sm text-[10px] font-bold bg-white" />
                            </div>
-                           <div className="space-y-2">
-                              <div className="flex justify-between text-[9px] font-black uppercase text-slate-400">
-                                 <span>Time</span>
-                                 <span className="text-primary">{plannerTime[0]}h</span>
-                              </div>
-                              <Slider value={plannerTime} onValueChange={setPlannerTime} max={12} min={2} step={1} />
+                           
+                           <div className="grid grid-cols-2 gap-1.5">
+                              <Button variant="outline" onClick={() => handleGeneratePlanner(4)} disabled={isGeneratingPlanner} className="h-8 rounded-lg text-[8px] font-black uppercase border-slate-200 bg-white hover:bg-primary/5 hover:text-primary transition-all">
+                                Half-Day (4h)
+                              </Button>
+                              <Button variant="outline" onClick={() => handleGeneratePlanner(8)} disabled={isGeneratingPlanner} className="h-8 rounded-lg text-[8px] font-black uppercase border-slate-200 bg-white hover:bg-primary/5 hover:text-primary transition-all">
+                                Full-Day (8h)
+                              </Button>
                            </div>
-                           <Button onClick={() => { handleGeneratePlanner(); setIsDrawerOpen(false); }} disabled={isGeneratingPlanner} className="w-full rounded-xl h-9 bg-primary text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
-                              {isGeneratingPlanner ? <Loader2 className="animate-spin" size={14} /> : "Build Route"}
+
+                           <Button onClick={() => handleGeneratePlanner()} disabled={isGeneratingPlanner} className="w-full rounded-lg h-9 bg-primary text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
+                              {isGeneratingPlanner ? <Loader2 className="animate-spin" size={14} /> : "Custom Build"}
                            </Button>
                         </div>
+
+                        {/* Itinerary Manager inside Sidebar */}
+                        {itineraryIds.length > 0 && (
+                          <div className="mt-4 space-y-3">
+                             <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Active Itinerary</p>
+                             <div className="space-y-1.5">
+                                {itineraryIds.map((id, idx) => {
+                                  const site = HERITAGE_SITES.find(s => s.id === id);
+                                  if (!site) return null;
+                                  return (
+                                    <div key={id} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-100 group">
+                                      <span className="text-[10px] font-black text-primary w-4">{idx + 1}</span>
+                                      <p className="text-[9px] font-bold text-slate-700 flex-1 truncate">{site.name}</p>
+                                      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowUp size={10} /></button>
+                                        <button onClick={() => moveItem(idx, 'down')} disabled={idx === itineraryIds.length - 1} className="p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowDown size={10} /></button>
+                                        <button onClick={() => toggleSite(id)} className="p-0.5 text-slate-400 hover:text-red-500"><Trash2 size={10} /></button>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                             </div>
+                             <div className="flex gap-1.5 pt-2">
+                                <Button onClick={() => { setIsNavigating(true); setIsDrawerOpen(false); }} className="flex-1 h-8 rounded-lg bg-slate-900 text-[8px] font-black uppercase tracking-widest">Start Now</Button>
+                                <Button onClick={handleSavePlanner} variant="outline" className="h-8 w-8 p-0 rounded-lg"><SaveIcon size={14} /></Button>
+                                <Button onClick={() => setItineraryIds([])} variant="ghost" className="h-8 w-8 p-0 rounded-lg text-red-500"><Trash2 size={14} /></Button>
+                             </div>
+                          </div>
+                        )}
                      </AccordionContent>
                   </AccordionItem>
 
                   <AccordionItem value="directory" className="border-none">
-                     <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">Explore Sites</AccordionTrigger>
+                     <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">Quick Directory</AccordionTrigger>
                      <AccordionContent>
                         <div className="space-y-1">
-                           {filteredAndSortedSites.slice(0, 10).map(site => (
-                             <div key={site.id} onClick={() => { centerOnSite(site); setIsDrawerOpen(false); }} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded-xl cursor-pointer group">
-                                <div className="relative w-7 h-7 rounded-lg overflow-hidden shrink-0 shadow-sm">
+                           {filteredAndSortedSites.slice(0, 8).map(site => (
+                             <div key={site.id} onClick={() => { centerOnSite(site); setIsDrawerOpen(false); }} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer group">
+                                <div className="relative w-6 h-6 rounded-md overflow-hidden shrink-0 shadow-sm">
                                    <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                   <p className="text-[10px] font-bold text-slate-900 leading-tight whitespace-normal break-words">{site.name}</p>
-                                </div>
+                                <p className="text-[9px] font-bold text-slate-900 leading-tight truncate flex-1">{site.name}</p>
                              </div>
                            ))}
                         </div>
@@ -628,53 +638,12 @@ function ExploreRouteContent() {
                </Accordion>
 
                <div className="pt-4 space-y-1 border-t">
-                  <Link href="/" className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl text-slate-600 font-bold transition-all text-sm"><Home size={16} /> Home</Link>
-                  <Link href="/profile" className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl text-slate-600 font-bold transition-all text-sm"><Settings size={16} /> Profile</Link>
+                  <Link href="/" className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-lg text-slate-600 font-bold transition-all text-xs"><Home size={14} /> Home</Link>
+                  <Link href="/profile" className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-lg text-slate-600 font-bold transition-all text-xs"><Settings size={14} /> Profile</Link>
                </div>
             </div>
          </ScrollArea>
       </div>
-
-      {/* ITINERARY MANAGER (ANCHORED ABOVE BOTTOM SHEET HANDLE) */}
-      {itineraryIds.length > 0 && !isNavigating && (
-        <div className={cn(
-          "absolute left-1/2 -translate-x-1/2 z-[55] w-full max-w-[360px] px-4 pointer-events-none transition-all duration-500",
-          isSheetExpanded ? "bottom-[62vh]" : "bottom-24"
-        )}>
-          <Card className="pointer-events-auto rounded-[2.5rem] shadow-2xl bg-white/95 backdrop-blur-2xl p-5 ring-1 ring-black/5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="bg-primary/10 p-2 rounded-xl text-primary"><Route size={18} /></div>
-                <div>
-                  <p className="text-[9px] font-black uppercase text-slate-400">Current Trip</p>
-                  <p className="text-[13px] font-black text-slate-900">{itineraryIds.length} Stops</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" className="rounded-full h-8 w-8" onClick={() => setItineraryIds([])}><Trash2 size={16} /></Button>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3 mb-4">
-               <div className="bg-slate-50 p-2.5 rounded-2xl text-center">
-                  <span className="text-[9px] font-black text-slate-400 uppercase">Total</span>
-                  <p className="text-[16px] font-black text-primary">{totalDist.toFixed(1)} KM</p>
-               </div>
-               <div className="bg-slate-50 p-2.5 rounded-2xl text-center">
-                  <span className="text-[9px] font-black text-slate-400 uppercase">Time</span>
-                  <p className="text-[16px] font-black text-primary">~{Math.round(totalTime)} MIN</p>
-               </div>
-            </div>
-
-            <div className="flex gap-2">
-               <Button onClick={() => { setIsNavigating(true); setIsNavCollapsed(false); setIsSheetExpanded(false); }} className="flex-1 rounded-2xl h-12 bg-primary text-white font-black text-[11px] uppercase tracking-widest shadow-xl shadow-primary/20">
-                  <Navigation size={16} className="mr-2" /> Start Now
-               </Button>
-               <Button variant="outline" onClick={handleSavePlanner} className="w-12 h-12 rounded-2xl border-2 border-slate-100 flex items-center justify-center p-0">
-                  <SaveIcon size={20} className="text-slate-400" />
-               </Button>
-            </div>
-          </Card>
-        </div>
-      )}
 
       {/* KEY CONFIG DIALOG */}
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
