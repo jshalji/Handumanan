@@ -36,7 +36,9 @@ import {
   ChevronUp,
   ChevronDown,
   Trash2,
-  MapPin
+  MapPin,
+  ChevronRight,
+  ArrowLeft
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, serverTimestamp } from 'firebase/firestore';
@@ -63,14 +65,14 @@ const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), {
   loading: () => <div className="h-full w-full bg-slate-100 flex items-center justify-center font-black uppercase tracking-widest text-[10px] opacity-30">Map Initializing...</div>
 });
 
+const CITIES = ["Cebu City", "Mandaue City", "Lapu-Lapu City", "Talisay City"];
+
 const CATEGORIES = [
   { label: "Churches", value: "Churches & Religious Heritage Sites", icon: Church },
-  { label: "Houses", value: "Ancestral Houses & Heritage Residences", icon: Home },
   { label: "Museums", value: "Museums & Cultural Institutions", icon: Landmark },
   { label: "Landmarks", value: "Historical Landmarks & Monuments", icon: MapPin },
   { label: "Parks", value: "Plazas, Parks & Public Spaces", icon: TreePine },
-  { label: "Government", value: "Government & Historic Buildings", icon: Landmark },
-  { label: "Cultural", value: "Cultural & Religious (Non-Catholic Sites)", icon: Globe }
+  { label: "Houses", value: "Ancestral Houses & Heritage Residences", icon: Home }
 ];
 
 function ExploreRouteContent() {
@@ -86,7 +88,10 @@ function ExploreRouteContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [focusedLocation, setFocusedLocation] = useState<{ lat: number; lng: number } | null>(null);
   
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  // Sequential Filter State
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  
   const [alertedSites, setAlertedSites] = useState<string[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -103,14 +108,26 @@ function ExploreRouteContent() {
 
   const db = useFirestore();
 
+  // Optimized Firestore Query based on Sequential Logic
   const sitesQuery = useMemoFirebase(() => {
     if (!db) return null;
     const colRef = collection(db, 'heritageSites');
-    if (selectedCategories.length > 0) {
-      return query(colRef, where('category', 'in', selectedCategories));
+    
+    // IF city + category selected
+    if (selectedCity && selectedCategory) {
+      return query(colRef, where('city', '==', selectedCity), where('category', '==', selectedCategory));
     }
+    // IF only city selected
+    if (selectedCity) {
+      return query(colRef, where('city', '==', selectedCity));
+    }
+    
+    // Default: Show nothing or everything? 
+    // Prompt implies guided experience, but we'll show all by default if no city is chosen 
+    // OR we can choose to hide until city is selected. 
+    // Let's show all for better UX unless specifically selecting.
     return colRef;
-  }, [db, selectedCategories]);
+  }, [db, selectedCity, selectedCategory]);
 
   const { data: firestoreSites } = useCollection(sitesQuery);
 
@@ -207,22 +224,18 @@ function ExploreRouteContent() {
     return result;
   }, [allSites, userLocation, searchQuery]);
 
-  // SMART RECOMMENDATION LOGIC
   const aiSuggestions = useMemo(() => {
     let recommendations = allSites.map(s => {
       const dist = userLocation ? calculateDistance(userLocation.lat, userLocation.lng, s.coordinates.lat, s.coordinates.lng) : 100;
-      // SCORING: distance_weight (closer is better) + popularity_weight (rating/must-visit)
       const popularityBonus = s.isMustVisit ? 2 : 0;
       const ratingBonus = (s.rating || 4) / 2;
-      const distScore = Math.max(0, 10 - dist); // Higher score for being closer (max 10km)
+      const distScore = Math.max(0, 10 - dist); 
       const totalScore = distScore + popularityBonus + ratingBonus;
       
       return { ...s, distance: dist, score: totalScore };
     });
     
-    // Sort by combined score descending
     recommendations.sort((a, b) => b.score - a.score);
-    
     return recommendations.slice(0, 5);
   }, [allSites, userLocation]);
 
@@ -245,8 +258,9 @@ function ExploreRouteContent() {
     fetchRoute();
   }, [itineraryIds, orsKey, itinerarySites]);
 
-  const toggleCategory = (value: string) => {
-    setSelectedCategories(prev => prev.includes(value) ? prev.filter(c => c !== value) : [...prev, value]);
+  const resetFilters = () => {
+    setSelectedCity(null);
+    setSelectedCategory(null);
   };
 
   const toggleSite = (id: string) => {
@@ -276,7 +290,6 @@ function ExploreRouteContent() {
       });
       setPlannerResult(output);
       
-      // LOGICAL ORDERING: Nearest neighbor logic for the trip
       const suggestedIds = output.itinerary
         .map(item => allSites.find(s => s.name.toLowerCase() === item.siteName.toLowerCase())?.id)
         .filter((id): id is string => !!id);
@@ -325,8 +338,9 @@ function ExploreRouteContent() {
         />
       </div>
 
-      <div className="absolute top-6 inset-x-0 z-50 flex flex-col items-center gap-3 px-4 pointer-events-none">
-        <div className="w-full max-w-xl flex gap-2 items-center pointer-events-auto">
+      {/* GOOGLE MAPS STYLE TOP-LEFT HEADER */}
+      <div className="absolute top-6 left-6 z-50 flex flex-col items-start gap-4 pointer-events-none">
+        <div className="flex gap-2 items-center pointer-events-auto">
           <Button 
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
             size="icon" 
@@ -335,10 +349,10 @@ function ExploreRouteContent() {
             <Menu size={20} />
           </Button>
 
-          <div className="flex-1 relative group">
+          <div className="relative group w-72 md:w-80 lg:w-96">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={18} />
             <Input 
-              placeholder="Search historical sites..." 
+              placeholder="Search heritage sites..." 
               className="pl-12 h-12 rounded-2xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full font-bold text-sm ring-1 ring-black/5" 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -350,43 +364,90 @@ function ExploreRouteContent() {
           </Button>
         </div>
 
-        <div className="w-full max-w-2xl pointer-events-auto">
-          <ScrollArea className="w-full pb-2">
-            <div className="flex items-center justify-center gap-1.5 px-1">
-              <Button 
-                  onClick={() => setSelectedCategories([])}
-                  variant="ghost"
-                  className={cn(
-                      "h-9 px-4 rounded-full shadow-lg bg-white/90 backdrop-blur-md border border-white/50 text-[9px] font-black uppercase tracking-widest whitespace-nowrap transition-all",
-                      selectedCategories.length === 0 ? "bg-primary text-white" : "text-slate-600 hover:bg-white"
-                  )}
-              >
-                  Show All
-              </Button>
-              {CATEGORIES.map((cat) => {
-                const Icon = cat.icon;
-                const isSelected = selectedCategories.includes(cat.value);
-                return (
-                  <Button 
-                    key={cat.value}
-                    onClick={() => toggleCategory(cat.value)}
-                    variant="ghost"
-                    className={cn(
-                      "h-9 px-4 rounded-full shadow-lg bg-white/90 backdrop-blur-md border border-white/50 text-[9px] font-black uppercase tracking-widest whitespace-nowrap transition-all",
-                      isSelected ? "bg-primary text-white" : "text-slate-600 hover:bg-white"
-                    )}
+        {/* SEQUENTIAL FILTER MENU */}
+        <div className="pointer-events-auto bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-xl w-[280px] md:w-[320px] ring-1 ring-black/5 overflow-hidden transition-all duration-300">
+           <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                 <div className="p-1.5 bg-primary/10 rounded-lg text-primary">
+                    <MapPin size={14} />
+                 </div>
+                 <div className="flex flex-col">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Discover Path</span>
+                    <div className="flex items-center gap-1 text-[11px] font-black text-slate-900 leading-tight">
+                       {selectedCity ? (
+                         <>
+                           <span>{selectedCity.split(' ')[0]}</span>
+                           {selectedCategory && (
+                             <>
+                               <ChevronRight size={10} className="text-slate-300" />
+                               <span className="text-primary">{selectedCategory.split(' ')[0]}</span>
+                             </>
+                           )}
+                         </>
+                       ) : (
+                         "Select City"
+                       )}
+                    </div>
+                 </div>
+              </div>
+              {(selectedCity || selectedCategory) && (
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-300 hover:text-red-500 rounded-full" onClick={resetFilters}>
+                  <X size={14} />
+                </Button>
+              )}
+           </div>
+
+           <div className="p-2 overflow-y-auto max-h-[300px]">
+              {!selectedCity ? (
+                <div className="space-y-1">
+                  {CITIES.map(city => (
+                    <button 
+                      key={city}
+                      onClick={() => setSelectedCity(city)}
+                      className="w-full flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-all group"
+                    >
+                      <span className="text-xs font-bold text-slate-700 group-hover:text-primary">{city}</span>
+                      <ChevronRight size={14} className="text-slate-200 group-hover:text-primary" />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <button 
+                    onClick={() => { setSelectedCity(null); setSelectedCategory(null); }}
+                    className="w-full flex items-center gap-2 p-2 mb-2 text-[10px] font-black uppercase text-primary hover:bg-primary/5 rounded-lg transition-colors"
                   >
-                    <Icon size={12} className="mr-1.5" />
-                    {cat.label}
-                  </Button>
-                );
-              })}
-            </div>
-            <ScrollBar orientation="horizontal" className="hidden" />
-          </ScrollArea>
+                    <ArrowLeft size={12} /> Change City
+                  </button>
+                  {CATEGORIES.map(cat => {
+                    const Icon = cat.icon;
+                    const isSelected = selectedCategory === cat.value;
+                    return (
+                      <button 
+                        key={cat.value}
+                        onClick={() => setSelectedCategory(isSelected ? null : cat.value)}
+                        className={cn(
+                          "w-full flex items-center justify-between p-3 rounded-xl transition-all group border-2",
+                          isSelected ? "bg-primary/5 border-primary" : "hover:bg-slate-50 border-transparent"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                           <Icon size={16} className={cn(isSelected ? "text-primary" : "text-slate-400 group-hover:text-primary")} />
+                           <span className={cn("text-xs font-bold", isSelected ? "text-primary" : "text-slate-700 group-hover:text-primary")}>
+                              {cat.label}
+                           </span>
+                        </div>
+                        {isSelected && <div className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+           </div>
         </div>
       </div>
 
+      {/* NAVIGATION DRAWER */}
       <div 
         className={cn(
           "fixed left-0 top-0 h-full bg-white/95 backdrop-blur-2xl z-[60] transition-transform duration-300 shadow-2xl border-r border-slate-100 flex flex-col",
@@ -426,6 +487,9 @@ function ExploreRouteContent() {
                         </div>
                       </div>
                     ))}
+                    {!filteredAndSortedSites.length && (
+                      <p className="text-[10px] text-slate-400 italic p-4 text-center">No matching sites</p>
+                    )}
                   </div>
                 </AccordionContent>
               </AccordionItem>
@@ -562,7 +626,9 @@ function ExploreRouteContent() {
                       className="w-full flex items-center gap-2 p-2 hover:bg-slate-50 rounded-xl transition-all text-left group"
                      >
                         <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 relative shadow-sm">
-                           <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                           <div className="relative w-full h-full">
+                              <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
                            <p className="text-[10px] font-bold text-slate-900 truncate">{site.name}</p>
