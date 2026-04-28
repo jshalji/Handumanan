@@ -50,33 +50,70 @@ interface HeritageMapProps {
   totalDist?: number;
   onAddSite: (id: string) => void;
   focusedLocation?: { lat: number; lng: number } | null;
+  isNavigating?: boolean;
+  cityTarget?: { lat: number; lng: number; zoom: number; timestamp: number } | null;
+  recenterKey?: number;
 }
 
 function MapController({ 
-  center, 
   routeCoordinates,
-  focusedLocation
+  focusedLocation,
+  isNavigating,
+  userLocation,
+  cityTarget,
+  recenterKey
 }: { 
-  center: [number, number], 
   routeCoordinates?: [number, number][],
-  focusedLocation?: { lat: number; lng: number } | null
+  focusedLocation?: { lat: number; lng: number } | null,
+  isNavigating?: boolean,
+  userLocation: { lat: number; lng: number } | null,
+  cityTarget?: { lat: number; lng: number; zoom: number; timestamp: number } | null,
+  recenterKey?: number
 }) {
   const map = useMap();
 
+  // 1. City Selection Centering (Triggered only when cityTarget.timestamp changes)
+  useEffect(() => {
+    if (cityTarget) {
+      map.setView([cityTarget.lat, cityTarget.lng], cityTarget.zoom, { animate: true, duration: 1.5 });
+    }
+  }, [cityTarget?.timestamp, map]);
+
+  // 2. Active Navigation Tracking
+  useEffect(() => {
+    if (isNavigating && userLocation) {
+      map.panTo([userLocation.lat, userLocation.lng], { animate: true, duration: 1 });
+      if (map.getZoom() < 16) {
+        map.setZoom(17, { animate: true });
+      }
+    }
+  }, [isNavigating, userLocation?.lat, userLocation?.lng, map]);
+
+  // 3. Recenter Manual Request
+  useEffect(() => {
+    if (recenterKey && recenterKey > 0 && userLocation) {
+      map.setView([userLocation.lat, userLocation.lng], 17, { animate: true });
+    }
+  }, [recenterKey, userLocation, map]);
+
+  // 4. Manually Focused Site
   useEffect(() => {
     if (focusedLocation) {
-      map.setView([focusedLocation.lat, focusedLocation.lng], 16, { animate: true, duration: 1.5 });
-    } else if (routeCoordinates && routeCoordinates.length > 1) {
+      map.setView([focusedLocation.lat, focusedLocation.lng], 16, { animate: true, duration: 1 });
+    }
+  }, [focusedLocation, map]);
+
+  // 5. Initial Route View (Fit Bounds)
+  useEffect(() => {
+    if (!isNavigating && !focusedLocation && routeCoordinates && routeCoordinates.length > 1) {
       const bounds = L.polyline(routeCoordinates).getBounds();
       map.fitBounds(bounds, { 
         padding: [120, 120], 
         animate: true,
         duration: 1.5
       });
-    } else if (center) {
-      map.setView(center, 14, { animate: true, duration: 1 });
     }
-  }, [center, routeCoordinates, focusedLocation, map]);
+  }, [routeCoordinates, isNavigating, focusedLocation, map]);
 
   return null;
 }
@@ -89,7 +126,10 @@ export default function HeritageMap({
   totalTime,
   totalDist,
   onAddSite,
-  focusedLocation
+  focusedLocation,
+  isNavigating,
+  cityTarget,
+  recenterKey
 }: HeritageMapProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -118,7 +158,14 @@ export default function HeritageMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
-        <MapController center={center} routeCoordinates={routeCoordinates} focusedLocation={focusedLocation} />
+        <MapController 
+          routeCoordinates={routeCoordinates} 
+          focusedLocation={focusedLocation} 
+          isNavigating={isNavigating}
+          userLocation={userLocation}
+          cityTarget={cityTarget}
+          recenterKey={recenterKey}
+        />
 
         {userLocation && (
           <>

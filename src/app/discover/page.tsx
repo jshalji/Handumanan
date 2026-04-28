@@ -37,7 +37,9 @@ import {
   Trash2,
   MapPin,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  GanttChartSquare,
+  AlertCircle
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, serverTimestamp } from 'firebase/firestore';
@@ -66,6 +68,13 @@ const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), {
 
 const CITIES = ["Cebu City", "Mandaue City", "Lapu-Lapu City", "Talisay City"];
 
+const CITY_COORDS: Record<string, { lat: number; lng: number; zoom: number }> = {
+  "Cebu City": { lat: 10.3157, lng: 123.8854, zoom: 13 },
+  "Mandaue City": { lat: 10.3403, lng: 123.9416, zoom: 13 },
+  "Lapu-Lapu City": { lat: 10.3103, lng: 123.9494, zoom: 13 },
+  "Talisay City": { lat: 10.2447, lng: 123.8494, zoom: 13 }
+};
+
 const CATEGORIES = [
   { label: "Churches", value: "Churches & Religious Heritage Sites", icon: Church },
   { label: "Museums", value: "Museums & Cultural Institutions", icon: Landmark },
@@ -87,6 +96,11 @@ function ExploreRouteContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [focusedLocation, setFocusedLocation] = useState<{ lat: number; lng: number } | null>(null);
   
+  // Navigation & Mapping State
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [cityTarget, setCityTarget] = useState<{ lat: number; lng: number; zoom: number; timestamp: number } | null>(null);
+  const [recenterKey, setRecenterKey] = useState(0);
+  
   // Sequential Filter State
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -106,6 +120,17 @@ function ExploreRouteContent() {
   const [tempKey, setTempKey] = useState('');
 
   const db = useFirestore();
+
+  const handleCitySelect = (city: string) => {
+    setSelectedCity(city);
+    setSelectedCategory(null);
+    setCityTarget({ ...CITY_COORDS[city], timestamp: Date.now() });
+    setIsNavigating(false); // Stop navigation when switching cities
+  };
+
+  const handleRecenter = () => {
+    setRecenterKey(prev => prev + 1);
+  };
 
   // Optimized Firestore Query based on Sequential Logic
   const sitesQuery = useMemoFirebase(() => {
@@ -177,16 +202,22 @@ function ExploreRouteContent() {
         const currentPos = { lat: position.coords.latitude, lng: position.coords.longitude };
         setUserLocation(currentPos);
       },
-      (err) => console.warn("Watch position error:", err),
+      (err) => {
+        console.warn("Watch position error:", err);
+        if (err.code === 1) {
+          toast({ title: "Permission Denied", description: "Location access is required for real-time navigation.", variant: "destructive" });
+        }
+      },
       { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [detectLocation]);
+  }, [detectLocation, toast]);
 
   const itinerarySites = useMemo(() => {
     return itineraryIds.map(id => HERITAGE_SITES.find(s => s.id === id)).filter(Boolean) as HeritageSite[];
   }, [itineraryIds]);
 
+  // Arrival Alert Logic
   useEffect(() => {
     if (!userLocation || itinerarySites.length === 0) return;
     const currentDestination = itinerarySites[0];
@@ -196,13 +227,15 @@ function ExploreRouteContent() {
       currentDestination.coordinates.lat, 
       currentDestination.coordinates.lng
     );
-    if (dist <= 0.02 && !alertedSites.includes(currentDestination.id)) {
+    // Alert within 50 meters
+    if (dist <= 0.05 && !alertedSites.includes(currentDestination.id)) {
       toast({
         title: "📍 Destination Reached!",
         description: `Welcome to ${currentDestination.name}!`,
         duration: 8000,
       });
       setAlertedSites(prev => [...prev, currentDestination.id]);
+      setIsNavigating(false); // Pause auto-following on arrival
       if ('vibrate' in navigator) {
         navigator.vibrate([300, 100, 300]);
       }
@@ -228,7 +261,6 @@ function ExploreRouteContent() {
   }, [allSites, userLocation, searchQuery]);
 
   const aiSuggestions = useMemo(() => {
-    // If we have filtered sites by city/category, prioritize suggesting from THAT set
     const pool = filteredAndSortedSites.length > 0 ? filteredAndSortedSites : allSites.map(s => ({
       ...s,
       distance: userLocation ? calculateDistance(userLocation.lat, userLocation.lng, s.coordinates.lat, s.coordinates.lng) : 100
@@ -269,6 +301,7 @@ function ExploreRouteContent() {
   const resetFilters = () => {
     setSelectedCity(null);
     setSelectedCategory(null);
+    setIsNavigating(false);
   };
 
   const toggleSite = (id: string) => {
@@ -285,6 +318,7 @@ function ExploreRouteContent() {
 
   const centerOnSite = (site: HeritageSite | any) => {
     setFocusedLocation({ lat: site.coordinates.lat, lng: site.coordinates.lng });
+    setIsNavigating(false); // Stop auto-follow if manually viewing a site
     if ('vibrate' in navigator) navigator.vibrate(50);
   };
 
@@ -308,7 +342,7 @@ function ExploreRouteContent() {
         const firstSite = HERITAGE_SITES.find(s => s.id === suggestedIds[0]);
         if (firstSite) centerOnSite(firstSite);
       }
-      toast({ title: "Itinerary Ready", description: "Logical route generated based on your location." });
+      toast({ title: "Itinerary Ready", description: "Logical route generated based on your preferences." });
     } catch (error) {
       toast({ title: "Planner Error", description: "Assistant busy. Try again.", variant: "destructive" });
     } finally {
@@ -344,10 +378,13 @@ function ExploreRouteContent() {
           totalDist={totalDist} 
           onAddSite={toggleSite}
           focusedLocation={focusedLocation}
+          isNavigating={isNavigating}
+          cityTarget={cityTarget}
+          recenterKey={recenterKey}
         />
       </div>
 
-      {/* TOP-LEFT SIDECAR: DISCOVER PATH + SMART SUGGESTIONS */}
+      {/* TOP-LEFT HEADER (MENU + SEARCH) */}
       <div className="absolute top-6 left-6 z-50 flex flex-col items-start gap-4 pointer-events-none w-[280px] md:w-[320px]">
         <div className="flex gap-2 items-center pointer-events-auto w-full">
           <Button 
@@ -412,7 +449,7 @@ function ExploreRouteContent() {
                   {CITIES.map(city => (
                     <button 
                       key={city}
-                      onClick={() => setSelectedCity(city)}
+                      onClick={() => handleCitySelect(city)}
                       className="w-full flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-all group"
                     >
                       <span className="text-xs font-bold text-slate-700 group-hover:text-primary">{city}</span>
@@ -450,15 +487,12 @@ function ExploreRouteContent() {
                       </button>
                     );
                   })}
-                  {filteredAndSortedSites.length === 0 && (
-                    <p className="text-[10px] text-slate-400 italic p-4 text-center">No heritage sites found for this selection.</p>
-                  )}
                 </div>
               )}
            </div>
         </div>
 
-        {/* SMART SUGGESTIONS (DIRECTLY BELOW DISCOVER PATH) */}
+        {/* SMART SUGGESTIONS */}
         <div className="pointer-events-auto bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-xl w-full ring-1 ring-black/5 overflow-hidden transition-all duration-300">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                <div className="flex items-center gap-2">
@@ -493,6 +527,43 @@ function ExploreRouteContent() {
             </div>
         </div>
       </div>
+
+      {/* NAVIGATION ACTIVE STATUS CARD (TOP CENTER) */}
+      {isNavigating && userLocation && itinerarySites.length > 0 && (
+        <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[70] w-full max-w-xs px-4 pointer-events-none">
+          <Card className="rounded-2xl shadow-2xl border-none bg-white/95 backdrop-blur-2xl p-4 pointer-events-auto ring-1 ring-black/5 animate-in slide-in-from-top-4 duration-500">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Navigation Active</span>
+              </div>
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-red-500 rounded-full" onClick={() => setIsNavigating(false)}>
+                <X size={14} />
+              </Button>
+            </div>
+            <div className="mb-4">
+               <p className="text-[9px] font-black uppercase text-primary mb-0.5">Next Destination</p>
+               <h4 className="text-xs font-black text-slate-900 leading-tight">{itinerarySites[0].name}</h4>
+               <div className="flex items-center gap-2 mt-2">
+                  <div className="px-2 py-0.5 bg-slate-100 rounded-full text-[9px] font-black text-slate-600">
+                    {totalDist.toFixed(1)} KM REMAINING
+                  </div>
+                  <div className="px-2 py-0.5 bg-primary/10 rounded-full text-[9px] font-black text-primary">
+                    ~{Math.round(totalTime)} MIN
+                  </div>
+               </div>
+            </div>
+            <div className="flex gap-2">
+               <Button onClick={handleRecenter} className="flex-1 rounded-lg bg-slate-900 text-white font-black text-[9px] uppercase tracking-widest h-9">
+                  Recenter
+               </Button>
+               <Button onClick={() => setIsNavigating(false)} variant="outline" className="flex-1 rounded-lg border-2 border-slate-100 text-slate-400 font-black text-[9px] uppercase tracking-widest h-9">
+                  Stop
+               </Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* NAVIGATION DRAWER */}
       <div 
@@ -534,8 +605,11 @@ function ExploreRouteContent() {
                         </div>
                       </div>
                     ))}
-                    {!filteredAndSortedSites.length && (
-                      <p className="text-[10px] text-slate-400 italic p-4 text-center">No matching sites</p>
+                    {filteredAndSortedSites.length === 0 && (
+                      <div className="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <AlertCircle size={16} className="mx-auto mb-2 text-slate-300" />
+                        <p className="text-[9px] text-slate-400 font-bold uppercase leading-tight">No sites found in this city.</p>
+                      </div>
                     )}
                   </div>
                 </AccordionContent>
@@ -583,7 +657,7 @@ function ExploreRouteContent() {
               <BellRing size={12} className="text-primary" />
               <span className="text-[8px] font-black uppercase tracking-widest text-slate-900">Live Alerts</span>
            </div>
-           <p className="text-[8px] text-slate-400 font-medium leading-tight">Vibrating alerts active (20m range).</p>
+           <p className="text-[8px] text-slate-400 font-medium leading-tight">Vibrating alerts active (50m range).</p>
         </div>
       </div>
 
@@ -642,9 +716,15 @@ function ExploreRouteContent() {
               </div>
 
               <div className="flex gap-2">
-                 <Button className="flex-1 rounded-xl bg-primary text-white font-black text-[9px] uppercase tracking-widest h-11 shadow-lg shadow-primary/20">
-                    <Navigation size={14} className="mr-1.5" /> Start Navigation
-                 </Button>
+                 {!isNavigating ? (
+                   <Button onClick={() => setIsNavigating(true)} className="flex-1 rounded-xl bg-primary text-white font-black text-[9px] uppercase tracking-widest h-11 shadow-lg shadow-primary/20">
+                      <Navigation size={14} className="mr-1.5" /> Start Navigation
+                   </Button>
+                 ) : (
+                   <Button onClick={() => setIsNavigating(false)} variant="secondary" className="flex-1 rounded-xl font-black text-[9px] uppercase tracking-widest h-11">
+                      <Loader2 size={14} className="mr-1.5 animate-spin" /> Tracking active...
+                   </Button>
+                 )}
                  <Button variant="outline" className="h-11 w-11 rounded-xl border-2 border-slate-100 text-slate-400 hover:bg-slate-50" onClick={handleSavePlanner}>
                     <Save size={16} />
                  </Button>
