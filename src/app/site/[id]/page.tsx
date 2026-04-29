@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, serverTimestamp, doc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Navigation, Heart, Loader2, Route } from 'lucide-react';
+import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Navigation, Heart, Loader2, Route, ChevronDown, ChevronUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +27,10 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   const [comment, setComment] = useState('');
   const [rating, setRating] = useState(5);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // New UI states
+  const [activeImage, setActiveImage] = useState(site?.imageUrl || '');
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
 
   const reviewsQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -40,6 +44,10 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   }, [db, user, id]);
   const { data: userFavorites } = useCollection(favoritesQuery);
   const isFavorited = (userFavorites?.length || 0) > 0;
+
+  useEffect(() => {
+    if (site) setActiveImage(site.imageUrl);
+  }, [site]);
 
   if (!site) {
     return (
@@ -88,12 +96,21 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
     toast({ title: "Review Submitted", description: "Thank you for your feedback!" });
   };
 
+  const allImages = [site.imageUrl, ...(site.galleryImages || [])];
+
   return (
     <div className="min-h-screen bg-background pb-20">
       <Navbar />
       
-      <div className="relative h-[60vh] w-full">
-        <Image src={site.imageUrl} alt={site.name} fill className="object-cover brightness-75" priority />
+      {/* Hero Header with Active Image */}
+      <div className="relative h-[55vh] md:h-[65vh] w-full">
+        <Image 
+          src={activeImage} 
+          alt={site.name} 
+          fill 
+          className="object-cover brightness-75 transition-all duration-700" 
+          priority 
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
         <div className="absolute bottom-0 left-0 w-full p-8 md:p-16">
           <div className="container mx-auto">
@@ -122,18 +139,62 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      <div className="container mx-auto px-4 mt-12">
+      <div className="container mx-auto px-4 mt-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
           <div className="lg:col-span-2 space-y-12">
+            
+            {/* Gallery Thumbnails */}
+            {allImages.length > 1 && (
+              <section>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">View Gallery</h3>
+                <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
+                  {allImages.map((img, idx) => (
+                    <button 
+                      key={idx}
+                      onClick={() => setActiveImage(img)}
+                      className={cn(
+                        "relative w-24 h-24 md:w-32 md:h-32 rounded-2xl overflow-hidden shrink-0 transition-all border-2",
+                        activeImage === img ? "border-primary ring-4 ring-primary/10" : "border-transparent opacity-70 hover:opacity-100"
+                      )}
+                    >
+                      <Image src={img} alt={`${site.name} view ${idx + 1}`} fill className="object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Overview with Expandable Text */}
             <section>
               <h2 className="font-headline text-3xl font-bold mb-6 flex items-center gap-3 text-primary"><Info size={28} /> Overview</h2>
-              <p className="text-lg leading-relaxed text-slate-700">{site.description}</p>
+              <div className="space-y-4">
+                <p className={cn(
+                  "text-lg leading-relaxed text-slate-700 transition-all duration-500",
+                  !isDescExpanded && "line-clamp-3"
+                )}>
+                  {site.description}
+                </p>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setIsDescExpanded(!isDescExpanded)}
+                  className="text-primary font-bold p-0 h-auto hover:bg-transparent hover:underline flex items-center gap-2"
+                >
+                  {isDescExpanded ? (
+                    <><ChevronUp size={18} /> Show Less</>
+                  ) : (
+                    <><ChevronDown size={18} /> Read More</>
+                  )}
+                </Button>
+              </div>
             </section>
+
             <section className="bg-slate-50 p-8 rounded-3xl border border-slate-200">
               <h2 className="font-headline text-2xl font-bold mb-4 flex items-center gap-3 text-primary"><Landmark size={24} /> Historical Significance</h2>
               <p className="text-slate-600 leading-relaxed italic">"{site.significance}"</p>
             </section>
+            
             <Separator />
+            
             <section>
               <h2 className="font-headline text-3xl font-bold mb-6 flex items-center gap-3"><MessageSquare className="text-primary" /> Community Feedback</h2>
               {user ? (
@@ -170,6 +231,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </section>
           </div>
+          
           <div className="space-y-8">
             <div className="bg-white rounded-3xl p-8 shadow-xl border border-primary/5 sticky top-24">
               <h3 className="font-headline text-2xl font-bold mb-6">In-App Navigation</h3>
