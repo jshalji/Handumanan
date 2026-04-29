@@ -7,6 +7,7 @@ import { HERITAGE_SITES } from '@/lib/heritage-data';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Compass, MapPin, ArrowRight, Landmark, Sparkles } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 export default function Home() {
   const featuredSites = HERITAGE_SITES.filter(s => s.isMustVisit).slice(0, 3);
@@ -115,7 +116,6 @@ export default function Home() {
           <div className="flex justify-center gap-10 mb-10 text-sm uppercase tracking-widest font-black">
             <Link href="/discover" className="hover:text-accent transition-colors">Explore & Route</Link>
             <Link href="/explore" className="hover:text-accent transition-colors">Directory</Link>
-            <Link href="/admin" className="hover:text-accent transition-colors">Admin</Link>
           </div>
           <div className="pt-10 border-t border-white/10 text-xs opacity-50 font-bold tracking-widest">
             &copy; {new Date().getFullYear()} HANDUMANAN METRO CEBU. ALL RIGHTS RESERVED.
@@ -125,5 +125,3 @@ export default function Home() {
     </div>
   );
 }
-
-import { Badge } from '@/components/ui/badge';
