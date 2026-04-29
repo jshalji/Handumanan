@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { MessageCircle, X, Send, Loader2, Sparkles, MapPin, Landmark, Church, Minimize2 } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { MessageCircle, X, Send, Sparkles, MapPin, Landmark, Church, Minimize2 } from 'lucide-react';
 import { chatWithHeritageBot } from '@/ai/flows/heritage-chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase';
@@ -22,6 +22,7 @@ const QUICK_REPLIES = [
 ];
 
 export function HeritageChatBot() {
+  const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { role: 'model', text: 'Maayong adlaw! I am your Handumanan Guide. How can I help with your Cebu heritage journey today?' }
@@ -30,6 +31,10 @@ export function HeritageChatBot() {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { user } = useUser();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -82,6 +87,8 @@ export function HeritageChatBot() {
       setIsLoading(false);
     }
   };
+
+  if (!mounted) return null;
 
   return (
     <>
