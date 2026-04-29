@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
@@ -470,9 +469,9 @@ function ExploreRouteContent() {
                {isPanelExpanded && (
                  <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide overscroll-contain touch-auto">
                    <div className="px-3 md:px-4 space-y-5 pt-3 pb-8 md:pb-12">
-                     {/* Step 1: City */}
+                     {/* Cities */}
                      <div className="space-y-2">
-                       <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Step 1: City</p>
+                       <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Cities</p>
                        <div className="grid grid-cols-2 gap-1.5 md:gap-2">
                          {CITIES.map(city => (
                            <button 
