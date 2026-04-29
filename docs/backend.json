@@ -1,10 +1,11 @@
+
 {
   "entities": {
     "User": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents a user account within the Handumanan system, storing authentication details (hashed password) and basic profile information. Users can register, log in, and perform authenticated actions like adding reviews, saving favorites, and managing itineraries.",
+      "description": "Represents a user account within the Handumanan system, storing authentication details and basic profile information. Includes role-based access control.",
       "properties": {
         "id": {
           "type": "string",
@@ -16,12 +17,13 @@
         },
         "email": {
           "type": "string",
-          "description": "The email address of the user, used for login and communication. Must be unique.",
+          "description": "The email address of the user, used for login and communication.",
           "format": "email"
         },
-        "hashedPassword": {
+        "role": {
           "type": "string",
-          "description": "The securely hashed password of the user. Stored using a strong, one-way hashing algorithm like PHP's password_hash to prevent direct access to the plain text password. (Note: Per security best practices, raw passwords are never stored.)"
+          "description": "The role of the user (e.g., 'user', 'admin').",
+          "enum": ["user", "admin"]
         },
         "createdAt": {
           "type": "string",
@@ -33,7 +35,7 @@
         "id",
         "name",
         "email",
-        "hashedPassword",
+        "role",
         "createdAt"
       ]
     },
@@ -41,7 +43,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Category",
       "type": "object",
-      "description": "Represents a categorization for cultural heritage sites, allowing for organized browsing and filtering. Examples include 'Churches', 'Museums', 'Historical Landmarks'.",
+      "description": "Represents a categorization for cultural heritage sites.",
       "properties": {
         "id": {
           "type": "string",
@@ -49,36 +51,23 @@
         },
         "name": {
           "type": "string",
-          "description": "The name of the category (e.g., 'Churches', 'Museums'). Must be unique."
+          "description": "The name of the category (e.g., 'Churches', 'Museums')."
         },
         "description": {
           "type": "string",
           "description": "A brief description of the category."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the category was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the category was last updated.",
-          "format": "date-time"
         }
       },
       "required": [
         "id",
-        "name",
-        "description",
-        "createdAt",
-        "updatedAt"
+        "name"
       ]
     },
     "HeritageSite": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "HeritageSite",
       "type": "object",
-      "description": "Represents a cultural heritage site in Metro Cebu, storing all relevant information such as descriptions, images, location, and operational details. This entity is central to the Handumanan system.",
+      "description": "Represents a cultural heritage site in Metro Cebu.",
       "properties": {
         "id": {
           "type": "string",
@@ -90,173 +79,106 @@
         },
         "description": {
           "type": "string",
-          "description": "A detailed description of the heritage site, including its historical significance, cultural context, and key features."
+          "description": "Short description."
         },
-        "categoryId": {
+        "significance": {
           "type": "string",
-          "description": "Reference to the Category this heritage site belongs to. (Relationship: Category 1:N HeritageSite)"
+          "description": "Historical significance."
         },
-        "imageUrls": {
-          "type": "array",
-          "description": "An array of URLs pointing to images of the heritage site.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "latitude": {
-          "type": "number",
-          "description": "The geographical latitude coordinate of the heritage site's location."
-        },
-        "longitude": {
-          "type": "number",
-          "description": "The geographical longitude coordinate of the heritage site's location."
-        },
-        "address": {
+        "category": {
           "type": "string",
-          "description": "The physical street address of the heritage site."
+          "description": "The category name."
         },
         "city": {
           "type": "string",
-          "description": "The city within Metro Cebu where the heritage site is located (e.g., Cebu City, Lapu-Lapu City, Mandaue City, Talisay City)."
+          "description": "The city location."
+        },
+        "location": {
+          "type": "string",
+          "description": "The address."
         },
         "visitingHours": {
           "type": "string",
-          "description": "Information regarding the typical visiting hours or schedule of the heritage site. Can be a descriptive string (e.g., 'Mon-Fri 9:00 AM - 5:00 PM')."
+          "description": "Hours of operation."
         },
-        "createdAt": {
+        "imageUrl": {
           "type": "string",
-          "description": "Timestamp indicating when the heritage site record was created in the system.",
-          "format": "date-time"
+          "description": "Main image URL."
         },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the heritage site record was last updated in the system.",
-          "format": "date-time"
+        "latitude": {
+          "type": "number"
+        },
+        "longitude": {
+          "type": "number"
+        },
+        "rating": {
+          "type": "number"
         }
       },
       "required": [
         "id",
         "name",
-        "description",
-        "categoryId",
-        "imageUrls",
-        "latitude",
-        "longitude",
-        "address",
+        "category",
         "city",
-        "visitingHours",
-        "createdAt",
-        "updatedAt"
+        "latitude",
+        "longitude"
       ]
     },
     "Review": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Review",
       "type": "object",
-      "description": "Captures user-submitted feedback and ratings for specific cultural heritage sites. Only logged-in users can submit reviews, providing valuable insights and fostering community engagement.",
+      "description": "User-submitted feedback.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Review entity."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to the User who submitted this review. (Relationship: User 1:N Review)"
-        },
-        "siteId": {
-          "type": "string",
-          "description": "Reference to the HeritageSite this review is for. (Relationship: HeritageSite 1:N Review)"
-        },
-        "rating": {
-          "type": "number",
-          "description": "A numerical rating given by the user for the heritage site (e.g., on a scale of 1 to 5 stars)."
-        },
-        "comment": {
-          "type": "string",
-          "description": "The textual feedback or comment provided by the user about the heritage site."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the review was submitted.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "siteId": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": [
-        "id",
-        "userId",
-        "siteId",
-        "rating",
-        "comment",
-        "createdAt"
+        "id", "userId", "siteId", "rating", "comment", "createdAt"
       ]
     },
     "Favorite": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Favorite",
       "type": "object",
-      "description": "Records a user's saved or 'favorited' cultural heritage sites, allowing them to quickly access preferred locations on a dedicated 'favorites' page.",
+      "description": "User's saved heritage sites.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Favorite entity."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to the User who marked the site as a favorite. (Relationship: User 1:N Favorite)"
-        },
-        "siteId": {
-          "type": "string",
-          "description": "Reference to the HeritageSite that was favorited. (Relationship: HeritageSite 1:N Favorite)"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the site was added to favorites.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "siteId": { "type": "string" },
+        "siteName": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": [
-        "id",
-        "userId",
-        "siteId",
-        "createdAt"
+        "id", "userId", "siteId", "createdAt"
       ]
     },
     "Itinerary": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Itinerary",
       "type": "object",
-      "description": "Stores AI-generated travel itineraries personalized for users, allowing them to view, retrieve, and revisit their past planned trips.",
+      "description": "Saved AI itineraries.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Itinerary entity."
-        },
-        "userId": {
-          "type": "string",
-          "description": "Reference to the User for whom this itinerary was generated. (Relationship: User 1:N Itinerary)"
-        },
-        "itineraryData": {
-          "type": "string",
-          "description": "A JSON string containing the structured data of the generated itinerary, including recommended sites, routes, timings, and other details. This allows for flexible storage of complex itinerary structures."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the itinerary was generated and saved.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "itineraryData": { "type": "string" },
+        "summary": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": [
-        "id",
-        "userId",
-        "itineraryData",
-        "createdAt"
+        "id", "userId", "itineraryData", "createdAt"
       ]
     }
   },
   "auth": {
     "providers": [
-      "password",
-      "anonymous"
+      "password"
     ]
   },
   "firestore": {
@@ -268,7 +190,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Root collection for user profiles. Each document ID corresponds to the user's authentication UID, ensuring private access. Used for storing user's basic information and linking to user-specific subcollections."
+          "description": "Root collection for user profiles."
         }
       },
       {
@@ -278,7 +200,7 @@
           "schema": {
             "$ref": "#/backend/entities/Favorite"
           },
-          "description": "Subcollection storing heritage sites favorited by a specific user. Access is restricted to the owner user, leveraging the parent 'userId' for authorization independence. Includes denormalized 'userId' for rule clarity."
+          "description": "User's favorites."
         }
       },
       {
@@ -288,7 +210,7 @@
           "schema": {
             "$ref": "#/backend/entities/Itinerary"
           },
-          "description": "Subcollection storing AI-generated itineraries for a specific user. Access is restricted to the owner user, leveraging the parent 'userId' for authorization independence. Includes denormalized 'userId' for rule clarity."
+          "description": "User's itineraries."
         }
       },
       {
@@ -298,7 +220,7 @@
           "schema": {
             "$ref": "#/backend/entities/Category"
           },
-          "description": "Top-level collection for cultural heritage site categories. Publicly readable by all users, but write access is restricted to administrators only."
+          "description": "Heritage site categories."
         }
       },
       {
@@ -308,7 +230,7 @@
           "schema": {
             "$ref": "#/backend/entities/HeritageSite"
           },
-          "description": "Top-level collection for all cultural heritage sites in Metro Cebu. Publicly readable by all users. Write access is restricted to administrators only."
+          "description": "Top-level collection for all cultural heritage sites."
         }
       },
       {
@@ -318,7 +240,7 @@
           "schema": {
             "$ref": "#/backend/entities/Review"
           },
-          "description": "Subcollection for user-submitted reviews and ratings for a specific heritage site. Publicly readable. Only logged-in users can create reviews, and only the original author can update/delete their review. Includes denormalized 'userId' (for authorization independence) and 'userName' (for display without extra lookups) from the User entity."
+          "description": "Subcollection for user reviews."
         }
       },
       {
@@ -328,10 +250,9 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "A dedicated collection for Database Access Control (DBAC) to store the UIDs of users designated as administrators. The existence of a document with a user's UID in this collection grants admin privileges. This structure ensures authorization independence for role checks."
+          "description": "Database access control for administrators."
         }
       }
-    ],
-    "reasoning": "The recommended Firestore data structure for 'Handumanan' prioritizes secure, scalable, and debuggable authorization by adhering to the core design principles, especially Authorization Independence and Query as Policy (QAP). The structure leverages hierarchical paths for user-owned data and denormalization for cross-cutting access needs.\n\n**Authorization Independence via Denormalization:**\n\n1.  **User-Owned Data:** Collections like `/users/{userId}/favorites` and `/users/{userId}/itineraries` are directly nested under the user's document. This ensures that the `userId` wildcard in the path can be directly compared against `request.auth.uid` in security rules (`allow read, write: request.auth.uid == userId;`). This design completely eliminates the need for `get()` calls to a parent `User` document for authorization, making rules atomic, simple, and highly performant.\n\n2.  **Reviews:** For reviews (`/heritageSites/{siteId}/reviews/{reviewId}`), where ownership is tied to the user creating the review but the data itself is primarily accessed in the context of a heritage site, the `userId` of the author is denormalized directly into each `Review` document. This allows rules to verify ownership for update/delete operations (`allow update, delete: request.auth.uid == resource.data.userId;`) without needing to fetch the parent `HeritageSite` document or the `User` document, thus maintaining authorization independence.\n\n3.  **Admin Roles:** A dedicated top-level collection `/roles_admin/{adminUid}` is used for Database Access Control (DBAC). Admin authorization is determined by the *existence* of a document with the `request.auth.uid` as its ID in this collection. Security rules can check `exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid))` which is a highly efficient and independent check, avoiding complex hierarchical lookups.\n\n**QAPs (Queries as Policies):**\n\n1.  **User-Specific Lists:** The hierarchical structure for `favorites` and `itineraries` (e.g., `/users/{userId}/favorites`) directly supports QAPs. When a user queries `db.collection('users').doc(uid).collection('favorites')`, the `userId` in the path naturally scopes the query. Security rules then enforce that `uid` must match `request.auth.uid`, guaranteeing that users can only query and list their own data securely and efficiently without additional client-side filtering.\n\n2.  **Public/Discoverable Lists:** `categories` and `heritageSites` are top-level collections with `allow read;` rules. This permits efficient listing of all categories or sites for discovery features, without requiring a specific `userId` in the path. Clients can perform `list` operations directly on these collections, and security rules permit full public read access.\n\n3.  **Site-Specific Reviews:** The structure `/heritageSites/{siteId}/reviews/{reviewId}` enables direct queries for reviews associated with a specific heritage site (e.g., `db.collection('heritageSites').doc(siteId).collection('reviews')`). All authenticated users are allowed to read these reviews, supporting the \"show username with comment\" feature (with `userName` denormalized). Write operations are still restricted to the authenticated user matching the denormalized `userId` field, maintaining security. This structure inherently supports listing reviews for a specific site, which is a primary requirement for the feedback system.\n\nThis design minimizes rule complexity, prevents security vulnerabilities arising from `get()` dependencies, and ensures that common query patterns are naturally supported by the data model while enforcing fine-grained access control."
+    ]
   }
 }

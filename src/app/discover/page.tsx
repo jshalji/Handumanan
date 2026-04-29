@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
@@ -389,21 +390,21 @@ function ExploreRouteContent() {
       </div>
 
       {/* TOP HEADER (SEARCH + MENU) */}
-      <div className="absolute top-4 left-4 right-4 z-50 flex flex-col items-start gap-3 pointer-events-none md:max-w-[340px] md:right-auto md:top-6 md:left-6">
+      <div className="absolute top-3 left-3 right-3 z-50 flex flex-col items-start gap-2 pointer-events-none md:max-w-[340px] md:right-auto md:top-6 md:left-6">
         <div className="flex gap-2 items-center pointer-events-auto w-full relative">
           <Button 
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
             size="icon" 
-            className="h-11 w-11 shrink-0 rounded-2xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
+            className="h-10 w-10 md:h-11 md:w-11 shrink-0 rounded-xl md:rounded-2xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
           >
-            <Menu size={20} />
+            <Menu size={18} />
           </Button>
 
           <div className="relative group flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={16} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={14} />
             <Input 
               placeholder="Search heritage..." 
-              className="pl-10 h-11 rounded-2xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full font-bold text-[12px] ring-1 ring-black/5" 
+              className="pl-9 h-10 md:h-11 rounded-xl md:rounded-2xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full font-bold text-[11px] md:text-[12px] ring-1 ring-black/5" 
               value={searchQuery} 
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -414,24 +415,24 @@ function ExploreRouteContent() {
 
             {/* AUTOCOMPLETE DROPDOWN */}
             {showSuggestions && searchQuery && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl overflow-hidden z-[60] ring-1 ring-black/5 pointer-events-auto max-h-[220px] md:max-h-[250px] overflow-y-auto">
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl overflow-hidden z-[60] ring-1 ring-black/5 pointer-events-auto max-h-[200px] md:max-h-[250px] overflow-y-auto">
                 {searchSuggestions.length > 0 ? (
-                  <div className="py-2">
+                  <div className="py-1">
                     {searchSuggestions.map((site) => (
                       <div 
                         key={site.id} 
-                        className="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-none flex flex-col gap-0.5"
+                        className="px-3 py-2.5 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-none flex flex-col gap-0.5"
                         onClick={() => handleSuggestionClick(site)}
                       >
-                        <p className="text-[12px] font-black text-slate-900 leading-tight">{site.name}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                        <p className="text-[11px] font-black text-slate-900 leading-tight">{site.name}</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
                           {site.city} • {site.category.split(' & ')[0]}
                         </p>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="p-4 text-center text-[11px] font-bold text-slate-400">No results found</div>
+                  <div className="p-4 text-center text-[10px] font-bold text-slate-400">No results found</div>
                 )}
               </div>
             )}
@@ -441,36 +442,36 @@ function ExploreRouteContent() {
         {/* FLOATING DISCOVERY PANEL */}
         {!isNavigating && (
            <Card className={cn(
-             "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-[1.5rem] flex flex-col transition-all duration-300 relative overflow-hidden",
-             "w-[min(320px,calc(100vw-32px))]",
-             isPanelExpanded ? (isMobile ? "max-h-[65vh]" : "max-h-[70vh]") : "max-h-[56px]"
+             "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-[1.25rem] md:rounded-[1.5rem] flex flex-col transition-all duration-300 relative overflow-hidden",
+             "w-[min(320px,calc(100vw-24px))]",
+             isPanelExpanded ? (isMobile ? "max-h-[55vh]" : "max-h-[70vh]") : "max-h-[48px] md:max-h-[56px]"
            )}>
               <div 
-                className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50/50 rounded-t-[1.5rem] shrink-0 border-b border-slate-100/50"
+                className="flex items-center justify-between p-3 md:p-4 cursor-pointer hover:bg-slate-50/50 rounded-t-[1.25rem] shrink-0 border-b border-slate-100/50"
                 onClick={() => setIsPanelExpanded(!isPanelExpanded)}
               >
                 <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-primary/10 rounded-lg text-primary"><Compass size={16} /></div>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-900">
+                  <div className="p-1 bg-primary/10 rounded-lg text-primary"><Compass size={14} /></div>
+                  <span className="text-[10px] md:text-[11px] font-black uppercase tracking-wider text-slate-900">
                     {selectedCity ? (selectedCategory ? `${selectedCity} > ${selectedCategory.split(' & ')[0]}` : selectedCity) : 'Discover'}
                   </span>
                 </div>
-                {isPanelExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+                {isPanelExpanded ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
               </div>
 
               {isPanelExpanded && (
                 <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide overscroll-contain touch-auto">
-                  <div className="px-4 space-y-6 pt-4 pb-12">
-                    {/* Step 1: City - 2 Col Grid */}
-                    <div className="space-y-3">
-                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Step 1: City</p>
-                      <div className="grid grid-cols-2 gap-2">
+                  <div className="px-3 md:px-4 space-y-5 pt-3 pb-8 md:pb-12">
+                    {/* Step 1: City */}
+                    <div className="space-y-2">
+                      <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Step 1: City</p>
+                      <div className="grid grid-cols-2 gap-1.5 md:gap-2">
                         {CITIES.map(city => (
                           <button 
                             key={city} 
                             onClick={() => handleCitySelect(city)} 
                             className={cn(
-                              "text-[10px] font-bold py-2 px-2 rounded-xl transition-all border min-h-[44px] leading-tight flex items-center justify-center text-center whitespace-normal break-words",
+                              "text-[10px] font-bold py-2 px-1.5 rounded-xl transition-all border min-h-[38px] md:min-h-[44px] leading-tight flex items-center justify-center text-center",
                               selectedCity === city 
                                 ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" 
                                 : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
@@ -484,24 +485,24 @@ function ExploreRouteContent() {
 
                     {/* Step 2: Category */}
                     {selectedCity && (
-                      <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-                        <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Step 2: Category</p>
-                        <div className="grid grid-cols-1 gap-1.5">
+                      <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                        <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Step 2: Category</p>
+                        <div className="grid grid-cols-1 gap-1">
                           {CATEGORIES.map(cat => (
                             <button 
                               key={cat.value} 
                               onClick={() => setSelectedCategory(selectedCategory === cat.value ? null : cat.value)} 
                               className={cn(
-                                "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all border text-left leading-snug h-auto min-h-[44px]",
+                                "flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all border text-left leading-tight min-h-[38px]",
                                 selectedCategory === cat.value 
                                   ? "bg-slate-900 text-white border-slate-900 shadow-lg" 
                                   : "bg-white border-slate-100 text-slate-600 hover:border-primary/30"
                               )}
                             >
                               <div className={cn("shrink-0", selectedCategory === cat.value ? "text-white" : "text-primary/70")}>
-                                <cat.icon size={14} />
+                                <cat.icon size={13} />
                               </div>
-                              <span className="text-[10px] font-bold break-words">{cat.label}</span>
+                              <span className="text-[9px] md:text-[10px] font-bold break-words">{cat.label}</span>
                             </button>
                           ))}
                         </div>
@@ -509,29 +510,29 @@ function ExploreRouteContent() {
                     )}
 
                     {/* Smart Suggestions */}
-                    <div className="space-y-3 pt-4 border-t border-slate-100">
+                    <div className="space-y-2 pt-3 border-t border-slate-100">
                       <div className="flex items-center justify-between">
-                        <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Smart Suggestions</p>
-                        <Badge variant="outline" className="text-[7px] font-black opacity-50 px-1.5 h-4">AI RANKED</Badge>
+                        <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Smart Suggestions</p>
+                        <Badge variant="outline" className="text-[7px] font-black opacity-50 px-1.5 h-3.5">AI RANKED</Badge>
                       </div>
                       
                       {filteredAndSortedSites.length === 0 ? (
-                        <p className="text-[10px] text-center text-slate-400 font-bold py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                          {selectedCategory ? "No heritage sites found under this category." : "No heritage sites found for this selection."}
+                        <p className="text-[9px] text-center text-slate-400 font-bold py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                          No sites found.
                         </p>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           {aiSuggestions.map(site => (
                             <div 
                               key={site.id} 
-                              className="bg-white rounded-xl border border-slate-100 p-2 hover:border-primary/30 transition-all flex items-center gap-3 group overflow-hidden w-full"
+                              className="bg-white rounded-xl border border-slate-100 p-1.5 hover:border-primary/30 transition-all flex items-center gap-2 group overflow-hidden w-full"
                             >
-                              <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0">
+                              <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0">
                                 <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
                               </div>
                               <div className="flex-1 min-w-0 cursor-pointer" onClick={() => centerOnSite(site)}>
-                                <h4 className="text-[10px] font-black text-slate-900 leading-tight truncate">{site.name}</h4>
-                                <p className="text-[8px] font-bold text-slate-400 uppercase">{site.city} • {site.distance?.toFixed(1)}km</p>
+                                <h4 className="text-[9px] font-black text-slate-900 leading-tight truncate">{site.name}</h4>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase">{site.distance?.toFixed(1)}km</p>
                               </div>
                               <Button 
                                 size="icon" 
@@ -539,132 +540,97 @@ function ExploreRouteContent() {
                                 className="h-7 w-7 rounded-lg text-primary hover:bg-primary/5"
                                 onClick={() => toggleSite(site.id)}
                               >
-                                {itineraryIds.includes(site.id) ? <X size={14} className="text-red-500" /> : <Plus size={14} />}
+                                {itineraryIds.includes(site.id) ? <X size={12} className="text-red-500" /> : <Plus size={12} />}
                               </Button>
                             </div>
                           ))}
                           
                           <Button 
                             variant="ghost" 
-                            className="w-full h-11 md:h-8 text-[9px] font-black uppercase text-slate-400 hover:text-primary hover:bg-primary/5"
+                            className="w-full h-8 text-[8px] font-black uppercase text-slate-400 hover:text-primary hover:bg-primary/5"
                             onClick={() => setShowMoreSuggestions(!showMoreSuggestions)}
                           >
-                            {showMoreSuggestions ? "Show Less" : "See More Suggestions"}
+                            {showMoreSuggestions ? "Show Less" : "See More"}
                           </Button>
                         </div>
                       )}
                     </div>
 
                     {/* AI Planner Section */}
-                    <div className="space-y-3 pt-4 border-t border-slate-100">
-                       <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">AI Route Planner</p>
-                       <div className="bg-slate-50 p-3 rounded-xl space-y-4 border border-slate-100">
-                           <div className="space-y-1.5">
-                              <Label className="text-[9px] font-black uppercase text-slate-400">Start Location</Label>
-                              <Input value={plannerStart} onChange={(e) => setPlannerStart(e.target.value)} className="h-10 md:h-8 rounded-lg border-none shadow-sm text-[10px] font-bold bg-white" />
-                           </div>
-                           
-                           <div className="space-y-2">
-                             <Label className="text-[9px] font-black uppercase text-slate-400">Travel Duration</Label>
-                             <div className="flex flex-wrap gap-1">
-                               {TIME_PRESETS.map(preset => (
-                                 <button 
-                                   key={preset.value}
-                                   onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
-                                   className={cn(
-                                     "px-2 py-1.5 rounded-md text-[8px] font-black uppercase border transition-all min-h-[32px] min-w-[44px]",
-                                     plannerTimeType === 'preset' && selectedPresetTime === preset.value
-                                      ? "bg-primary text-white border-primary shadow-sm"
-                                      : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
-                                   )}
-                                 >
-                                   {preset.label}
-                                 </button>
-                               ))}
-                               <button 
-                                 onClick={() => setPlannerTimeType('custom')}
-                                 className={cn(
-                                   "px-2 py-1.5 rounded-md text-[8px] font-black uppercase border transition-all min-h-[32px] min-w-[44px]",
-                                   plannerTimeType === 'custom'
-                                    ? "bg-primary text-white border-primary shadow-sm"
-                                    : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
-                                 )}
-                               >
-                                 Custom
-                               </button>
-                             </div>
-
-                             {plannerTimeType === 'custom' && (
-                               <div className="flex gap-2 items-center animate-in fade-in slide-in-from-top-1">
-                                 <div className="flex-1 space-y-1">
-                                   <Label className="text-[7px] font-black text-slate-400">HRS</Label>
-                                   <Input type="number" value={customHours} onChange={(e) => setCustomHours(e.target.value)} className="h-10 md:h-7 text-[10px] p-1.5 text-center" min="0" max="12" />
-                                 </div>
-                                 <span className="pt-4 text-slate-300">:</span>
-                                 <div className="flex-1 space-y-1">
-                                   <Label className="text-[7px] font-black text-slate-400">MINS</Label>
-                                   <Input type="number" value={customMinutes} onChange={(e) => setCustomMinutes(e.target.value)} className="h-10 md:h-7 text-[10px] p-1.5 text-center" min="0" max="59" />
-                                 </div>
-                               </div>
-                             )}
+                    <div className="space-y-2 pt-3 border-t border-slate-100">
+                       <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">AI Route Planner</p>
+                       <div className="bg-slate-50 p-2.5 rounded-xl space-y-3 border border-slate-100">
+                           <div className="space-y-1">
+                              <Label className="text-[8px] font-black uppercase text-slate-400">Duration</Label>
+                              <div className="flex flex-wrap gap-1">
+                                {TIME_PRESETS.map(preset => (
+                                  <button 
+                                    key={preset.value}
+                                    onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
+                                    className={cn(
+                                      "px-1.5 py-1 rounded-md text-[7px] md:text-[8px] font-black uppercase border transition-all min-h-[30px] min-w-[40px]",
+                                      plannerTimeType === 'preset' && selectedPresetTime === preset.value
+                                       ? "bg-primary text-white border-primary shadow-sm"
+                                       : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
+                                    )}
+                                  >
+                                    {preset.label}
+                                  </button>
+                                ))}
+                                <button 
+                                  onClick={() => setPlannerTimeType('custom')}
+                                  className={cn(
+                                    "px-1.5 py-1 rounded-md text-[7px] md:text-[8px] font-black uppercase border transition-all min-h-[30px] min-w-[40px]",
+                                    plannerTimeType === 'custom'
+                                     ? "bg-primary text-white border-primary shadow-sm"
+                                     : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
+                                  )}
+                                >
+                                  Custom
+                                </button>
+                              </div>
                            </div>
 
-                           <Button onClick={() => handleGeneratePlanner()} disabled={isGeneratingPlanner} className="w-full rounded-lg h-11 md:h-9 bg-primary text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
-                              {isGeneratingPlanner ? <Loader2 className="animate-spin" size={14} /> : "Build My Route"}
+                           <Button onClick={() => handleGeneratePlanner()} disabled={isGeneratingPlanner} className="w-full rounded-xl h-10 bg-primary text-[8px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
+                              {isGeneratingPlanner ? <Loader2 className="animate-spin" size={12} /> : "Build My Route"}
                            </Button>
                         </div>
                     </div>
 
                     {/* Itinerary List */}
                     {itineraryIds.length > 0 && (
-                      <div className="mt-4 space-y-3 pb-8">
+                      <div className="mt-3 space-y-2 pb-6">
                          <div className="flex items-center justify-between">
-                           <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Active Itinerary</p>
-                           <Badge className="text-[7px] h-4 bg-primary/10 text-primary border-none">
-                             {Math.round(totalTime)} MIN TOTAL
+                           <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Itinerary</p>
+                           <Badge className="text-[7px] h-3.5 bg-primary/10 text-primary border-none">
+                             {Math.round(totalTime)} MIN
                            </Badge>
                          </div>
-                         <div className="space-y-1.5">
+                         <div className="space-y-1">
                             {itineraryIds.map((id, idx) => {
                               const site = HERITAGE_SITES.find(s => s.id === id);
                               if (!site) return null;
                               return (
-                                <div key={id} className="space-y-1">
-                                  <div className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-100 group">
-                                    <span className="text-[10px] font-black text-primary w-4">{idx + 1}</span>
-                                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => centerOnSite(site)}>
-                                      <p className="text-[9px] font-bold text-slate-700 whitespace-normal break-words leading-tight">{site.name}</p>
-                                      <p className="text-[7px] font-black text-slate-400 uppercase tracking-tighter mt-0.5">~30m visit</p>
-                                    </div>
-                                    <div className="flex gap-0.5 md:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                      <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-2 md:p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowUp size={14} className="md:size-3" /></button>
-                                      <button onClick={() => moveItem(idx, 'down')} disabled={idx === itineraryIds.length - 1} className="p-2 md:p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowDown size={14} className="md:size-3" /></button>
-                                      <button onClick={() => toggleSite(id)} className="p-2 md:p-0.5 text-slate-400 hover:text-red-500"><Trash2 size={14} className="md:size-3" /></button>
-                                    </div>
+                                <div key={id} className="flex items-center gap-2 p-1.5 bg-white rounded-lg border border-slate-100 group">
+                                  <span className="text-[9px] font-black text-primary w-3">{idx + 1}</span>
+                                  <p className="text-[9px] font-bold text-slate-700 flex-1 truncate" onClick={() => centerOnSite(site)}>{site.name}</p>
+                                  <div className="flex gap-0.5 shrink-0">
+                                    <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 text-slate-300 hover:text-primary"><ArrowUp size={10} /></button>
+                                    <button onClick={() => toggleSite(id)} className="p-1 text-slate-300 hover:text-red-500"><Trash2 size={10} /></button>
                                   </div>
-                                  {idx < itineraryIds.length - 1 && (
-                                    <div className="flex items-center gap-2 ml-4 pl-0.5 border-l-2 border-dashed border-slate-100 h-4">
-                                      <Clock size={8} className="text-slate-300" />
-                                      <span className="text-[7px] font-black text-slate-300 uppercase">Transit</span>
-                                    </div>
-                                  )}
                                 </div>
                               )
                             })}
                          </div>
-                         <div className="flex gap-1.5 pt-2">
-                            <Button onClick={() => { setIsNavigating(true); setIsPanelExpanded(false); }} className="flex-1 h-11 md:h-8 rounded-lg bg-slate-900 text-[8px] font-black uppercase tracking-widest">Start Trip</Button>
-                            <Button onClick={handleSavePlanner} variant="outline" className="h-11 md:h-8 w-11 md:w-8 p-0 rounded-lg"><SaveIcon size={14} /></Button>
-                            <Button onClick={() => setItineraryIds([])} variant="ghost" className="h-11 md:h-8 w-11 md:w-8 p-0 rounded-lg text-red-500"><Trash2 size={14} /></Button>
+                         <div className="flex gap-1 pt-1">
+                            <Button onClick={() => { setIsNavigating(true); setIsPanelExpanded(false); }} className="flex-1 h-10 rounded-xl bg-slate-900 text-[8px] font-black uppercase tracking-widest">Start</Button>
+                            <Button onClick={handleSavePlanner} variant="outline" className="h-10 w-10 p-0 rounded-xl"><SaveIcon size={12} /></Button>
                          </div>
                       </div>
                     )}
-
                   </div>
                 </div>
               )}
-              {/* Bottom Scroll Cue */}
-              {isPanelExpanded && <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />}
            </Card>
         )}
       </div>
@@ -677,67 +643,33 @@ function ExploreRouteContent() {
         )}>
           <Card className={cn(
             "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5",
-            isMobile ? "rounded-t-[2rem] max-h-[30vh]" : "rounded-[1.5rem] p-4"
+            isMobile ? "rounded-t-[1.5rem] max-h-[25vh]" : "rounded-[1.5rem] p-4"
           )}>
-            {isMobile && (
-              <div className="p-4 flex flex-col items-center" onClick={() => setIsNavCollapsed(!isNavCollapsed)}>
-                <div className="w-8 h-1 rounded-full bg-slate-200 mb-4" />
-                <div className="w-full flex items-center justify-between px-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-                    <div>
-                      <p className="text-[8px] font-black uppercase text-primary tracking-widest leading-none mb-1">Navigation Active</p>
-                      <h4 className="text-[13px] font-black text-slate-900 leading-tight truncate max-w-[180px]">{itinerarySites[0].name}</h4>
-                    </div>
+            <div className="p-3 md:p-4 flex flex-col items-center">
+              {isMobile && <div className="w-8 h-1 rounded-full bg-slate-200 mb-2" />}
+              <div className="w-full flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <div>
+                    <p className="text-[7px] md:text-[8px] font-black uppercase text-primary tracking-widest leading-none mb-0.5">Navigating</p>
+                    <h4 className="text-[12px] md:text-[13px] font-black text-slate-900 truncate max-w-[160px]">{itinerarySites[0].name}</h4>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-11 w-11" onClick={(e) => { e.stopPropagation(); setIsNavigating(false); }}>
-                    <X size={20} />
-                  </Button>
+                </div>
+                <div className="flex gap-2">
+                   <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-slate-100" onClick={handleRecenter}><LocateFixed size={16} /></Button>
+                   <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-red-50 text-red-500" onClick={() => setIsNavigating(false)}><X size={16} /></Button>
                 </div>
               </div>
-            )}
-
-            <div className={cn(
-              "px-4 pb-6 space-y-4",
-              isMobile && isNavCollapsed ? "hidden" : "block"
-            )}>
-              {!isMobile && (
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">On Route</span>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-300 hover:text-red-500" onClick={() => setIsNavigating(false)}>
-                    <X size={16} />
-                  </Button>
-                </div>
-              )}
-
-              {!isMobile && (
-                <div className="space-y-0.5">
-                  <p className="text-[8px] font-black uppercase text-primary tracking-widest">Next Destination</p>
-                  <h4 className="text-[14px] font-black text-slate-900 leading-tight">{itinerarySites[0].name}</h4>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-center">
-                  <p className="text-[8px] font-black uppercase text-slate-400 tracking-tighter mb-0.5">Remain</p>
-                  <p className="text-[14px] font-black text-primary leading-none">{totalDist.toFixed(1)} KM</p>
-                </div>
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-center">
-                  <p className="text-[8px] font-black uppercase text-slate-400 tracking-tighter mb-0.5">ETA</p>
-                  <p className="text-[14px] font-black text-primary leading-none">{Math.round(totalTime)} MIN</p>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button onClick={handleRecenter} className="flex-1 rounded-xl h-11 md:h-10 bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest">
-                  Recenter
-                </Button>
-                <Button onClick={() => setIsNavigating(false)} variant="outline" className="flex-1 rounded-xl h-11 md:h-10 border-slate-100 text-slate-500 font-black text-[10px] uppercase tracking-widest">
-                  End
-                </Button>
+              
+              <div className="grid grid-cols-2 gap-2 w-full mt-3">
+                 <div className="bg-slate-50 p-2 rounded-lg text-center">
+                    <p className="text-[7px] font-black text-slate-400 uppercase">Distance</p>
+                    <p className="text-[12px] font-black text-primary">{totalDist.toFixed(1)} KM</p>
+                 </div>
+                 <div className="bg-slate-50 p-2 rounded-lg text-center">
+                    <p className="text-[7px] font-black text-slate-400 uppercase">Arrival</p>
+                    <p className="text-[12px] font-black text-primary">{Math.round(totalTime)} MIN</p>
+                 </div>
               </div>
             </div>
           </Card>
@@ -745,50 +677,47 @@ function ExploreRouteContent() {
       )}
 
       {/* BOTTOM RIGHT CONTROLS */}
-      <div className="absolute bottom-6 right-6 z-[65] flex flex-col gap-3 pointer-events-none">
+      <div className="absolute bottom-4 right-4 z-[65] flex flex-col gap-2 pointer-events-none">
         <Button 
           onClick={detectLocation}
           size="icon" 
-          className="h-11 w-11 md:h-12 md:w-12 rounded-2xl shadow-2xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 pointer-events-auto ring-1 ring-black/5"
+          className="h-10 w-10 md:h-11 md:w-11 rounded-xl shadow-2xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 pointer-events-auto ring-1 ring-black/5"
         >
-          {loading ? <Loader2 className="animate-spin" size={20} /> : <LocateFixed size={20} />}
+          {loading ? <Loader2 className="animate-spin" size={16} /> : <LocateFixed size={18} />}
         </Button>
-        <div className="h-14 w-14 md:h-16 md:w-16" /> 
+        <div className="h-12 w-12 md:h-14 md:w-14" /> 
       </div>
 
       {/* NAVIGATION DRAWER */}
       <div 
         className={cn(
           "fixed left-0 top-0 bottom-0 z-[100] bg-white shadow-2xl transition-transform duration-500 ease-in-out flex flex-col border-r pointer-events-auto overflow-hidden",
-          isMobile ? "w-[280px]" : "w-[220px]",
+          isMobile ? "w-[260px]" : "w-[220px]",
           isDrawerOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-         <div className="p-5 flex items-center justify-between border-b shrink-0 bg-white">
+         <div className="p-4 flex items-center justify-between border-b shrink-0 bg-white">
             <div>
               <h2 className="font-headline text-lg font-black text-primary truncate leading-none">Handumanan</h2>
               <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-1">Menu Navigator</p>
             </div>
-            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => setIsDrawerOpen(false)}>
-              <X size={20} />
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={() => setIsDrawerOpen(false)}>
+              <X size={18} />
             </Button>
          </div>
          
          <ScrollArea className="flex-1">
-            <div className="p-4 space-y-6">
-               <Accordion type="multiple" defaultValue={["directory"]} className="space-y-4">
+            <div className="p-3 space-y-5">
+               <Accordion type="multiple" defaultValue={["directory"]} className="space-y-3">
                   <AccordionItem value="directory" className="border-none">
-                     <AccordionTrigger className="hover:no-underline py-0 mb-4 text-[9px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">
+                     <AccordionTrigger className="hover:no-underline py-0 mb-3 text-[8px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">
                        Quick Directory
                      </AccordionTrigger>
                      <AccordionContent>
                         <div className="space-y-1">
-                           {allSites.slice(0, 15).map(site => (
-                             <div key={site.id} onClick={() => { handleSuggestionClick(site); setIsDrawerOpen(false); }} className="flex items-center gap-2 p-2.5 hover:bg-slate-50 rounded-lg cursor-pointer group">
-                                <div className="relative w-8 h-8 rounded-md overflow-hidden shrink-0 shadow-sm">
-                                   <img src={site.imageUrl} alt={site.name} className="h-full w-full object-cover" />
-                                </div>
-                                <p className="text-[10px] font-bold text-slate-900 leading-tight whitespace-normal break-words overflow-wrap-anywhere flex-1">{site.name}</p>
+                           {allSites.slice(0, 12).map(site => (
+                             <div key={site.id} onClick={() => { handleSuggestionClick(site); setIsDrawerOpen(false); }} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded-lg cursor-pointer group">
+                                <p className="text-[10px] font-bold text-slate-900 leading-tight whitespace-normal break-words flex-1">{site.name}</p>
                              </div>
                            ))}
                         </div>
@@ -796,9 +725,9 @@ function ExploreRouteContent() {
                   </AccordionItem>
                </Accordion>
 
-               <div className="pt-4 space-y-1 border-t">
-                  <Link href="/" className="flex items-center gap-3 p-3.5 hover:bg-slate-50 rounded-lg text-slate-600 font-bold transition-all text-sm md:text-xs"><Home size={16} /> Home</Link>
-                  <Link href="/profile" className="flex items-center gap-3 p-3.5 hover:bg-slate-50 rounded-lg text-slate-600 font-bold transition-all text-sm md:text-xs"><Settings size={16} /> Profile</Link>
+               <div className="pt-3 space-y-1 border-t">
+                  <Link href="/" className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-lg text-slate-600 font-bold transition-all text-xs"><Home size={14} /> Home</Link>
+                  <Link href="/profile" className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-lg text-slate-600 font-bold transition-all text-xs"><Settings size={14} /> Profile</Link>
                </div>
             </div>
          </ScrollArea>
@@ -806,12 +735,12 @@ function ExploreRouteContent() {
 
       {/* KEY CONFIG DIALOG */}
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
-        <DialogContent className="max-w-md rounded-[2.5rem] p-10 border-none shadow-3xl bg-white/95 backdrop-blur-2xl">
-          <DialogTitle className="text-3xl font-black text-slate-900">Map Key Required</DialogTitle>
-          <DialogDescription className="py-4 text-slate-500 font-medium">Please provide your OpenRouteService API key to enable road-accurate navigation through Metro Cebu.</DialogDescription>
-          <Input placeholder="Enter API Key" value={tempKey} onChange={(e) => setTempKey(e.target.value)} className="h-14 rounded-2xl bg-slate-100/80 border-none px-6 font-mono text-[12px]" />
-          <DialogFooter className="mt-8">
-            <Button className="w-full h-14 rounded-2xl bg-primary text-white font-black text-[12px] uppercase tracking-widest shadow-xl shadow-primary/30" onClick={handleSaveKey}>Initialize Maps</Button>
+        <DialogContent className="max-w-xs md:max-w-md rounded-[1.5rem] md:rounded-[2.5rem] p-6 md:p-10 border-none shadow-3xl bg-white/95 backdrop-blur-2xl">
+          <DialogTitle className="text-xl md:text-3xl font-black text-slate-900">Map Key Required</DialogTitle>
+          <DialogDescription className="py-2 md:py-4 text-slate-500 font-medium text-xs md:text-base">Please provide your OpenRouteService API key to enable road-accurate navigation.</DialogDescription>
+          <Input placeholder="Enter API Key" value={tempKey} onChange={(e) => setTempKey(e.target.value)} className="h-11 md:h-14 rounded-xl md:rounded-2xl bg-slate-100/80 border-none px-4 md:px-6 font-mono text-[10px] md:text-[12px]" />
+          <DialogFooter className="mt-4 md:mt-8">
+            <Button className="w-full h-11 md:h-14 rounded-xl md:rounded-2xl bg-primary text-white font-black text-[10px] md:text-[12px] uppercase tracking-widest shadow-xl shadow-primary/30" onClick={handleSaveKey}>Initialize Maps</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -821,7 +750,7 @@ function ExploreRouteContent() {
 
 export default function ExploreRoutePage() {
   return (
-    <Suspense fallback={<div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-primary" size={64} /></div>}>
+    <Suspense fallback={<div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-primary" size={48} /></div>}>
       <ExploreRouteContent />
     </Suspense>
   );
