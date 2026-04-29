@@ -310,9 +310,9 @@ function ExploreRouteContent() {
     centerOnSite(site);
   };
 
-  const handleGeneratePlanner = async () => {
-    let hours = selectedPresetTime;
-    if (plannerTimeType === 'custom') {
+  const handleGeneratePlanner = async (presetHours?: number) => {
+    let hours = presetHours !== undefined ? presetHours : selectedPresetTime;
+    if (presetHours === undefined && plannerTimeType === 'custom') {
       const h = parseInt(customHours) || 0;
       const m = parseInt(customMinutes) || 0;
       hours = h + (m / 60);
@@ -414,7 +414,7 @@ function ExploreRouteContent() {
 
             {/* AUTOCOMPLETE DROPDOWN */}
             {showSuggestions && searchQuery && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl overflow-hidden z-[60] ring-1 ring-black/5 pointer-events-auto max-h-[250px] overflow-y-auto">
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl overflow-hidden z-[60] ring-1 ring-black/5 pointer-events-auto max-h-[220px] md:max-h-[250px] overflow-y-auto">
                 {searchSuggestions.length > 0 ? (
                   <div className="py-2">
                     {searchSuggestions.map((site) => (
@@ -441,7 +441,8 @@ function ExploreRouteContent() {
         {/* FLOATING DISCOVERY PANEL */}
         {!isNavigating && (
            <Card className={cn(
-             "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 w-full rounded-[1.5rem] flex flex-col transition-all duration-300 relative overflow-hidden",
+             "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-[1.5rem] flex flex-col transition-all duration-300 relative overflow-hidden",
+             "w-[min(320px,calc(100vw-32px))]",
              isPanelExpanded ? (isMobile ? "max-h-[65vh]" : "max-h-[70vh]") : "max-h-[56px]"
            )}>
               <div 
@@ -545,7 +546,7 @@ function ExploreRouteContent() {
                           
                           <Button 
                             variant="ghost" 
-                            className="w-full h-8 text-[9px] font-black uppercase text-slate-400 hover:text-primary hover:bg-primary/5"
+                            className="w-full h-11 md:h-8 text-[9px] font-black uppercase text-slate-400 hover:text-primary hover:bg-primary/5"
                             onClick={() => setShowMoreSuggestions(!showMoreSuggestions)}
                           >
                             {showMoreSuggestions ? "Show Less" : "See More Suggestions"}
@@ -560,7 +561,7 @@ function ExploreRouteContent() {
                        <div className="bg-slate-50 p-3 rounded-xl space-y-4 border border-slate-100">
                            <div className="space-y-1.5">
                               <Label className="text-[9px] font-black uppercase text-slate-400">Start Location</Label>
-                              <Input value={plannerStart} onChange={(e) => setPlannerStart(e.target.value)} className="h-8 rounded-lg border-none shadow-sm text-[10px] font-bold bg-white" />
+                              <Input value={plannerStart} onChange={(e) => setPlannerStart(e.target.value)} className="h-10 md:h-8 rounded-lg border-none shadow-sm text-[10px] font-bold bg-white" />
                            </div>
                            
                            <div className="space-y-2">
@@ -571,7 +572,7 @@ function ExploreRouteContent() {
                                    key={preset.value}
                                    onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
                                    className={cn(
-                                     "px-2 py-1.5 rounded-md text-[8px] font-black uppercase border transition-all",
+                                     "px-2 py-1.5 rounded-md text-[8px] font-black uppercase border transition-all min-h-[32px] min-w-[44px]",
                                      plannerTimeType === 'preset' && selectedPresetTime === preset.value
                                       ? "bg-primary text-white border-primary shadow-sm"
                                       : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
@@ -583,7 +584,7 @@ function ExploreRouteContent() {
                                <button 
                                  onClick={() => setPlannerTimeType('custom')}
                                  className={cn(
-                                   "px-2 py-1.5 rounded-md text-[8px] font-black uppercase border transition-all",
+                                   "px-2 py-1.5 rounded-md text-[8px] font-black uppercase border transition-all min-h-[32px] min-w-[44px]",
                                    plannerTimeType === 'custom'
                                     ? "bg-primary text-white border-primary shadow-sm"
                                     : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
@@ -597,18 +598,18 @@ function ExploreRouteContent() {
                                <div className="flex gap-2 items-center animate-in fade-in slide-in-from-top-1">
                                  <div className="flex-1 space-y-1">
                                    <Label className="text-[7px] font-black text-slate-400">HRS</Label>
-                                   <Input type="number" value={customHours} onChange={(e) => setCustomHours(e.target.value)} className="h-7 text-[10px] p-1.5 text-center" min="0" max="12" />
+                                   <Input type="number" value={customHours} onChange={(e) => setCustomHours(e.target.value)} className="h-10 md:h-7 text-[10px] p-1.5 text-center" min="0" max="12" />
                                  </div>
                                  <span className="pt-4 text-slate-300">:</span>
                                  <div className="flex-1 space-y-1">
                                    <Label className="text-[7px] font-black text-slate-400">MINS</Label>
-                                   <Input type="number" value={customMinutes} onChange={(e) => setCustomMinutes(e.target.value)} className="h-7 text-[10px] p-1.5 text-center" min="0" max="59" />
+                                   <Input type="number" value={customMinutes} onChange={(e) => setCustomMinutes(e.target.value)} className="h-10 md:h-7 text-[10px] p-1.5 text-center" min="0" max="59" />
                                  </div>
                                </div>
                              )}
                            </div>
 
-                           <Button onClick={handleGeneratePlanner} disabled={isGeneratingPlanner} className="w-full rounded-lg h-9 bg-primary text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
+                           <Button onClick={() => handleGeneratePlanner()} disabled={isGeneratingPlanner} className="w-full rounded-lg h-11 md:h-9 bg-primary text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
                               {isGeneratingPlanner ? <Loader2 className="animate-spin" size={14} /> : "Build My Route"}
                            </Button>
                         </div>
@@ -635,10 +636,10 @@ function ExploreRouteContent() {
                                       <p className="text-[9px] font-bold text-slate-700 whitespace-normal break-words leading-tight">{site.name}</p>
                                       <p className="text-[7px] font-black text-slate-400 uppercase tracking-tighter mt-0.5">~30m visit</p>
                                     </div>
-                                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                      <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowUp size={10} /></button>
-                                      <button onClick={() => moveItem(idx, 'down')} disabled={idx === itineraryIds.length - 1} className="p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowDown size={10} /></button>
-                                      <button onClick={() => toggleSite(id)} className="p-0.5 text-slate-400 hover:text-red-500"><Trash2 size={10} /></button>
+                                    <div className="flex gap-0.5 md:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                      <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-2 md:p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowUp size={14} className="md:size-3" /></button>
+                                      <button onClick={() => moveItem(idx, 'down')} disabled={idx === itineraryIds.length - 1} className="p-2 md:p-0.5 text-slate-400 hover:text-primary disabled:opacity-20"><ArrowDown size={14} className="md:size-3" /></button>
+                                      <button onClick={() => toggleSite(id)} className="p-2 md:p-0.5 text-slate-400 hover:text-red-500"><Trash2 size={14} className="md:size-3" /></button>
                                     </div>
                                   </div>
                                   {idx < itineraryIds.length - 1 && (
@@ -652,9 +653,9 @@ function ExploreRouteContent() {
                             })}
                          </div>
                          <div className="flex gap-1.5 pt-2">
-                            <Button onClick={() => { setIsNavigating(true); setIsPanelExpanded(false); }} className="flex-1 h-8 rounded-lg bg-slate-900 text-[8px] font-black uppercase tracking-widest">Start Trip</Button>
-                            <Button onClick={handleSavePlanner} variant="outline" className="h-8 w-8 p-0 rounded-lg"><SaveIcon size={14} /></Button>
-                            <Button onClick={() => setItineraryIds([])} variant="ghost" className="h-8 w-8 p-0 rounded-lg text-red-500"><Trash2 size={14} /></Button>
+                            <Button onClick={() => { setIsNavigating(true); setIsPanelExpanded(false); }} className="flex-1 h-11 md:h-8 rounded-lg bg-slate-900 text-[8px] font-black uppercase tracking-widest">Start Trip</Button>
+                            <Button onClick={handleSavePlanner} variant="outline" className="h-11 md:h-8 w-11 md:w-8 p-0 rounded-lg"><SaveIcon size={14} /></Button>
+                            <Button onClick={() => setItineraryIds([])} variant="ghost" className="h-11 md:h-8 w-11 md:w-8 p-0 rounded-lg text-red-500"><Trash2 size={14} /></Button>
                          </div>
                       </div>
                     )}
@@ -676,7 +677,7 @@ function ExploreRouteContent() {
         )}>
           <Card className={cn(
             "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5",
-            isMobile ? "rounded-t-[2rem]" : "rounded-[1.5rem] p-4"
+            isMobile ? "rounded-t-[2rem] max-h-[30vh]" : "rounded-[1.5rem] p-4"
           )}>
             {isMobile && (
               <div className="p-4 flex flex-col items-center" onClick={() => setIsNavCollapsed(!isNavCollapsed)}>
@@ -689,8 +690,8 @@ function ExploreRouteContent() {
                       <h4 className="text-[13px] font-black text-slate-900 leading-tight truncate max-w-[180px]">{itinerarySites[0].name}</h4>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setIsNavigating(false); }}>
-                    <X size={18} />
+                  <Button variant="ghost" size="icon" className="h-11 w-11" onClick={(e) => { e.stopPropagation(); setIsNavigating(false); }}>
+                    <X size={20} />
                   </Button>
                 </div>
               </div>
@@ -731,10 +732,10 @@ function ExploreRouteContent() {
               </div>
 
               <div className="flex gap-2">
-                <Button onClick={handleRecenter} className="flex-1 rounded-xl h-10 bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest">
+                <Button onClick={handleRecenter} className="flex-1 rounded-xl h-11 md:h-10 bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest">
                   Recenter
                 </Button>
-                <Button onClick={() => setIsNavigating(false)} variant="outline" className="flex-1 rounded-xl h-10 border-slate-100 text-slate-500 font-black text-[10px] uppercase tracking-widest">
+                <Button onClick={() => setIsNavigating(false)} variant="outline" className="flex-1 rounded-xl h-11 md:h-10 border-slate-100 text-slate-500 font-black text-[10px] uppercase tracking-widest">
                   End
                 </Button>
               </div>
@@ -748,18 +749,18 @@ function ExploreRouteContent() {
         <Button 
           onClick={detectLocation}
           size="icon" 
-          className="h-12 w-12 rounded-2xl shadow-2xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 pointer-events-auto ring-1 ring-black/5"
+          className="h-11 w-11 md:h-12 md:w-12 rounded-2xl shadow-2xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 pointer-events-auto ring-1 ring-black/5"
         >
           {loading ? <Loader2 className="animate-spin" size={20} /> : <LocateFixed size={20} />}
         </Button>
-        <div className="h-14 w-14" /> 
+        <div className="h-14 w-14 md:h-16 md:w-16" /> 
       </div>
 
       {/* NAVIGATION DRAWER */}
       <div 
         className={cn(
-          "fixed left-0 top-0 bottom-0 z-[100] bg-white shadow-2xl transition-transform duration-500 ease-in-out flex flex-col border-r pointer-events-auto",
-          isMobile ? "w-[180px]" : "w-[220px]",
+          "fixed left-0 top-0 bottom-0 z-[100] bg-white shadow-2xl transition-transform duration-500 ease-in-out flex flex-col border-r pointer-events-auto overflow-hidden",
+          isMobile ? "w-[280px]" : "w-[220px]",
           isDrawerOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -768,8 +769,8 @@ function ExploreRouteContent() {
               <h2 className="font-headline text-lg font-black text-primary truncate leading-none">Handumanan</h2>
               <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-1">Menu Navigator</p>
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setIsDrawerOpen(false)}>
-              <X size={16} />
+            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" onClick={() => setIsDrawerOpen(false)}>
+              <X size={20} />
             </Button>
          </div>
          
@@ -782,12 +783,12 @@ function ExploreRouteContent() {
                      </AccordionTrigger>
                      <AccordionContent>
                         <div className="space-y-1">
-                           {allSites.slice(0, 12).map(site => (
-                             <div key={site.id} onClick={() => { handleSuggestionClick(site); setIsDrawerOpen(false); }} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer group">
-                                <div className="relative w-6 h-6 rounded-md overflow-hidden shrink-0 shadow-sm">
+                           {allSites.slice(0, 15).map(site => (
+                             <div key={site.id} onClick={() => { handleSuggestionClick(site); setIsDrawerOpen(false); }} className="flex items-center gap-2 p-2.5 hover:bg-slate-50 rounded-lg cursor-pointer group">
+                                <div className="relative w-8 h-8 rounded-md overflow-hidden shrink-0 shadow-sm">
                                    <img src={site.imageUrl} alt={site.name} className="h-full w-full object-cover" />
                                 </div>
-                                <p className="text-[9px] font-bold text-slate-900 leading-tight whitespace-normal break-words flex-1">{site.name}</p>
+                                <p className="text-[10px] font-bold text-slate-900 leading-tight whitespace-normal break-words overflow-wrap-anywhere flex-1">{site.name}</p>
                              </div>
                            ))}
                         </div>
@@ -796,8 +797,8 @@ function ExploreRouteContent() {
                </Accordion>
 
                <div className="pt-4 space-y-1 border-t">
-                  <Link href="/" className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-lg text-slate-600 font-bold transition-all text-xs"><Home size={14} /> Home</Link>
-                  <Link href="/profile" className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-lg text-slate-600 font-bold transition-all text-xs"><Settings size={14} /> Profile</Link>
+                  <Link href="/" className="flex items-center gap-3 p-3.5 hover:bg-slate-50 rounded-lg text-slate-600 font-bold transition-all text-sm md:text-xs"><Home size={16} /> Home</Link>
+                  <Link href="/profile" className="flex items-center gap-3 p-3.5 hover:bg-slate-50 rounded-lg text-slate-600 font-bold transition-all text-sm md:text-xs"><Settings size={16} /> Profile</Link>
                </div>
             </div>
          </ScrollArea>
