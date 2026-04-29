@@ -441,197 +441,204 @@ function ExploreRouteContent() {
 
         {/* FLOATING DISCOVERY PANEL */}
         {!isNavigating && (
-           <Card className={cn(
-             "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-[1.25rem] md:rounded-[1.5rem] flex flex-col transition-all duration-300 relative overflow-hidden",
-             "w-[min(320px,calc(100vw-24px))]",
-             isPanelExpanded ? (isMobile ? "max-h-[55vh]" : "max-h-[70vh]") : "max-h-[48px] md:max-h-[56px]"
-           )}>
-              <div 
-                className="flex items-center justify-between p-3 md:p-4 cursor-pointer hover:bg-slate-50/50 rounded-t-[1.25rem] shrink-0 border-b border-slate-100/50"
-                onClick={() => setIsPanelExpanded(!isPanelExpanded)}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="p-1 bg-primary/10 rounded-lg text-primary"><Compass size={14} /></div>
-                  <span className="text-[10px] md:text-[11px] font-black uppercase tracking-wider text-slate-900">
-                    {selectedCity ? (selectedCategory ? `${selectedCity} > ${selectedCategory.split(' & ')[0]}` : selectedCity) : 'Discover'}
-                  </span>
-                </div>
-                {isPanelExpanded ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
-              </div>
+          isMobile && !isPanelExpanded ? (
+            <Button 
+              onClick={() => setIsPanelExpanded(true)}
+              className="pointer-events-auto h-10 px-4 rounded-xl shadow-xl bg-white/95 backdrop-blur-xl text-primary font-black uppercase tracking-widest text-[10px] ring-1 ring-black/5 flex items-center gap-2 animate-in slide-in-from-top-4 duration-300"
+            >
+              <Compass size={14} /> Discover
+            </Button>
+          ) : (
+            <Card className={cn(
+              "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-[1.25rem] md:rounded-[1.5rem] flex flex-col transition-all duration-300 relative overflow-hidden",
+              "w-[min(320px,calc(100vw-24px))]",
+              isPanelExpanded ? (isMobile ? "max-h-[55vh]" : "max-h-[70vh]") : "max-h-[48px] md:max-h-[56px]"
+            )}>
+               <div 
+                 className="flex items-center justify-between p-3 md:p-4 cursor-pointer hover:bg-slate-50/50 rounded-t-[1.25rem] shrink-0 border-b border-slate-100/50"
+                 onClick={() => setIsPanelExpanded(!isPanelExpanded)}
+               >
+                 <div className="flex items-center gap-2">
+                   <div className="p-1 bg-primary/10 rounded-lg text-primary"><Compass size={14} /></div>
+                   <span className="text-[10px] md:text-[11px] font-black uppercase tracking-wider text-slate-900">
+                     {selectedCity ? (selectedCategory ? `${selectedCity} > ${selectedCategory.split(' & ')[0]}` : selectedCity) : 'Discover'}
+                   </span>
+                 </div>
+                 {isPanelExpanded ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+               </div>
 
-              {isPanelExpanded && (
-                <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide overscroll-contain touch-auto">
-                  <div className="px-3 md:px-4 space-y-5 pt-3 pb-8 md:pb-12">
-                    {/* Step 1: City */}
-                    <div className="space-y-2">
-                      <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Step 1: City</p>
-                      <div className="grid grid-cols-2 gap-1.5 md:gap-2">
-                        {CITIES.map(city => (
-                          <button 
-                            key={city} 
-                            onClick={() => handleCitySelect(city)} 
-                            className={cn(
-                              "text-[10px] font-bold py-2 px-1.5 rounded-xl transition-all border min-h-[38px] md:min-h-[44px] leading-tight flex items-center justify-center text-center",
-                              selectedCity === city 
-                                ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" 
-                                : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
-                            )}
-                          >
-                            {city}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+               {isPanelExpanded && (
+                 <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide overscroll-contain touch-auto">
+                   <div className="px-3 md:px-4 space-y-5 pt-3 pb-8 md:pb-12">
+                     {/* Step 1: City */}
+                     <div className="space-y-2">
+                       <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Step 1: City</p>
+                       <div className="grid grid-cols-2 gap-1.5 md:gap-2">
+                         {CITIES.map(city => (
+                           <button 
+                             key={city} 
+                             onClick={() => handleCitySelect(city)} 
+                             className={cn(
+                               "text-[10px] font-bold py-2 px-1.5 rounded-xl transition-all border min-h-[38px] md:min-h-[44px] leading-tight flex items-center justify-center text-center",
+                               selectedCity === city 
+                                 ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" 
+                                 : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
+                             )}
+                           >
+                             {city}
+                           </button>
+                         ))}
+                       </div>
+                     </div>
 
-                    {/* Step 2: Category */}
-                    {selectedCity && (
-                      <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                        <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Step 2: Category</p>
-                        <div className="grid grid-cols-1 gap-1">
-                          {CATEGORIES.map(cat => (
-                            <button 
-                              key={cat.value} 
-                              onClick={() => setSelectedCategory(selectedCategory === cat.value ? null : cat.value)} 
-                              className={cn(
-                                "flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all border text-left leading-tight min-h-[38px]",
-                                selectedCategory === cat.value 
-                                  ? "bg-slate-900 text-white border-slate-900 shadow-lg" 
-                                  : "bg-white border-slate-100 text-slate-600 hover:border-primary/30"
-                              )}
-                            >
-                              <div className={cn("shrink-0", selectedCategory === cat.value ? "text-white" : "text-primary/70")}>
-                                <cat.icon size={13} />
-                              </div>
-                              <span className="text-[9px] md:text-[10px] font-bold break-words">{cat.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                     {/* Step 2: Category */}
+                     {selectedCity && (
+                       <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                         <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Step 2: Category</p>
+                         <div className="grid grid-cols-1 gap-1">
+                           {CATEGORIES.map(cat => (
+                             <button 
+                               key={cat.value} 
+                               onClick={() => setSelectedCategory(selectedCategory === cat.value ? null : cat.value)} 
+                               className={cn(
+                                 "flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all border text-left leading-tight min-h-[38px]",
+                                 selectedCategory === cat.value 
+                                   ? "bg-slate-900 text-white border-slate-900 shadow-lg" 
+                                   : "bg-white border-slate-100 text-slate-600 hover:border-primary/30"
+                               )}
+                             >
+                               <div className={cn("shrink-0", selectedCategory === cat.value ? "text-white" : "text-primary/70")}>
+                                 <cat.icon size={13} />
+                               </div>
+                               <span className="text-[9px] md:text-[10px] font-bold break-words">{cat.label}</span>
+                             </button>
+                           ))}
+                         </div>
+                       </div>
+                     )}
 
-                    {/* Smart Suggestions */}
-                    <div className="space-y-2 pt-3 border-t border-slate-100">
-                      <div className="flex items-center justify-between">
-                        <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Smart Suggestions</p>
-                        <Badge variant="outline" className="text-[7px] font-black opacity-50 px-1.5 h-3.5">AI RANKED</Badge>
-                      </div>
-                      
-                      {filteredAndSortedSites.length === 0 ? (
-                        <p className="text-[9px] text-center text-slate-400 font-bold py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                          No sites found.
-                        </p>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {aiSuggestions.map(site => (
-                            <div 
-                              key={site.id} 
-                              className="bg-white rounded-xl border border-slate-100 p-1.5 hover:border-primary/30 transition-all flex items-center gap-2 group overflow-hidden w-full"
-                            >
-                              <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0">
-                                <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
-                              </div>
-                              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => centerOnSite(site)}>
-                                <h4 className="text-[9px] font-black text-slate-900 leading-tight truncate">{site.name}</h4>
-                                <p className="text-[8px] font-bold text-slate-400 uppercase">{site.distance?.toFixed(1)}km</p>
-                              </div>
-                              <Button 
-                                size="icon" 
-                                variant="ghost" 
-                                className="h-7 w-7 rounded-lg text-primary hover:bg-primary/5"
-                                onClick={() => toggleSite(site.id)}
-                              >
-                                {itineraryIds.includes(site.id) ? <X size={12} className="text-red-500" /> : <Plus size={12} />}
-                              </Button>
-                            </div>
-                          ))}
-                          
-                          <Button 
-                            variant="ghost" 
-                            className="w-full h-8 text-[8px] font-black uppercase text-slate-400 hover:text-primary hover:bg-primary/5"
-                            onClick={() => setShowMoreSuggestions(!showMoreSuggestions)}
-                          >
-                            {showMoreSuggestions ? "Show Less" : "See More"}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* AI Planner Section */}
-                    <div className="space-y-2 pt-3 border-t border-slate-100">
-                       <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">AI Route Planner</p>
-                       <div className="bg-slate-50 p-2.5 rounded-xl space-y-3 border border-slate-100">
-                           <div className="space-y-1">
-                              <Label className="text-[8px] font-black uppercase text-slate-400">Duration</Label>
-                              <div className="flex flex-wrap gap-1">
-                                {TIME_PRESETS.map(preset => (
-                                  <button 
-                                    key={preset.value}
-                                    onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
-                                    className={cn(
-                                      "px-1.5 py-1 rounded-md text-[7px] md:text-[8px] font-black uppercase border transition-all min-h-[30px] min-w-[40px]",
-                                      plannerTimeType === 'preset' && selectedPresetTime === preset.value
-                                       ? "bg-primary text-white border-primary shadow-sm"
-                                       : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
-                                    )}
-                                  >
-                                    {preset.label}
-                                  </button>
-                                ))}
-                                <button 
-                                  onClick={() => setPlannerTimeType('custom')}
-                                  className={cn(
-                                    "px-1.5 py-1 rounded-md text-[7px] md:text-[8px] font-black uppercase border transition-all min-h-[30px] min-w-[40px]",
-                                    plannerTimeType === 'custom'
-                                     ? "bg-primary text-white border-primary shadow-sm"
-                                     : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
-                                  )}
-                                >
-                                  Custom
-                                </button>
-                              </div>
-                           </div>
-
-                           <Button onClick={() => handleGeneratePlanner()} disabled={isGeneratingPlanner} className="w-full rounded-xl h-10 bg-primary text-[8px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
-                              {isGeneratingPlanner ? <Loader2 className="animate-spin" size={12} /> : "Build My Route"}
+                     {/* Smart Suggestions */}
+                     <div className="space-y-2 pt-3 border-t border-slate-100">
+                       <div className="flex items-center justify-between">
+                         <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Smart Suggestions</p>
+                         <Badge variant="outline" className="text-[7px] font-black opacity-50 px-1.5 h-3.5">AI RANKED</Badge>
+                       </div>
+                       
+                       {filteredAndSortedSites.length === 0 ? (
+                         <p className="text-[9px] text-center text-slate-400 font-bold py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                           No sites found.
+                         </p>
+                       ) : (
+                         <div className="space-y-1.5">
+                           {aiSuggestions.map(site => (
+                             <div 
+                               key={site.id} 
+                               className="bg-white rounded-xl border border-slate-100 p-1.5 hover:border-primary/30 transition-all flex items-center gap-2 group overflow-hidden w-full"
+                             >
+                               <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0">
+                                 <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                               </div>
+                               <div className="flex-1 min-w-0 cursor-pointer" onClick={() => centerOnSite(site)}>
+                                 <h4 className="text-[9px] font-black text-slate-900 leading-tight truncate">{site.name}</h4>
+                                 <p className="text-[8px] font-bold text-slate-400 uppercase">{site.distance?.toFixed(1)}km</p>
+                               </div>
+                               <button 
+                                 className="h-7 w-7 rounded-lg text-primary hover:bg-primary/5 flex items-center justify-center transition-colors"
+                                 onClick={() => toggleSite(site.id)}
+                               >
+                                 {itineraryIds.includes(site.id) ? <X size={12} className="text-red-500" /> : <Plus size={12} />}
+                               </button>
+                             </div>
+                           ))}
+                           
+                           <Button 
+                             variant="ghost" 
+                             className="w-full h-8 text-[8px] font-black uppercase text-slate-400 hover:text-primary hover:bg-primary/5"
+                             onClick={() => setShowMoreSuggestions(!showMoreSuggestions)}
+                           >
+                             {showMoreSuggestions ? "Show Less" : "See More"}
                            </Button>
-                        </div>
-                    </div>
+                         </div>
+                       )}
+                     </div>
 
-                    {/* Itinerary List */}
-                    {itineraryIds.length > 0 && (
-                      <div className="mt-3 space-y-2 pb-6">
-                         <div className="flex items-center justify-between">
-                           <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Itinerary</p>
-                           <Badge className="text-[7px] h-3.5 bg-primary/10 text-primary border-none">
-                             {Math.round(totalTime)} MIN
-                           </Badge>
+                     {/* AI Planner Section */}
+                     <div className="space-y-2 pt-3 border-t border-slate-100">
+                        <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">AI Route Planner</p>
+                        <div className="bg-slate-50 p-2.5 rounded-xl space-y-3 border border-slate-100">
+                            <div className="space-y-1">
+                               <Label className="text-[8px] font-black uppercase text-slate-400">Duration</Label>
+                               <div className="flex flex-wrap gap-1">
+                                 {TIME_PRESETS.map(preset => (
+                                   <button 
+                                     key={preset.value}
+                                     onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
+                                     className={cn(
+                                       "px-1.5 py-1 rounded-md text-[7px] md:text-[8px] font-black uppercase border transition-all min-h-[30px] min-w-[40px]",
+                                       plannerTimeType === 'preset' && selectedPresetTime === preset.value
+                                        ? "bg-primary text-white border-primary shadow-sm"
+                                        : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
+                                     )}
+                                   >
+                                     {preset.label}
+                                   </button>
+                                 ))}
+                                 <button 
+                                   onClick={() => setPlannerTimeType('custom')}
+                                   className={cn(
+                                     "px-1.5 py-1 rounded-md text-[7px] md:text-[8px] font-black uppercase border transition-all min-h-[30px] min-w-[40px]",
+                                     plannerTimeType === 'custom'
+                                      ? "bg-primary text-white border-primary shadow-sm"
+                                      : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
+                                   )}
+                                 >
+                                   Custom
+                                 </button>
+                               </div>
+                            </div>
+
+                            <Button onClick={() => handleGeneratePlanner()} disabled={isGeneratingPlanner} className="w-full rounded-xl h-10 bg-primary text-[8px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
+                               {isGeneratingPlanner ? <Loader2 className="animate-spin" size={12} /> : "Build My Route"}
+                            </Button>
                          </div>
-                         <div className="space-y-1">
-                            {itineraryIds.map((id, idx) => {
-                              const site = HERITAGE_SITES.find(s => s.id === id);
-                              if (!site) return null;
-                              return (
-                                <div key={id} className="flex items-center gap-2 p-1.5 bg-white rounded-lg border border-slate-100 group">
-                                  <span className="text-[9px] font-black text-primary w-3">{idx + 1}</span>
-                                  <p className="text-[9px] font-bold text-slate-700 flex-1 truncate" onClick={() => centerOnSite(site)}>{site.name}</p>
-                                  <div className="flex gap-0.5 shrink-0">
-                                    <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 text-slate-300 hover:text-primary"><ArrowUp size={10} /></button>
-                                    <button onClick={() => toggleSite(id)} className="p-1 text-slate-300 hover:text-red-500"><Trash2 size={10} /></button>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                         </div>
-                         <div className="flex gap-1 pt-1">
-                            <Button onClick={() => { setIsNavigating(true); setIsPanelExpanded(false); }} className="flex-1 h-10 rounded-xl bg-slate-900 text-[8px] font-black uppercase tracking-widest">Start</Button>
-                            <Button onClick={handleSavePlanner} variant="outline" className="h-10 w-10 p-0 rounded-xl"><SaveIcon size={12} /></Button>
-                         </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-           </Card>
+                     </div>
+
+                     {/* Itinerary List */}
+                     {itineraryIds.length > 0 && (
+                       <div className="mt-3 space-y-2 pb-6">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Itinerary</p>
+                            <Badge className="text-[7px] h-3.5 bg-primary/10 text-primary border-none">
+                              {Math.round(totalTime)} MIN
+                            </Badge>
+                          </div>
+                          <div className="space-y-1">
+                             {itineraryIds.map((id, idx) => {
+                               const site = HERITAGE_SITES.find(s => s.id === id);
+                               if (!site) return null;
+                               return (
+                                 <div key={id} className="flex items-center gap-2 p-1.5 bg-white rounded-lg border border-slate-100 group">
+                                   <span className="text-[9px] font-black text-primary w-3">{idx + 1}</span>
+                                   <p className="text-[9px] font-bold text-slate-700 flex-1 truncate" onClick={() => centerOnSite(site)}>{site.name}</p>
+                                   <div className="flex gap-0.5 shrink-0">
+                                     <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 text-slate-300 hover:text-primary"><ArrowUp size={10} /></button>
+                                     <button onClick={() => toggleSite(id)} className="p-1 text-slate-300 hover:text-red-500"><Trash2 size={10} /></button>
+                                   </div>
+                                 </div>
+                               )
+                             })}
+                          </div>
+                          <div className="flex gap-1 pt-1">
+                             <Button onClick={() => { setIsNavigating(true); setIsPanelExpanded(false); }} className="flex-1 h-10 rounded-xl bg-slate-900 text-[8px] font-black uppercase tracking-widest">Start</Button>
+                             <Button onClick={handleSavePlanner} variant="outline" className="h-10 w-10 p-0 rounded-xl"><SaveIcon size={12} /></Button>
+                          </div>
+                       </div>
+                     )}
+                   </div>
+                 </div>
+               )}
+            </Card>
+          )
         )}
       </div>
 
