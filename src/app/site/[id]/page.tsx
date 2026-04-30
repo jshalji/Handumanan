@@ -255,9 +255,6 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   <Share2 size={20} className="mr-2" /> Share Heritage Site
                 </Button>
               </div>
-              <p className="mt-6 text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-                Road-accurate routing optimized for <br/> Metro Cebu infrastructure.
-              </p>
             </div>
           </div>
         </div>
