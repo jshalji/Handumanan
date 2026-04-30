@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
@@ -31,10 +32,11 @@ import {
   Building2,
   Route,
   Home,
-  ChevronUp,
   RefreshCcw,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Clock,
+  Zap
 } from 'lucide-react';
 import { useFirestore, useUser } from '@/firebase';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
@@ -49,6 +51,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useIsMobile } from '@/hooks/use-mobile';
 import Link from 'next/link';
 
@@ -103,6 +112,10 @@ function ExploreRouteContent() {
   const [customMinutes, setCustomMinutes] = useState('30');
   const [aiItineraryData, setAiItineraryData] = useState<GeneratePersonalizedItineraryOutput | null>(null);
   
+  const [isAutoDialogOpen, setIsAutoDialogOpen] = useState(false);
+  const [autoMode, setAutoMode] = useState<'near' | 'theme' | 'balanced'>('near');
+  const [autoTheme, setAutoTheme] = useState<string>(CATEGORIES[0].value);
+
   const [orsKey, setOrsKey] = useState<string>('');
   const [showKeyDialog, setShowKeyDialog] = useState(false);
   const [tempKey, setTempKey] = useState('');
@@ -211,7 +224,7 @@ function ExploreRouteContent() {
     
     if (aiItineraryData) {
       const newItin = [...aiItineraryData.itinerary];
-      [newItin[index], newItin[targetIndex]] = [newItin[targetIndex], newItin[index]];
+      [newItin[index], newItin[targetIndex]] = [newItin[targetIndex], newIn[index]];
       setAiItineraryData({ ...aiItineraryData, itinerary: newItin });
     }
   };
@@ -221,27 +234,27 @@ function ExploreRouteContent() {
     setIsNavigating(false);
   };
 
-  const handleGeneratePlanner = async () => {
+  const handleGeneratePlanner = async (forcedSites?: string[]) => {
     let hours = selectedPresetTime;
     if (plannerTimeType === 'custom') {
       hours = (parseInt(customHours) || 0) + ((parseInt(customMinutes) || 0) / 60);
     }
     
-    const selectedSites = itineraryIds.map(id => HERITAGE_SITES.find(s => s.id === id)).filter(Boolean);
+    const targetIds = forcedSites || itineraryIds;
+    const selectedSites = targetIds.map(id => HERITAGE_SITES.find(s => s.id === id)).filter(Boolean);
     
     setIsGeneratingPlanner(true);
     try {
       const output = await generatePersonalizedItinerary({
-        startingLocation: selectedCity || 'Cebu City Center',
+        startingLocation: userLocation ? `${userLocation.lat}, ${userLocation.lng}` : (selectedCity || 'Cebu City Center'),
         availableTimeHours: hours,
-        interests: ["General Interest"],
-        siteDatabase: JSON.stringify(HERITAGE_SITES.slice(0, 15)), // Pass a slice for token efficiency
+        interests: [autoMode === 'theme' ? autoTheme : "General Heritage"],
+        siteDatabase: JSON.stringify(HERITAGE_SITES.slice(0, 30)),
         selectedSitesJson: JSON.stringify(selectedSites)
       });
       
       setAiItineraryData(output);
       
-      // Update the active ID list to match AI's suggested order
       const suggestedIds = output.itinerary
         .map(item => item.siteId || HERITAGE_SITES.find(s => s.name.toLowerCase() === item.siteName.toLowerCase())?.id)
         .filter((id): id is string => !!id);
@@ -257,7 +270,49 @@ function ExploreRouteContent() {
       toast({ title: "Planner Error", description: "Failed to generate optimized itinerary.", variant: "destructive" });
     } finally {
       setIsGeneratingPlanner(false);
+      setIsAutoDialogOpen(false);
     }
+  };
+
+  const handleAutoGenerate = async () => {
+    if (autoMode === 'near' && !userLocation) {
+      const loc = await detectLocation();
+      if (!loc) return;
+    }
+
+    let candidateSites: HeritageSite[] = [...HERITAGE_SITES];
+    let hours = selectedPresetTime;
+    if (plannerTimeType === 'custom') {
+      hours = (parseInt(customHours) || 0) + ((parseInt(customMinutes) || 0) / 60);
+    }
+
+    const limit = hours <= 1 ? 2 : hours <= 2 ? 3 : hours <= 4 ? 5 : 8;
+
+    if (autoMode === 'near' && userLocation) {
+      candidateSites = candidateSites
+        .map(s => ({ ...s, dist: calculateDistance(userLocation.lat, userLocation.lng, s.coordinates.lat, s.coordinates.lng) }))
+        .sort((a, b) => a.dist - b.dist)
+        .slice(0, limit);
+    } else if (autoMode === 'theme') {
+      candidateSites = candidateSites
+        .filter(s => s.category === autoTheme)
+        .slice(0, limit);
+    } else if (autoMode === 'balanced') {
+      const cats = Array.from(new Set(HERITAGE_SITES.map(s => s.category)));
+      candidateSites = [];
+      for (let i = 0; i < limit; i++) {
+        const cat = cats[i % cats.length];
+        const site = HERITAGE_SITES.find(s => s.category === cat && !candidateSites.includes(s));
+        if (site) candidateSites.push(site);
+      }
+    }
+
+    if (candidateSites.length === 0) {
+      toast({ title: "No Sites Found", description: "Try another theme or duration.", variant: "destructive" });
+      return;
+    }
+
+    handleGeneratePlanner(candidateSites.map(s => s.id));
   };
 
   const handleSavePlanner = () => {
@@ -309,20 +364,6 @@ function ExploreRouteContent() {
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            {searchQuery && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-2xl border-none ring-1 ring-black/5 max-h-[200px] overflow-y-auto pointer-events-auto scrollbar-hide">
-                {filteredAndSortedSites.slice(0, 8).map(site => (
-                  <button 
-                    key={site.id} 
-                    onClick={() => { centerOnSite(site); setSearchQuery(''); }}
-                    className="w-full text-left p-3 hover:bg-slate-50 flex flex-col gap-0.5 border-b border-slate-50 last:border-none"
-                  >
-                    <span className="text-[11px] font-black text-slate-900">{site.name}</span>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{site.city}</span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
           
           <Button 
@@ -360,7 +401,7 @@ function ExploreRouteContent() {
                 style={{ WebkitOverflowScrolling: 'touch' }}
               >
                 <TabsContent value="discover" className="m-0 p-4 space-y-4 animate-in fade-in duration-300">
-                  <div className="space-y-1.5">
+                   <div className="space-y-1.5">
                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Cities</p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {CITIES.map(city => (
@@ -400,7 +441,7 @@ function ExploreRouteContent() {
                   <div className="space-y-1.5">
                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Sites in {selectedCity || "Metro Cebu"}</p>
                     <div className="space-y-1.5">
-                       {filteredAndSortedSites.slice(0, 12).map(site => (
+                       {filteredAndSortedSites.slice(0, 15).map(site => (
                          <div key={site.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-2xl border border-slate-100 group">
                             <div className="flex-1 truncate mr-2" onClick={() => centerOnSite(site)}>
                                <p className="text-[11px] font-bold text-slate-900 truncate">{site.name}</p>
@@ -424,14 +465,29 @@ function ExploreRouteContent() {
                 </TabsContent>
 
                 <TabsContent value="planner" className="m-0 p-4 space-y-5 animate-in fade-in duration-300">
+                  <div className="flex flex-col gap-3">
+                    <Button 
+                      onClick={() => setIsAutoDialogOpen(true)} 
+                      className="w-full h-11 bg-accent hover:bg-accent/90 text-accent-foreground text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-xl border-none"
+                    >
+                      <Zap size={16} className="mr-2" /> Auto-Generate Trip
+                    </Button>
+                    
+                    <div className="relative py-2 flex items-center gap-4">
+                      <div className="h-px bg-slate-100 flex-1" />
+                      <span className="text-[8px] font-black uppercase text-slate-300">Or Build Manually</span>
+                      <div className="h-px bg-slate-100 flex-1" />
+                    </div>
+                  </div>
+
                   {itineraryIds.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-center space-y-4">
+                    <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
                       <div className="bg-slate-50 p-6 rounded-full">
                         <MapPin size={32} className="text-slate-300" />
                       </div>
                       <div className="space-y-1 px-4">
-                        <p className="text-[11px] font-black text-slate-900">Your trip is empty</p>
-                        <p className="text-[10px] text-slate-500 leading-relaxed">Select heritage sites using the (+) button first, then I can create your optimized itinerary.</p>
+                        <p className="text-[11px] font-black text-slate-900">Choose a few heritage sites first</p>
+                        <p className="text-[10px] text-slate-500 leading-relaxed">Then I'll help you plan the best route based on your time.</p>
                       </div>
                     </div>
                   ) : (
@@ -479,14 +535,14 @@ function ExploreRouteContent() {
                         </div>
                         
                         <Button 
-                          onClick={handleGeneratePlanner} 
+                          onClick={() => handleGeneratePlanner()} 
                           disabled={isGeneratingPlanner} 
                           className="w-full h-11 rounded-2xl bg-primary text-[10px] font-black uppercase tracking-widest shadow-xl shadow-primary/20"
                         >
                           {isGeneratingPlanner ? (
                             <><Loader2 className="animate-spin mr-2" size={16} /> Building Itinerary</>
                           ) : (
-                            <><RefreshCcw size={14} className="mr-2" /> Build Best Route</>
+                            <><RefreshCcw size={14} className="mr-2" /> Optimize Selected Route</>
                           )}
                         </Button>
                       </div>
@@ -556,8 +612,7 @@ function ExploreRouteContent() {
                              )}
                           </div>
                         )}
-                      </div>
-                    </>
+                      </>
                   )}
                 </TabsContent>
               </div>
@@ -579,6 +634,89 @@ function ExploreRouteContent() {
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">Home</span>
         </Link>
       </div>
+
+      <Dialog open={isAutoDialogOpen} onOpenChange={setIsAutoDialogOpen}>
+        <DialogContent className="max-w-[340px] rounded-[2.5rem] p-8 border-none shadow-3xl bg-white text-slate-900">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-headline font-black">Auto-Generate Trip</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 leading-relaxed">
+              Let AI build a perfect heritage tour for you in seconds.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 mt-4">
+            <div className="space-y-2">
+              <Label className="text-[9px] font-black uppercase text-slate-400">Generation Mode</Label>
+              <div className="grid grid-cols-1 gap-2">
+                {[
+                  { id: 'near', label: 'Near Me', icon: LocateFixed, desc: 'Minimize travel distance' },
+                  { id: 'theme', label: 'Themed Trip', icon: Landmark, desc: 'Focus on one category' },
+                  { id: 'balanced', label: 'Balanced Tour', icon: Sparkles, desc: 'A mix of everything' }
+                ].map(mode => (
+                  <button 
+                    key={mode.id}
+                    onClick={() => setAutoMode(mode.id as any)}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-2xl border text-left transition-all",
+                      autoMode === mode.id ? "bg-slate-900 text-white border-slate-900 shadow-lg" : "bg-white border-slate-100 text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    <mode.icon size={16} className={cn(autoMode === mode.id ? "text-primary" : "text-slate-400")} />
+                    <div>
+                      <p className="text-[11px] font-bold">{mode.label}</p>
+                      <p className="text-[9px] opacity-70">{mode.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {autoMode === 'theme' && (
+              <div className="space-y-2 animate-in slide-in-from-top-1">
+                <Label className="text-[9px] font-black uppercase text-slate-400">Select Theme</Label>
+                <Select value={autoTheme} onValueChange={setAutoTheme}>
+                  <SelectTrigger className="h-10 rounded-xl bg-slate-50 border-none text-[11px] font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl">
+                    {CATEGORIES.map(cat => (
+                      <SelectItem key={cat.value} value={cat.value} className="text-[11px]">{cat.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label className="text-[9px] font-black uppercase text-slate-400">Trip Duration</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {TIME_PRESETS.map(preset => (
+                  <button 
+                    key={preset.value}
+                    onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
+                    className={cn(
+                      "px-2 py-2 rounded-xl text-[10px] font-black uppercase border h-10 transition-all",
+                      plannerTimeType === 'preset' && selectedPresetTime === preset.value ? "bg-primary text-white border-primary" : "bg-white border-slate-100 text-slate-500"
+                    )}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-8">
+            <Button 
+              className="w-full h-12 rounded-2xl bg-primary text-white font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/20" 
+              onClick={handleAutoGenerate}
+              disabled={isGeneratingPlanner}
+            >
+              {isGeneratingPlanner ? <><Loader2 className="animate-spin mr-2" size={16} /> Planning...</> : "Generate My Trip"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
         <DialogContent className="max-w-xs rounded-[2.5rem] p-8 border-none shadow-3xl bg-white">
