@@ -224,7 +224,7 @@ function ExploreRouteContent() {
     
     if (aiItineraryData) {
       const newItin = [...aiItineraryData.itinerary];
-      [newItin[index], newItin[targetIndex]] = [newItin[targetIndex], newIn[index]];
+      [newItin[index], newItin[targetIndex]] = [newItin[targetIndex], newItin[index]];
       setAiItineraryData({ ...aiItineraryData, itinerary: newItin });
     }
   };
@@ -291,7 +291,7 @@ function ExploreRouteContent() {
     if (autoMode === 'near' && userLocation) {
       candidateSites = candidateSites
         .map(s => ({ ...s, dist: calculateDistance(userLocation.lat, userLocation.lng, s.coordinates.lat, s.coordinates.lng) }))
-        .sort((a, b) => a.dist - b.dist)
+        .sort((a, b) => (a as any).dist - (b as any).dist)
         .slice(0, limit);
     } else if (autoMode === 'theme') {
       candidateSites = candidateSites
@@ -612,7 +612,8 @@ function ExploreRouteContent() {
                              )}
                           </div>
                         )}
-                      </>
+                    </div>
+                  </>
                   )}
                 </TabsContent>
               </div>
