@@ -388,8 +388,8 @@ function ExploreRouteContent() {
         />
       </div>
 
-      {/* TOP HEADER (SEARCH + MENU) */}
-      <div className="absolute top-3 left-3 right-3 z-50 flex flex-col items-start gap-2 pointer-events-none md:max-w-[340px] md:right-auto md:top-6 md:left-6">
+      {/* TOP HEADER (SEARCH + MENU + LOCATE) */}
+      <div className="absolute top-3 left-3 right-3 z-50 flex flex-col items-start gap-2 pointer-events-none md:max-w-[420px] md:right-auto md:top-6 md:left-6">
         <div className="flex gap-2 items-center pointer-events-auto w-full relative">
           <Button 
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
@@ -436,6 +436,14 @@ function ExploreRouteContent() {
               </div>
             )}
           </div>
+
+          <Button 
+            onClick={detectLocation}
+            size="icon" 
+            className="h-10 w-10 md:h-11 md:w-11 shrink-0 rounded-xl md:rounded-2xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
+          >
+            {loading ? <Loader2 className="animate-spin" size={16} /> : <LocateFixed size={18} />}
+          </Button>
         </div>
 
         {/* FLOATING DISCOVERY PANEL */}
@@ -682,15 +690,8 @@ function ExploreRouteContent() {
         </div>
       )}
 
-      {/* BOTTOM RIGHT CONTROLS */}
+      {/* BOTTOM RIGHT SPACING FOR CHATBOT */}
       <div className="absolute bottom-4 right-4 z-[65] flex flex-col gap-2 pointer-events-none">
-        <Button 
-          onClick={detectLocation}
-          size="icon" 
-          className="h-10 w-10 md:h-11 md:w-11 rounded-xl shadow-2xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 pointer-events-auto ring-1 ring-black/5"
-        >
-          {loading ? <Loader2 className="animate-spin" size={16} /> : <LocateFixed size={18} />}
-        </Button>
         <div className="h-12 w-12 md:h-14 md:w-14" /> 
       </div>
 
