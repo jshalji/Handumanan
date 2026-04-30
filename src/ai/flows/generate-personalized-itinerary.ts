@@ -23,6 +23,10 @@ const GeneratePersonalizedItineraryInputSchema = z.object({
   siteDatabase: z
     .string()
     .describe('A JSON string representing an array of available cultural heritage sites.'),
+  selectedSitesJson: z
+    .string()
+    .optional()
+    .describe('A JSON string representing sites the user has already specifically selected.'),
 });
 export type GeneratePersonalizedItineraryInput = z.infer<
   typeof GeneratePersonalizedItineraryInputSchema
@@ -31,6 +35,7 @@ export type GeneratePersonalizedItineraryInput = z.infer<
 const GeneratePersonalizedItineraryOutputSchema = z.object({
   itinerary: z.array(
     z.object({
+      siteId: z.string().describe('The unique ID of the site.'),
       siteName: z.string().describe('The name of the heritage site.'),
       estimatedVisitDurationMinutes: z
         .number()
@@ -40,15 +45,15 @@ const GeneratePersonalizedItineraryOutputSchema = z.object({
         .describe('The estimated time in minutes to travel to this site from the previous stop.'),
       description: z
         .string()
-        .describe('A short, simple description of the site and its significance.'),
+        .describe('A short, simple description of why this site fits the route.'),
     })
   ).describe('The "Day Plan": An ordered list of recommended heritage sites to visit.'),
   totalEstimatedDurationMinutes: z
     .number()
-    .describe('The total estimated duration of the entire itinerary in minutes.'),
+    .describe('The total estimated duration of the entire itinerary in minutes (visit + travel).'),
   routeSuggestion: z
     .string()
-    .describe('A simple explanation of the travel order, logical route flow, and travel tips.'),
+    .describe('A conversational summary or tip about the route (e.g., "This route covers the heart of old Parian").'),
 });
 export type GeneratePersonalizedItineraryOutput = z.infer<
   typeof GeneratePersonalizedItineraryOutputSchema
@@ -64,33 +69,30 @@ const generatePersonalizedItineraryPrompt = ai.definePrompt({
   name: 'generatePersonalizedItineraryPrompt',
   input: {schema: GeneratePersonalizedItineraryInputSchema},
   output: {schema: GeneratePersonalizedItineraryOutputSchema},
-  prompt: `You are an AI travel assistant for "Handumanan", a cultural heritage information system for Metro Cebu. 
+  prompt: `You are an expert AI travel guide for "Handumanan", the Metro Cebu cultural heritage system.
 
-Your task is to generate a simple and realistic travel itinerary based on the user's location, interests, and available time.
+Your task is to create a detailed, time-aware itinerary.
 
-### Schedule Rules:
-- If time is 1 hour: Recommend 1-2 sites.
-- If time is 2 hours: Recommend 2-3 sites.
-- If time is 4 hours (Half Day): Recommend 3-5 sites.
-- If time is 8 hours or more (Full Day): Recommend 5-8 sites.
+### Priorities:
+1. **User Selections**: If "Selected Sites" are provided, you MUST use them and arrange them in the most geographically logical order starting from the "{{{startingLocation}}}".
+2. **Time Constraints**: Ensure the total time (visiting + estimated transit) fits within {{{availableTimeHours}}} hours.
+3. **Logic**:
+   - If time is 1 hour: Limit to 1-2 sites.
+   - If time is 2 hours: Limit to 2-3 sites.
+   - If time is 4 hours: Limit to 3-5 sites.
+   - If time is 8+ hours: Limit to 5-8 sites.
+4. **Site Context**: Use only REAL sites from the provided database.
 
-### Instructions:
-1. **Real Sites Only**: Only suggest REAL and EXISTING cultural heritage sites from the provided database.
-2. **Proximity Matters**: Use a practical travel order based on geographic proximity.
-3. **Estimated Times**: Provide realistic estimated visit times (e.g., 30-60 mins per site) and travel times (15-30 mins between sites).
-4. **Logical Flow**: Suggest a logical route starting from the user's location.
-5. **Respect Time**: Ensure the total time (visiting + transit) fits strictly within the available hours.
+### Input:
+- **Available Time**: {{{availableTimeHours}}} hours.
+- **Starting From**: {{{startingLocation}}}.
+- **Selected Sites (Priority)**: {{{selectedSitesJson}}}
+- **Full Database**: {{{siteDatabase}}}
 
-### Input Data:
-- **Starting Location**: {{{startingLocation}}}
-- **Time Available**: {{{availableTimeHours}}} hours
-- **User Interests**: {{{interests}}}
-- **Heritage Site Database**: 
-{{{siteDatabase}}}
-
-### Output Format Requirements:
-Provide an ordered list of sites with durations and descriptions.
-Provide a "Route Suggestion" summary.
+### Requirements:
+- Provide realistic visit durations (20-60 mins).
+- Provide realistic travel times between stops (5-20 mins for Cebu traffic).
+- Output the sites in the optimal visit order.
 `,
 });
 
