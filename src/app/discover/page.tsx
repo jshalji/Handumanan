@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Navigation, 
   Loader2, 
@@ -32,12 +33,11 @@ import {
   Sparkles,
   Save as SaveIcon,
   ArrowUp,
-  ArrowDown,
   Compass,
-  Settings,
   Clock,
   Plus,
-  Building2
+  Building2,
+  Route
 } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, serverTimestamp } from 'firebase/firestore';
@@ -52,12 +52,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { useIsMobile } from '@/hooks/use-mobile';
 
 const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), { 
@@ -75,13 +69,13 @@ const CITY_COORDS: Record<string, { lat: number; lng: number; zoom: number }> = 
 };
 
 const CATEGORIES = [
-  { label: "Churches & Religious Sites", value: "Churches & Religious Heritage Sites", icon: Church },
-  { label: "Ancestral Houses & Residences", value: "Ancestral Houses & Heritage Residences", icon: Home },
+  { label: "Churches & Religious Heritage Sites", value: "Churches & Religious Heritage Sites", icon: Church },
+  { label: "Ancestral Houses & Heritage Residences", value: "Ancestral Houses & Heritage Residences", icon: Home },
   { label: "Museums & Cultural Institutions", value: "Museums & Cultural Institutions", icon: Landmark },
-  { label: "Historical Landmarks", value: "Historical Landmarks & Monuments", icon: MapPin },
-  { label: "Plazas, Parks & Spaces", value: "Plazas, Parks & Public Spaces", icon: TreePine },
+  { label: "Historical Landmarks & Monuments", value: "Historical Landmarks & Monuments", icon: MapPin },
+  { label: "Plazas, Parks & Public Spaces", value: "Plazas, Parks & Public Spaces", icon: TreePine },
   { label: "Government & Historic Buildings", value: "Government & Historic Buildings", icon: Building2 },
-  { label: "Cultural & Non-Catholic Sites", value: "Cultural & Religious (Non-Catholic Sites)", icon: Church }
+  { label: "Cultural & Religious (Non-Catholic Sites)", value: "Cultural & Religious (Non-Catholic Sites)", icon: Church }
 ];
 
 const TIME_PRESETS = [
@@ -106,82 +100,23 @@ function ExploreRouteContent() {
   const [focusedLocation, setFocusedLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   const [isNavigating, setIsNavigating] = useState(false);
-  const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(true);
   const [cityTarget, setCityTarget] = useState<{ lat: number; lng: number; zoom: number; timestamp: number } | null>(null);
   const [recenterKey, setRecenterKey] = useState(0);
   
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  
-  const [alertedSites, setAlertedSites] = useState<string[]>([]);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isPanelExpanded, setIsPanelExpanded] = useState(true);
-  const [showMoreSuggestions, setShowMoreSuggestions] = useState(false);
-
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [isGeneratingPlanner, setIsGeneratingPlanner] = useState(false);
-  const [plannerStart, setPlannerStart] = useState('Cebu City Center');
   const [plannerTimeType, setPlannerTimeType] = useState<'preset' | 'custom'>('preset');
   const [selectedPresetTime, setSelectedPresetTime] = useState(4);
   const [customHours, setCustomHours] = useState('3');
   const [customMinutes, setCustomMinutes] = useState('30');
-
   const [orsKey, setOrsKey] = useState<string>('');
   const [showKeyDialog, setShowKeyDialog] = useState(false);
   const [tempKey, setTempKey] = useState('');
 
-  const [showSuggestions, setShowSuggestions] = useState(false);
-
   const db = useFirestore();
-
-  useEffect(() => {
-    if (itineraryIds.length > 0) {
-      const context = {
-        stops: itineraryIds.map(id => HERITAGE_SITES.find(s => s.id === id)?.name),
-        totalDistance: totalDist,
-        estimatedTime: totalTime
-      };
-      localStorage.setItem('active_itinerary_context', JSON.stringify(context));
-    } else {
-      localStorage.removeItem('active_itinerary_context');
-    }
-  }, [itineraryIds, totalDist, totalTime]);
-
-  const handleCitySelect = (city: string) => {
-    setSelectedCity(city);
-    setSelectedCategory(null);
-    setCityTarget({ ...CITY_COORDS[city], timestamp: Date.now() });
-    setIsNavigating(false);
-  };
-
-  const handleRecenter = () => {
-    setRecenterKey(prev => prev + 1);
-  };
-
-  const sitesQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    const colRef = collection(db, 'heritageSites');
-    if (selectedCity && selectedCategory) {
-      return query(colRef, where('city', '==', selectedCity), where('category', '==', selectedCategory));
-    }
-    if (selectedCity) {
-      return query(colRef, where('city', '==', selectedCity));
-    }
-    return colRef;
-  }, [db, selectedCity, selectedCategory]);
-
-  const { data: firestoreSites } = useCollection(sitesQuery);
-
-  const allSites = useMemo(() => {
-    const source = (firestoreSites && firestoreSites.length > 0) ? firestoreSites : HERITAGE_SITES;
-    let result = source.map(site => ({
-      ...site,
-      coordinates: site.coordinates || { lat: site.latitude || 0, lng: site.longitude || 0 }
-    })) as HeritageSite[];
-
-    if (selectedCity) result = result.filter(s => s.city === selectedCity);
-    if (selectedCategory) result = result.filter(s => s.category === selectedCategory);
-    return result;
-  }, [firestoreSites, selectedCity, selectedCategory]);
 
   useEffect(() => {
     const savedKey = localStorage.getItem('ors_api_key');
@@ -215,33 +150,18 @@ function ExploreRouteContent() {
 
   useEffect(() => {
     detectLocation();
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        setUserLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
-      },
-      (err) => {
-        if (err.code === 1) toast({ title: "Permission Denied", description: "Location access required.", variant: "destructive" });
-      },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-    );
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [detectLocation, toast]);
+  }, [detectLocation]);
 
-  const itinerarySites = useMemo(() => {
-    return itineraryIds.map(id => HERITAGE_SITES.find(s => s.id === id)).filter(Boolean) as HeritageSite[];
-  }, [itineraryIds]);
+  const allSites = useMemo(() => {
+    let result = HERITAGE_SITES.map(site => ({
+      ...site,
+      coordinates: site.coordinates
+    })) as HeritageSite[];
 
-  useEffect(() => {
-    if (!userLocation || itinerarySites.length === 0) return;
-    const currentDestination = itinerarySites[0];
-    const dist = calculateDistance(userLocation.lat, userLocation.lng, currentDestination.coordinates.lat, currentDestination.coordinates.lng);
-    if (dist <= 0.05 && !alertedSites.includes(currentDestination.id)) {
-      toast({ title: "📍 Arrival!", description: `Welcome to ${currentDestination.name}!`, duration: 8000 });
-      setAlertedSites(prev => [...prev, currentDestination.id]);
-      setIsNavigating(false);
-      if ('vibrate' in navigator) navigator.vibrate([300, 100, 300]);
-    }
-  }, [userLocation, itinerarySites, alertedSites, toast]);
+    if (selectedCity) result = result.filter(s => s.city === selectedCity);
+    if (selectedCategory) result = result.filter(s => s.category === selectedCategory);
+    return result;
+  }, [selectedCity, selectedCategory]);
 
   const filteredAndSortedSites = useMemo(() => {
     let result = allSites.map(site => ({
@@ -252,31 +172,15 @@ function ExploreRouteContent() {
       const q = searchQuery.toLowerCase();
       result = result.filter(s => 
         s.name.toLowerCase().includes(q) || 
-        s.city.toLowerCase().includes(q) ||
-        s.category.toLowerCase().includes(q)
+        s.city.toLowerCase().includes(q)
       );
     }
     return result;
   }, [allSites, userLocation, searchQuery, showSuggestions]);
 
-  const searchSuggestions = useMemo(() => {
-    if (!searchQuery || searchQuery.length < 1) return [];
-    const q = searchQuery.toLowerCase();
-    return HERITAGE_SITES.filter(s => 
-      s.name.toLowerCase().includes(q) || 
-      s.city.toLowerCase().includes(q) ||
-      s.category.toLowerCase().includes(q)
-    ).slice(0, 8);
-  }, [searchQuery]);
-
-  const aiSuggestions = useMemo(() => {
-    let recommendations = allSites.map(s => {
-      const dist = userLocation ? calculateDistance(userLocation.lat, userLocation.lng, s.coordinates.lat, s.coordinates.lng) : 100;
-      return { ...s, score: (s.isMustVisit ? 2 : 0) + (s.rating || 4) / 2 + (Math.max(0, 10 - dist)) };
-    });
-    recommendations.sort((a, b) => b.score - a.score);
-    return recommendations.slice(0, showMoreSuggestions ? 10 : 3);
-  }, [allSites, userLocation, showMoreSuggestions]);
+  const itinerarySites = useMemo(() => {
+    return itineraryIds.map(id => HERITAGE_SITES.find(s => s.id === id)).filter(Boolean) as HeritageSite[];
+  }, [itineraryIds]);
 
   useEffect(() => {
     const fetchRoute = async () => {
@@ -298,35 +202,21 @@ function ExploreRouteContent() {
     setItineraryIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  const centerOnSite = (site: HeritageSite | any) => {
+  const centerOnSite = (site: HeritageSite) => {
     setFocusedLocation({ lat: site.coordinates.lat, lng: site.coordinates.lng });
     setIsNavigating(false);
-    if ('vibrate' in navigator) navigator.vibrate(50);
   };
 
-  const handleSuggestionClick = (site: HeritageSite) => {
-    setSearchQuery(site.name);
-    setShowSuggestions(false);
-    centerOnSite(site);
-  };
-
-  const handleGeneratePlanner = async (presetHours?: number) => {
-    let hours = presetHours !== undefined ? presetHours : selectedPresetTime;
-    if (presetHours === undefined && plannerTimeType === 'custom') {
-      const h = parseInt(customHours) || 0;
-      const m = parseInt(customMinutes) || 0;
-      hours = h + (m / 60);
+  const handleGeneratePlanner = async () => {
+    let hours = selectedPresetTime;
+    if (plannerTimeType === 'custom') {
+      hours = (parseInt(customHours) || 0) + ((parseInt(customMinutes) || 0) / 60);
     }
     
-    if (hours <= 0) {
-      toast({ title: "Invalid Time", description: "Please specify your travel duration.", variant: "destructive" });
-      return;
-    }
-
     setIsGeneratingPlanner(true);
     try {
       const output = await generatePersonalizedItinerary({
-        startingLocation: plannerStart,
+        startingLocation: selectedCity || 'Cebu City Center',
         availableTimeHours: hours,
         interests: ["General Interest"],
         siteDatabase: JSON.stringify(HERITAGE_SITES)
@@ -336,42 +226,28 @@ function ExploreRouteContent() {
         .filter((id): id is string => !!id);
       if (suggestedIds.length > 0) {
         setItineraryIds(suggestedIds);
-        centerOnSite(HERITAGE_SITES.find(s => s.id === suggestedIds[0]));
+        centerOnSite(HERITAGE_SITES.find(s => s.id === suggestedIds[0])!);
       }
-      toast({ title: "Itinerary Ready", description: `Route generated for ${hours.toFixed(1)} hours.` });
     } catch (error) {
-      toast({ title: "Planner Busy", description: "Please try again in a moment.", variant: "destructive" });
+      toast({ title: "Planner Error", description: "Failed to generate itinerary.", variant: "destructive" });
     } finally {
       setIsGeneratingPlanner(false);
     }
   };
 
   const handleSavePlanner = () => {
-    if (!user || !db || itineraryIds.length === 0) {
-      toast({ title: "Login Required", description: "Sign in to save trips.", variant: "destructive" });
-      return;
-    }
+    if (!user || !db || itineraryIds.length === 0) return;
     setDocumentNonBlocking(doc(collection(db, 'users', user.uid, 'itineraries')), {
       userId: user.uid,
       itineraryIds,
       summary: `${itineraryIds.length} stops in Metro Cebu`,
       createdAt: serverTimestamp()
     }, { merge: true });
-    toast({ title: "Trip Saved", description: "Find it in your profile." });
-  };
-
-  const moveItem = (index: number, direction: 'up' | 'down') => {
-    const newIds = [...itineraryIds];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex >= 0 && targetIndex < newIds.length) {
-      [newIds[index], newIds[targetIndex]] = [newIds[targetIndex], newIds[index]];
-      setItineraryIds(newIds);
-    }
+    toast({ title: "Trip Saved" });
   };
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden relative font-body select-none">
-      
       <div className="absolute inset-0 z-0">
         <HeritageMap 
           userLocation={userLocation} 
@@ -388,301 +264,167 @@ function ExploreRouteContent() {
         />
       </div>
 
-      {/* TOP HEADER (SEARCH + MENU + LOCATE) */}
-      <div className="absolute top-3 left-3 right-3 z-50 flex flex-col items-start gap-2 pointer-events-none md:max-w-[420px] md:right-auto md:top-6 md:left-6">
-        <div className="flex gap-2 items-center pointer-events-auto w-full relative">
+      <div className="absolute top-3 left-3 right-3 z-50 flex flex-col items-start gap-2 pointer-events-none md:max-w-[420px] md:top-6 md:left-6">
+        <div className="flex gap-2 items-center pointer-events-auto w-full">
           <Button 
-            onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+            onClick={() => setIsPanelExpanded(!isPanelExpanded)}
             size="icon" 
-            className="h-10 w-10 md:h-11 md:w-11 shrink-0 rounded-xl md:rounded-2xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
+            className="h-10 w-10 shrink-0 rounded-xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
           >
             <Menu size={18} />
           </Button>
 
           <div className="relative group flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={14} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <Input 
               placeholder="Search heritage..." 
-              className="pl-9 h-10 md:h-11 rounded-xl md:rounded-2xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full font-bold text-[11px] md:text-[12px] ring-1 ring-black/5" 
+              className="pl-9 h-10 rounded-xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full text-xs font-bold" 
               value={searchQuery} 
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setShowSuggestions(true);
-              }}
-              onFocus={() => setShowSuggestions(true)}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
-
-            {/* AUTOCOMPLETE DROPDOWN */}
-            {showSuggestions && searchQuery && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl overflow-hidden z-[60] ring-1 ring-black/5 pointer-events-auto max-h-[200px] md:max-h-[250px] overflow-y-auto">
-                {searchSuggestions.length > 0 ? (
-                  <div className="py-1">
-                    {searchSuggestions.map((site) => (
-                      <div 
-                        key={site.id} 
-                        className="px-3 py-2.5 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-none flex flex-col gap-0.5"
-                        onClick={() => handleSuggestionClick(site)}
-                      >
-                        <p className="text-[11px] font-black text-slate-900 leading-tight">{site.name}</p>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
-                          {site.city} • {site.category.split(' & ')[0]}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-4 text-center text-[10px] font-bold text-slate-400">No results found</div>
-                )}
-              </div>
-            )}
           </div>
 
           <Button 
             onClick={detectLocation}
             size="icon" 
-            className="h-10 w-10 md:h-11 md:w-11 shrink-0 rounded-xl md:rounded-2xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
+            className="h-10 w-10 shrink-0 rounded-xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
           >
             {loading ? <Loader2 className="animate-spin" size={16} /> : <LocateFixed size={18} />}
           </Button>
         </div>
 
-        {/* FLOATING DISCOVERY PANEL */}
-        {!isNavigating && (
-          isMobile && !isPanelExpanded ? (
-            <Button 
-              onClick={() => setIsPanelExpanded(true)}
-              className="pointer-events-auto h-10 px-4 rounded-xl shadow-xl bg-white/95 backdrop-blur-xl text-primary font-black uppercase tracking-widest text-[10px] ring-1 ring-black/5 flex items-center gap-2 animate-in slide-in-from-top-4 duration-300"
-            >
-              <Compass size={14} /> Discover
-            </Button>
-          ) : (
-            <Card className={cn(
-              "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-[1.25rem] md:rounded-[1.5rem] flex flex-col transition-all duration-300 relative overflow-hidden",
-              "w-[min(320px,calc(100vw-24px))]",
-              isPanelExpanded ? (isMobile ? "max-h-[55vh]" : "max-h-[70vh]") : "max-h-[48px] md:max-h-[56px]"
-            )}>
-               <div 
-                 className="flex items-center justify-between p-3 md:p-4 cursor-pointer hover:bg-slate-50/50 rounded-t-[1.25rem] shrink-0 border-b border-slate-100/50"
-                 onClick={() => setIsPanelExpanded(!isPanelExpanded)}
-               >
-                 <div className="flex items-center gap-2">
-                   <div className="p-1 bg-primary/10 rounded-lg text-primary"><Compass size={14} /></div>
-                   <span className="text-[10px] md:text-[11px] font-black uppercase tracking-wider text-slate-900">
-                     {selectedCity ? (selectedCategory ? `${selectedCity} > ${selectedCategory.split(' & ')[0]}` : selectedCity) : 'Discover'}
-                   </span>
-                 </div>
-                 {isPanelExpanded ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
-               </div>
+        {isPanelExpanded && (
+          <Card className="pointer-events-auto w-full border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-2xl flex flex-col overflow-hidden max-h-[60vh]">
+            <Tabs defaultValue="discover" className="w-full flex flex-col">
+              <TabsList className="grid w-full grid-cols-2 bg-slate-50 rounded-none h-12">
+                <TabsTrigger value="discover" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-white">
+                  <Compass size={14} className="mr-2" /> Discover
+                </TabsTrigger>
+                <TabsTrigger value="planner" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-white">
+                  <Sparkles size={14} className="mr-2" /> AI Planner
+                </TabsTrigger>
+              </TabsList>
+              
+              <div className="flex-1 overflow-y-auto scrollbar-hide">
+                <TabsContent value="discover" className="m-0 p-4 space-y-5 animate-in fade-in duration-300">
+                  <div className="space-y-2">
+                    <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Cities</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {CITIES.map(city => (
+                        <button 
+                          key={city} 
+                          onClick={() => { setSelectedCity(city); setCityTarget({ ...CITY_COORDS[city], timestamp: Date.now() }); }} 
+                          className={cn(
+                            "text-[10px] font-bold py-2 rounded-xl transition-all border min-h-[44px]",
+                            selectedCity === city ? "bg-primary text-white border-primary shadow-lg" : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
+                          )}
+                        >
+                          {city}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-               {isPanelExpanded && (
-                 <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide overscroll-contain touch-auto">
-                   <div className="px-3 md:px-4 space-y-5 pt-3 pb-8 md:pb-12">
-                     {/* Cities */}
-                     <div className="space-y-2">
-                       <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Cities</p>
-                       <div className="grid grid-cols-2 gap-1.5 md:gap-2">
-                         {CITIES.map(city => (
-                           <button 
-                             key={city} 
-                             onClick={() => handleCitySelect(city)} 
-                             className={cn(
-                               "text-[10px] font-bold py-2 px-1.5 rounded-xl transition-all border min-h-[38px] md:min-h-[44px] leading-tight flex items-center justify-center text-center",
-                               selectedCity === city 
-                                 ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" 
-                                 : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
-                             )}
-                           >
-                             {city}
-                           </button>
-                         ))}
-                       </div>
-                     </div>
+                  <div className="space-y-2">
+                    <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Categories</p>
+                    <div className="grid grid-cols-1 gap-1">
+                      {CATEGORIES.map(cat => (
+                        <button 
+                          key={cat.value} 
+                          onClick={() => setSelectedCategory(selectedCategory === cat.value ? null : cat.value)} 
+                          className={cn(
+                            "flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all border text-left leading-tight min-h-[44px]",
+                            selectedCategory === cat.value ? "bg-slate-900 text-white border-slate-900 shadow-lg" : "bg-white border-slate-100 text-slate-600"
+                          )}
+                        >
+                          <cat.icon size={14} className="shrink-0" />
+                          <span className="text-[10px] font-bold break-words">{cat.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                     {/* Step 2: Category */}
-                     {selectedCity && (
-                       <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                         <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Categories</p>
-                         <div className="grid grid-cols-1 gap-1">
-                           {CATEGORIES.map(cat => (
-                             <button 
-                               key={cat.value} 
-                               onClick={() => setSelectedCategory(selectedCategory === cat.value ? null : cat.value)} 
-                               className={cn(
-                                 "flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all border text-left leading-tight min-h-[38px]",
-                                 selectedCategory === cat.value 
-                                   ? "bg-slate-900 text-white border-slate-900 shadow-lg" 
-                                   : "bg-white border-slate-100 text-slate-600 hover:border-primary/30"
-                               )}
-                             >
-                               <div className={cn("shrink-0", selectedCategory === cat.value ? "text-white" : "text-primary/70")}>
-                                 <cat.icon size={13} />
-                               </div>
-                               <span className="text-[9px] md:text-[10px] font-bold break-words">{cat.label}</span>
-                             </button>
-                           ))}
-                         </div>
-                       </div>
-                     )}
-
-                     {/* Smart Suggestions */}
-                     <div className="space-y-2 pt-3 border-t border-slate-100">
-                       <div className="flex items-center justify-between">
-                         <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Smart Suggestions</p>
-                         <Badge variant="outline" className="text-[7px] font-black opacity-50 px-1.5 h-3.5">AI RANKED</Badge>
-                       </div>
-                       
-                       {filteredAndSortedSites.length === 0 ? (
-                         <p className="text-[9px] text-center text-slate-400 font-bold py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                           No sites found.
-                         </p>
-                       ) : (
-                         <div className="space-y-1.5">
-                           {aiSuggestions.map(site => (
-                             <div 
-                               key={site.id} 
-                               className="bg-white rounded-xl border border-slate-100 p-1.5 hover:border-primary/30 transition-all flex items-center gap-2 group overflow-hidden w-full"
-                             >
-                               <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0">
-                                 <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
-                               </div>
-                               <div className="flex-1 min-w-0 cursor-pointer" onClick={() => centerOnSite(site)}>
-                                 <h4 className="text-[9px] font-black text-slate-900 leading-tight truncate">{site.name}</h4>
-                                 <p className="text-[8px] font-bold text-slate-400 uppercase">{site.distance?.toFixed(1)}km</p>
-                               </div>
-                               <button 
-                                 className="h-7 w-7 rounded-lg text-primary hover:bg-primary/5 flex items-center justify-center transition-colors"
-                                 onClick={() => toggleSite(site.id)}
-                               >
-                                 {itineraryIds.includes(site.id) ? <X size={12} className="text-red-500" /> : <Plus size={12} />}
-                               </button>
+                  {itineraryIds.length > 0 && (
+                    <div className="pt-4 border-t space-y-3">
+                       <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Active Route</p>
+                       <div className="space-y-1.5">
+                         {itineraryIds.map((id, idx) => {
+                           const site = HERITAGE_SITES.find(s => s.id === id);
+                           return site ? (
+                             <div key={id} className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border border-slate-100">
+                               <span className="text-[10px] font-black text-primary">{idx + 1}</span>
+                               <span className="text-[10px] font-bold text-slate-700 flex-1 truncate">{site.name}</span>
+                               <button onClick={() => toggleSite(id)} className="text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>
                              </div>
-                           ))}
-                           
-                           <Button 
-                             variant="ghost" 
-                             className="w-full h-8 text-[8px] font-black uppercase text-slate-400 hover:text-primary hover:bg-primary/5"
-                             onClick={() => setShowMoreSuggestions(!showMoreSuggestions)}
-                           >
-                             {showMoreSuggestions ? "Show Less" : "See More"}
-                           </Button>
-                         </div>
-                       )}
-                     </div>
-
-                     {/* AI Planner Section */}
-                     <div className="space-y-2 pt-3 border-t border-slate-100">
-                        <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">AI Route Planner</p>
-                        <div className="bg-slate-50 p-2.5 rounded-xl space-y-3 border border-slate-100">
-                            <div className="space-y-1">
-                               <Label className="text-[8px] font-black uppercase text-slate-400">Duration</Label>
-                               <div className="flex flex-wrap gap-1">
-                                 {TIME_PRESETS.map(preset => (
-                                   <button 
-                                     key={preset.value}
-                                     onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
-                                     className={cn(
-                                       "px-1.5 py-1 rounded-md text-[7px] md:text-[8px] font-black uppercase border transition-all min-h-[30px] min-w-[40px]",
-                                       plannerTimeType === 'preset' && selectedPresetTime === preset.value
-                                        ? "bg-primary text-white border-primary shadow-sm"
-                                        : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
-                                     )}
-                                   >
-                                     {preset.label}
-                                   </button>
-                                 ))}
-                                 <button 
-                                   onClick={() => setPlannerTimeType('custom')}
-                                   className={cn(
-                                     "px-1.5 py-1 rounded-md text-[7px] md:text-[8px] font-black uppercase border transition-all min-h-[30px] min-w-[40px]",
-                                     plannerTimeType === 'custom'
-                                      ? "bg-primary text-white border-primary shadow-sm"
-                                      : "bg-white border-slate-200 text-slate-500 hover:border-primary/50"
-                                   )}
-                                 >
-                                   Custom
-                                 </button>
-                               </div>
-                            </div>
-
-                            <Button onClick={() => handleGeneratePlanner()} disabled={isGeneratingPlanner} className="w-full rounded-xl h-10 bg-primary text-[8px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
-                               {isGeneratingPlanner ? <Loader2 className="animate-spin" size={12} /> : "Build My Route"}
-                            </Button>
-                         </div>
-                     </div>
-
-                     {/* Itinerary List */}
-                     {itineraryIds.length > 0 && (
-                       <div className="mt-3 space-y-2 pb-6">
-                          <div className="flex items-center justify-between">
-                            <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Itinerary</p>
-                            <Badge className="text-[7px] h-3.5 bg-primary/10 text-primary border-none">
-                              {Math.round(totalTime)} MIN
-                            </Badge>
-                          </div>
-                          <div className="space-y-1">
-                             {itineraryIds.map((id, idx) => {
-                               const site = HERITAGE_SITES.find(s => s.id === id);
-                               if (!site) return null;
-                               return (
-                                 <div key={id} className="flex items-center gap-2 p-1.5 bg-white rounded-lg border border-slate-100 group">
-                                   <span className="text-[9px] font-black text-primary w-3">{idx + 1}</span>
-                                   <p className="text-[9px] font-bold text-slate-700 flex-1 truncate" onClick={() => centerOnSite(site)}>{site.name}</p>
-                                   <div className="flex gap-0.5 shrink-0">
-                                     <button onClick={() => moveItem(idx, 'up')} disabled={idx === 0} className="p-1 text-slate-300 hover:text-primary"><ArrowUp size={10} /></button>
-                                     <button onClick={() => toggleSite(id)} className="p-1 text-slate-300 hover:text-red-500"><Trash2 size={10} /></button>
-                                   </div>
-                                 </div>
-                               )
-                             })}
-                          </div>
-                          <div className="flex gap-1 pt-1">
-                             <Button onClick={() => { setIsNavigating(true); setIsPanelExpanded(false); }} className="flex-1 h-10 rounded-xl bg-slate-900 text-[8px] font-black uppercase tracking-widest">Start</Button>
-                             <Button onClick={handleSavePlanner} variant="outline" className="h-10 w-10 p-0 rounded-xl"><SaveIcon size={12} /></Button>
-                          </div>
+                           ) : null;
+                         })}
                        </div>
-                     )}
-                   </div>
-                 </div>
-               )}
-            </Card>
-          )
+                       <Button onClick={() => setIsNavigating(true)} className="w-full h-11 bg-primary text-[10px] font-black uppercase tracking-widest rounded-xl">
+                         <Route size={14} className="mr-2" /> Start Navigation
+                       </Button>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="planner" className="m-0 p-4 space-y-6 animate-in fade-in duration-300">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase text-slate-400">Travel Duration</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {TIME_PRESETS.map(preset => (
+                          <button 
+                            key={preset.value}
+                            onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
+                            className={cn(
+                              "px-3 py-2.5 rounded-xl text-[10px] font-black uppercase border transition-all h-11",
+                              plannerTimeType === 'preset' && selectedPresetTime === preset.value ? "bg-primary text-white border-primary shadow-lg" : "bg-white border-slate-100 text-slate-500"
+                            )}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <Button onClick={handleGeneratePlanner} disabled={isGeneratingPlanner} className="w-full h-12 rounded-xl bg-primary text-[10px] font-black uppercase tracking-widest shadow-xl shadow-primary/20">
+                      {isGeneratingPlanner ? <Loader2 className="animate-spin" size={14} /> : "Build Itinerary"}
+                    </Button>
+
+                    {itineraryIds.length > 0 && (
+                      <Button variant="outline" onClick={handleSavePlanner} className="w-full h-12 rounded-xl text-[10px] font-black uppercase tracking-widest border-2">
+                        <SaveIcon size={14} className="mr-2" /> Save Trip
+                      </Button>
+                    )}
+                  </div>
+                </TabsContent>
+              </div>
+            </Tabs>
+          </Card>
         )}
       </div>
 
-      {/* NAVIGATION ACTIVE STATUS */}
       {isNavigating && userLocation && itinerarySites.length > 0 && (
-        <div className={cn(
-          "absolute z-[70] transition-all duration-500 pointer-events-none",
-          isMobile ? "bottom-0 left-0 right-0" : "top-6 right-6 w-[280px]"
-        )}>
-          <Card className={cn(
-            "pointer-events-auto border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5",
-            isMobile ? "rounded-t-[1.5rem] max-h-[25vh]" : "rounded-[1.5rem] p-4"
-          )}>
-            <div className="p-3 md:p-4 flex flex-col items-center">
-              {isMobile && <div className="w-8 h-1 rounded-full bg-slate-200 mb-2" />}
-              <div className="w-full flex items-center justify-between">
+        <div className="absolute bottom-6 left-3 right-3 md:left-auto md:right-6 md:w-[320px] z-[70] pointer-events-none">
+          <Card className="pointer-events-auto border-none shadow-3xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-3xl p-4 animate-in slide-in-from-bottom-4">
+            <div className="flex flex-col items-center">
+              <div className="w-full flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  <div>
-                    <p className="text-[7px] md:text-[8px] font-black uppercase text-primary tracking-widest leading-none mb-0.5">Navigating</p>
-                    <h4 className="text-[12px] md:text-[13px] font-black text-slate-900 truncate max-w-[160px]">{itinerarySites[0].name}</h4>
-                  </div>
+                  <p className="text-[10px] font-black uppercase text-primary tracking-widest">In Transit</p>
                 </div>
-                <div className="flex gap-2">
-                   <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-slate-100" onClick={handleRecenter}><LocateFixed size={16} /></Button>
-                   <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-red-50 text-red-500" onClick={() => setIsNavigating(false)}><X size={16} /></Button>
-                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-red-50 text-red-500" onClick={() => setIsNavigating(false)}><X size={16} /></Button>
               </div>
+              <h4 className="text-sm font-black text-slate-900 mb-1 text-center w-full truncate">{itinerarySites[0].name}</h4>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-4">{itinerarySites[0].city}</p>
               
-              <div className="grid grid-cols-2 gap-2 w-full mt-3">
-                 <div className="bg-slate-50 p-2 rounded-lg text-center">
-                    <p className="text-[7px] font-black text-slate-400 uppercase">Distance</p>
-                    <p className="text-[12px] font-black text-primary">{totalDist.toFixed(1)} KM</p>
+              <div className="grid grid-cols-2 gap-2 w-full">
+                 <div className="bg-slate-50 p-3 rounded-2xl text-center">
+                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Total Distance</p>
+                    <p className="text-sm font-black text-primary">{totalDist.toFixed(1)} KM</p>
                  </div>
-                 <div className="bg-slate-50 p-2 rounded-lg text-center">
-                    <p className="text-[7px] font-black text-slate-400 uppercase">Arrival</p>
-                    <p className="text-[12px] font-black text-primary">{Math.round(totalTime)} MIN</p>
+                 <div className="bg-slate-50 p-3 rounded-2xl text-center">
+                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Est. Arrival</p>
+                    <p className="text-sm font-black text-primary">{Math.round(totalTime)} MIN</p>
                  </div>
               </div>
             </div>
@@ -690,64 +432,15 @@ function ExploreRouteContent() {
         </div>
       )}
 
-      {/* BOTTOM RIGHT SPACING FOR CHATBOT */}
-      <div className="absolute bottom-4 right-4 z-[65] flex flex-col gap-2 pointer-events-none">
-        <div className="h-12 w-12 md:h-14 md:w-14" /> 
-      </div>
-
-      {/* NAVIGATION DRAWER */}
-      <div 
-        className={cn(
-          "fixed left-0 top-0 bottom-0 z-[100] bg-white shadow-2xl transition-transform duration-500 ease-in-out flex flex-col border-r pointer-events-auto overflow-hidden",
-          isMobile ? "w-[260px]" : "w-[220px]",
-          isDrawerOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-         <div className="p-4 flex items-center justify-between border-b shrink-0 bg-white">
-            <div>
-              <h2 className="font-headline text-lg font-black text-primary truncate leading-none">Handumanan</h2>
-              <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-1">Menu Navigator</p>
-            </div>
-            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={() => setIsDrawerOpen(false)}>
-              <X size={18} />
-            </Button>
-         </div>
-         
-         <ScrollArea className="flex-1">
-            <div className="p-3 space-y-5">
-               <Accordion type="multiple" defaultValue={["directory"]} className="space-y-3">
-                  <AccordionItem value="directory" className="border-none">
-                     <AccordionTrigger className="hover:no-underline py-0 mb-3 text-[8px] font-black uppercase tracking-widest text-slate-400 text-left whitespace-normal break-words">
-                       Quick Directory
-                     </AccordionTrigger>
-                     <AccordionContent>
-                        <div className="space-y-1">
-                           {allSites.slice(0, 12).map(site => (
-                             <div key={site.id} onClick={() => { handleSuggestionClick(site); setIsDrawerOpen(false); }} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded-lg cursor-pointer group">
-                                <p className="text-[10px] font-bold text-slate-900 leading-tight whitespace-normal break-words flex-1">{site.name}</p>
-                             </div>
-                           ))}
-                        </div>
-                     </AccordionContent>
-                  </AccordionItem>
-               </Accordion>
-
-               <div className="pt-3 space-y-1 border-t">
-                  <Link href="/" className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-lg text-slate-600 font-bold transition-all text-xs"><Home size={14} /> Home</Link>
-                  <Link href="/profile" className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-lg text-slate-600 font-bold transition-all text-xs"><Settings size={14} /> Profile</Link>
-               </div>
-            </div>
-         </ScrollArea>
-      </div>
-
-      {/* KEY CONFIG DIALOG */}
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
-        <DialogContent className="max-w-xs md:max-w-md rounded-[1.5rem] md:rounded-[2.5rem] p-6 md:p-10 border-none shadow-3xl bg-white/95 backdrop-blur-2xl">
-          <DialogTitle className="text-xl md:text-3xl font-black text-slate-900">Map Key Required</DialogTitle>
-          <DialogDescription className="py-2 md:py-4 text-slate-500 font-medium text-xs md:text-base">Please provide your OpenRouteService API key to enable road-accurate navigation.</DialogDescription>
-          <Input placeholder="Enter API Key" value={tempKey} onChange={(e) => setTempKey(e.target.value)} className="h-11 md:h-14 rounded-xl md:rounded-2xl bg-slate-100/80 border-none px-4 md:px-6 font-mono text-[10px] md:text-[12px]" />
-          <DialogFooter className="mt-4 md:mt-8">
-            <Button className="w-full h-11 md:h-14 rounded-xl md:rounded-2xl bg-primary text-white font-black text-[10px] md:text-[12px] uppercase tracking-widest shadow-xl shadow-primary/30" onClick={handleSaveKey}>Initialize Maps</Button>
+        <DialogContent className="max-w-xs rounded-3xl p-6 border-none shadow-3xl bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-black text-slate-900">Map Key Required</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">Enter your OpenRouteService API key to enable road-accurate routing.</DialogDescription>
+          </DialogHeader>
+          <Input placeholder="API Key" value={tempKey} onChange={(e) => setTempKey(e.target.value)} className="h-11 rounded-xl bg-slate-100 border-none px-4" />
+          <DialogFooter className="mt-4">
+            <Button className="w-full h-11 rounded-xl bg-primary text-white font-black text-[10px] uppercase tracking-widest" onClick={handleSaveKey}>Initialize Maps</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

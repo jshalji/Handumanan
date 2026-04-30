@@ -5,10 +5,11 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, Circle, Toolt
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
-import { Plus, Check, MapPin, Navigation, Info } from 'lucide-react';
-import Image from 'next/image';
+import { Plus, Check, Navigation, AlertCircle, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
-// Fix for default marker icons in NextJS
 const DefaultIcon = L.icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
@@ -72,46 +73,35 @@ function MapController({
 }) {
   const map = useMap();
 
-  // 1. City Selection Centering (Triggered only when cityTarget.timestamp changes)
   useEffect(() => {
     if (cityTarget) {
       map.setView([cityTarget.lat, cityTarget.lng], cityTarget.zoom, { animate: true, duration: 1.5 });
     }
   }, [cityTarget?.timestamp, map]);
 
-  // 2. Active Navigation Tracking
   useEffect(() => {
     if (isNavigating && userLocation) {
       map.panTo([userLocation.lat, userLocation.lng], { animate: true, duration: 1 });
-      if (map.getZoom() < 16) {
-        map.setZoom(17, { animate: true });
-      }
+      if (map.getZoom() < 16) map.setZoom(17);
     }
   }, [isNavigating, userLocation?.lat, userLocation?.lng, map]);
 
-  // 3. Recenter Manual Request
   useEffect(() => {
     if (recenterKey && recenterKey > 0 && userLocation) {
       map.setView([userLocation.lat, userLocation.lng], 17, { animate: true });
     }
   }, [recenterKey, userLocation, map]);
 
-  // 4. Manually Focused Site
   useEffect(() => {
     if (focusedLocation) {
-      map.setView([focusedLocation.lat, focusedLocation.lng], 16, { animate: true, duration: 1 });
+      map.setView([focusedLocation.lat, focusedLocation.lng], 16, { animate: true });
     }
   }, [focusedLocation, map]);
 
-  // 5. Initial Route View (Fit Bounds)
   useEffect(() => {
     if (!isNavigating && !focusedLocation && routeCoordinates && routeCoordinates.length > 1) {
       const bounds = L.polyline(routeCoordinates).getBounds();
-      map.fitBounds(bounds, { 
-        padding: [120, 120], 
-        animate: true,
-        duration: 1.5
-      });
+      map.fitBounds(bounds, { padding: [100, 100], animate: true });
     }
   }, [routeCoordinates, isNavigating, focusedLocation, map]);
 
@@ -132,6 +122,12 @@ export default function HeritageMap({
   recenterKey
 }: HeritageMapProps) {
   const [mounted, setMounted] = useState(false);
+  const { user } = useUser();
+  const db = useFirestore();
+
+  const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: userData } = useDoc(userDocRef);
+  const isAdmin = userData?.role === 'admin';
 
   useEffect(() => {
     setMounted(true);
@@ -139,19 +135,17 @@ export default function HeritageMap({
 
   const userPulse = useMemo(() => createUserPulseIcon(), []);
 
-  if (!mounted) return <div className="h-full w-full bg-slate-100 animate-pulse flex items-center justify-center text-slate-400 font-bold uppercase tracking-widest text-xs">Mapping Heritage...</div>;
+  if (!mounted) return <div className="h-full w-full bg-slate-50" />;
 
-  const defaultCenter: [number, number] = [10.2936, 123.9019]; 
-  const center: [number, number] = userLocation ? [userLocation.lat, userLocation.lng] : defaultCenter;
+  const defaultCenter: [number, number] = [10.3157, 123.8854]; 
 
   return (
     <div className="h-full w-full relative z-0">
       <MapContainer 
-        center={center} 
-        zoom={14} 
+        center={defaultCenter} 
+        zoom={13} 
         zoomControl={false} 
         style={{ height: '100%', width: '100%' }}
-        scrollWheelZoom={true}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -168,16 +162,9 @@ export default function HeritageMap({
         />
 
         {userLocation && (
-          <>
-            <Circle 
-              center={[userLocation.lat, userLocation.lng]} 
-              radius={400} 
-              pathOptions={{ fillColor: '#10b981', fillOpacity: 0.15, color: '#10b981', weight: 1, dashArray: '5, 5' }} 
-            />
-            <Marker position={[userLocation.lat, userLocation.lng]} icon={userPulse}>
-              <Popup className="compact-popup">Your Location</Popup>
-            </Marker>
-          </>
+          <Marker position={[userLocation.lat, userLocation.lng]} icon={userPulse}>
+            <Popup>Your Location</Popup>
+          </Marker>
         )}
 
         {sites.map((site) => {
@@ -191,35 +178,41 @@ export default function HeritageMap({
           return (
             <Marker 
               key={site.id} 
-              position={[site.coordinates?.lat || 0, site.coordinates?.lng || 0]}
+              position={[site.coordinates.lat, site.coordinates.lng]}
               icon={markerIcon}
-              opacity={isInItinerary ? 1 : 0.8}
             >
-              <Popup className="modern-popup">
-                <div className="w-72 overflow-hidden rounded-[1.5rem] bg-white p-0 shadow-2xl">
-                  <div className="relative h-36 w-full overflow-hidden">
-                    <img src={site.imageUrl} alt={site.name} className="h-full w-full object-cover transition-transform duration-700 hover:scale-110" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                    <div className="absolute bottom-4 left-4 right-4 text-white">
-                      <p className="text-[8px] font-black uppercase tracking-widest mb-1 opacity-80">{site.city}</p>
-                      <h3 className="font-black text-sm leading-tight line-clamp-1">{site.name}</h3>
+              <Popup className="compact-popup">
+                <div className="w-64 overflow-hidden rounded-2xl bg-white shadow-xl">
+                  {site.imageUrl && (
+                    <div className="relative h-32 w-full">
+                      <img src={site.imageUrl} alt={site.name} className="h-full w-full object-cover" />
                     </div>
-                  </div>
-                  <div className="p-5 space-y-4">
-                    <p className="text-[11px] text-slate-500 line-clamp-2 font-medium leading-relaxed">{site.description}</p>
-                    <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-50">
-                       <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-primary uppercase tracking-tighter flex items-center gap-1">
-                            <Navigation size={10} /> Active Stop
-                          </span>
-                       </div>
+                  )}
+                  <div className="p-4 space-y-3">
+                    <div>
+                      <h3 className="font-black text-sm text-slate-900 leading-tight mb-0.5">{site.name}</h3>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{site.city} • {site.category.split(' & ')[0]}</p>
+                    </div>
+                    
+                    <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed">{site.description}</p>
+                    
+                    {isAdmin && site.needsVerification && (
+                      <div className="flex items-center gap-2 p-2 bg-amber-50 rounded-lg text-amber-700 text-[8px] font-black uppercase">
+                        <AlertCircle size={10} /> Needs Verification
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-2 border-t">
+                      <Button asChild size="sm" variant="outline" className="flex-1 h-8 text-[9px] font-black uppercase rounded-lg">
+                        <Link href={`/site/${site.id}`}>Details</Link>
+                      </Button>
                       <Button 
                         size="sm" 
                         variant={isInItinerary ? "secondary" : "default"}
-                        className="h-9 rounded-2xl text-[10px] font-black uppercase tracking-widest px-5 shadow-lg shadow-primary/10"
+                        className="flex-1 h-8 text-[9px] font-black uppercase rounded-lg"
                         onClick={() => onAddSite(site.id)}
                       >
-                        {isInItinerary ? <><Check size={14} className="mr-1" /> Added</> : <><Plus size={14} className="mr-1" /> Add to Route</>}
+                        {isInItinerary ? <Check size={12} /> : <Plus size={12} />} Route
                       </Button>
                     </div>
                   </div>
@@ -230,39 +223,22 @@ export default function HeritageMap({
         })}
 
         {routeCoordinates && routeCoordinates.length > 1 && (
-          <>
-            <Polyline 
-              positions={routeCoordinates} 
-              color="#10b981" 
-              weight={14} 
-              opacity={0.15} 
-              lineCap="round"
-              lineJoin="round"
-            />
-            <Polyline 
-              positions={routeCoordinates} 
-              color="#10b981" 
-              weight={7} 
-              opacity={1} 
-              lineCap="round"
-              lineJoin="round"
-              smoothFactor={1.2}
-            >
-              {totalTime && totalDist && (
-                <Tooltip direction="top" offset={[0, -25]} permanent className="route-info-tooltip">
-                  <div className="flex items-center gap-3">
-                    <div className="p-1 bg-primary/10 rounded-lg text-primary">
-                        <Navigation size={12} />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-slate-900 font-black text-sm">{Math.round(totalTime)} MIN</span>
-                      <span className="text-slate-400 text-[9px] font-black uppercase tracking-widest">{totalDist.toFixed(1)} KM PATH</span>
-                    </div>
-                  </div>
-                </Tooltip>
-              )}
-            </Polyline>
-          </>
+          <Polyline 
+            positions={routeCoordinates} 
+            color="#10b981" 
+            weight={6} 
+            opacity={0.8}
+            lineCap="round"
+          >
+            {totalTime && totalDist && (
+              <Tooltip sticky direction="top" className="route-tooltip">
+                <div className="flex items-center gap-2 p-1">
+                  <Navigation size={12} className="text-primary" />
+                  <span className="text-[10px] font-black">{Math.round(totalTime)} MIN • {totalDist.toFixed(1)} KM</span>
+                </div>
+              </Tooltip>
+            )}
+          </Polyline>
         )}
       </MapContainer>
     </div>
