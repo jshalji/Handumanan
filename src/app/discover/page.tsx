@@ -106,7 +106,6 @@ function ExploreRouteContent() {
   
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [isGeneratingPlanner, setIsGeneratingPlanner] = useState(false);
   const [plannerTimeType, setPlannerTimeType] = useState<'preset' | 'custom'>('preset');
   const [selectedPresetTime, setSelectedPresetTime] = useState(4);
@@ -140,17 +139,17 @@ function ExploreRouteContent() {
       setUserLocation(loc);
       setRecenterKey(prev => prev + 1);
       return loc;
-    } catch (err) {
-      toast({ title: "Location Error", description: "Unable to retrieve your location.", variant: "destructive" });
+    } catch (err: any) {
+      const message = err.code === 1 ? "Location permission is required to show your position." : "Unable to retrieve your location.";
+      toast({ title: "Location Error", description: message, variant: "destructive" });
       return null;
     } finally {
       setLoading(false);
     }
   }, [toast]);
 
-  useEffect(() => {
-    detectLocation();
-  }, [detectLocation]);
+  // Initial load auto-zoom/pan is disabled per requirements
+  // We only track location when the user initiates it via the floating button
 
   const allSites = useMemo(() => {
     let result = HERITAGE_SITES.map(site => ({
@@ -168,15 +167,16 @@ function ExploreRouteContent() {
       ...site,
       distance: userLocation ? calculateDistance(userLocation.lat, userLocation.lng, site.coordinates.lat, site.coordinates.lng) : 0
     }));
-    if (searchQuery && !showSuggestions) {
+    if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(s => 
         s.name.toLowerCase().includes(q) || 
-        s.city.toLowerCase().includes(q)
+        s.city.toLowerCase().includes(q) ||
+        s.category.toLowerCase().includes(q)
       );
     }
     return result;
-  }, [allSites, userLocation, searchQuery, showSuggestions]);
+  }, [allSites, userLocation, searchQuery]);
 
   const itinerarySites = useMemo(() => {
     return itineraryIds.map(id => HERITAGE_SITES.find(s => s.id === id)).filter(Boolean) as HeritageSite[];
@@ -264,7 +264,7 @@ function ExploreRouteContent() {
         />
       </div>
 
-      <div className="absolute top-3 left-3 right-3 z-50 flex flex-col items-start gap-2 pointer-events-none md:max-w-[420px] md:top-6 md:left-6">
+      <div className="absolute top-3 left-3 right-3 z-50 flex flex-col items-start gap-2 pointer-events-none md:max-w-[360px] md:top-6 md:left-6">
         <div className="flex gap-2 items-center pointer-events-auto w-full">
           <Button 
             onClick={() => setIsPanelExpanded(!isPanelExpanded)}
@@ -282,40 +282,58 @@ function ExploreRouteContent() {
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)}
             />
+            {searchQuery && filteredAndSortedSites.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-2xl border-none ring-1 ring-black/5 max-h-[200px] overflow-y-auto pointer-events-auto">
+                {filteredAndSortedSites.slice(0, 8).map(site => (
+                  <button 
+                    key={site.id} 
+                    onClick={() => { centerOnSite(site); setSearchQuery(''); }}
+                    className="w-full text-left p-3 hover:bg-slate-50 flex flex-col gap-0.5 border-b border-slate-50 last:border-none"
+                  >
+                    <span className="text-xs font-black text-slate-900">{site.name}</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{site.city} • {site.category.split(' & ')[0]}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {searchQuery && filteredAndSortedSites.length === 0 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-2xl p-4 text-center pointer-events-auto">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No results found</p>
+              </div>
+            )}
           </div>
-
-          <Button 
-            onClick={detectLocation}
-            size="icon" 
-            className="h-10 w-10 shrink-0 rounded-xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
-          >
-            {loading ? <Loader2 className="animate-spin" size={16} /> : <LocateFixed size={18} />}
-          </Button>
         </div>
 
         {isPanelExpanded && (
-          <Card className="pointer-events-auto w-full border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-2xl flex flex-col overflow-hidden max-h-[60vh]">
+          <Card className="pointer-events-auto w-full border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-2xl flex flex-col overflow-hidden max-h-[60vh] mt-2">
+            <div className="flex items-center justify-between px-4 py-2 bg-slate-50/50 border-b">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Workspace</span>
+              <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full md:hidden" onClick={() => setIsPanelExpanded(false)}>
+                <ChevronDown size={14} />
+              </Button>
+            </div>
+            
             <Tabs defaultValue="discover" className="w-full flex flex-col">
-              <TabsList className="grid w-full grid-cols-2 bg-slate-50 rounded-none h-12">
+              <TabsList className="grid w-full grid-cols-2 bg-slate-50 rounded-none h-10">
                 <TabsTrigger value="discover" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-white">
                   <Compass size={14} className="mr-2" /> Discover
                 </TabsTrigger>
                 <TabsTrigger value="planner" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-white">
-                  <Sparkles size={14} className="mr-2" /> AI Planner
+                  <Sparkles size={14} className="mr-2" /> Planner
                 </TabsTrigger>
               </TabsList>
               
               <div className="flex-1 overflow-y-auto scrollbar-hide">
-                <TabsContent value="discover" className="m-0 p-4 space-y-5 animate-in fade-in duration-300">
-                  <div className="space-y-2">
+                <TabsContent value="discover" className="m-0 p-3 space-y-4 animate-in fade-in duration-300">
+                  <div className="space-y-1.5">
                     <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Cities</p>
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-2 gap-1">
                       {CITIES.map(city => (
                         <button 
                           key={city} 
                           onClick={() => { setSelectedCity(city); setCityTarget({ ...CITY_COORDS[city], timestamp: Date.now() }); }} 
                           className={cn(
-                            "text-[10px] font-bold py-2 rounded-xl transition-all border min-h-[44px]",
+                            "text-[10px] font-bold py-1.5 rounded-xl transition-all border h-9",
                             selectedCity === city ? "bg-primary text-white border-primary shadow-lg" : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
                           )}
                         >
@@ -325,7 +343,7 @@ function ExploreRouteContent() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Categories</p>
                     <div className="grid grid-cols-1 gap-1">
                       {CATEGORIES.map(cat => (
@@ -333,21 +351,21 @@ function ExploreRouteContent() {
                           key={cat.value} 
                           onClick={() => setSelectedCategory(selectedCategory === cat.value ? null : cat.value)} 
                           className={cn(
-                            "flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all border text-left leading-tight min-h-[44px]",
+                            "flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border text-left min-h-[40px]",
                             selectedCategory === cat.value ? "bg-slate-900 text-white border-slate-900 shadow-lg" : "bg-white border-slate-100 text-slate-600"
                           )}
                         >
-                          <cat.icon size={14} className="shrink-0" />
-                          <span className="text-[10px] font-bold break-words">{cat.label}</span>
+                          <cat.icon size={12} className="shrink-0" />
+                          <span className="text-[10px] font-bold leading-tight break-words">{cat.label}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
                   {itineraryIds.length > 0 && (
-                    <div className="pt-4 border-t space-y-3">
-                       <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Active Route</p>
-                       <div className="space-y-1.5">
+                    <div className="pt-3 border-t space-y-2">
+                       <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Selected Stops</p>
+                       <div className="space-y-1">
                          {itineraryIds.map((id, idx) => {
                            const site = HERITAGE_SITES.find(s => s.id === id);
                            return site ? (
@@ -359,24 +377,24 @@ function ExploreRouteContent() {
                            ) : null;
                          })}
                        </div>
-                       <Button onClick={() => setIsNavigating(true)} className="w-full h-11 bg-primary text-[10px] font-black uppercase tracking-widest rounded-xl">
+                       <Button onClick={() => setIsNavigating(true)} className="w-full h-10 bg-primary text-[10px] font-black uppercase tracking-widest rounded-xl">
                          <Route size={14} className="mr-2" /> Start Navigation
                        </Button>
                     </div>
                   )}
                 </TabsContent>
 
-                <TabsContent value="planner" className="m-0 p-4 space-y-6 animate-in fade-in duration-300">
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase text-slate-400">Travel Duration</Label>
-                      <div className="grid grid-cols-2 gap-2">
+                <TabsContent value="planner" className="m-0 p-3 space-y-4 animate-in fade-in duration-300">
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-black uppercase text-slate-400">Time Estimate</Label>
+                      <div className="grid grid-cols-2 gap-1.5">
                         {TIME_PRESETS.map(preset => (
                           <button 
                             key={preset.value}
                             onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
                             className={cn(
-                              "px-3 py-2.5 rounded-xl text-[10px] font-black uppercase border transition-all h-11",
+                              "px-2 py-1.5 rounded-xl text-[10px] font-black uppercase border h-9 transition-all",
                               plannerTimeType === 'preset' && selectedPresetTime === preset.value ? "bg-primary text-white border-primary shadow-lg" : "bg-white border-slate-100 text-slate-500"
                             )}
                           >
@@ -386,12 +404,12 @@ function ExploreRouteContent() {
                       </div>
                     </div>
                     
-                    <Button onClick={handleGeneratePlanner} disabled={isGeneratingPlanner} className="w-full h-12 rounded-xl bg-primary text-[10px] font-black uppercase tracking-widest shadow-xl shadow-primary/20">
+                    <Button onClick={handleGeneratePlanner} disabled={isGeneratingPlanner} className="w-full h-10 rounded-xl bg-primary text-[10px] font-black uppercase tracking-widest shadow-xl shadow-primary/20">
                       {isGeneratingPlanner ? <Loader2 className="animate-spin" size={14} /> : "Build Itinerary"}
                     </Button>
 
                     {itineraryIds.length > 0 && (
-                      <Button variant="outline" onClick={handleSavePlanner} className="w-full h-12 rounded-xl text-[10px] font-black uppercase tracking-widest border-2">
+                      <Button variant="outline" onClick={handleSavePlanner} className="w-full h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border-2">
                         <SaveIcon size={14} className="mr-2" /> Save Trip
                       </Button>
                     )}
@@ -401,6 +419,31 @@ function ExploreRouteContent() {
             </Tabs>
           </Card>
         )}
+
+        {!isPanelExpanded && (
+          <Button 
+            onClick={() => setIsPanelExpanded(true)}
+            className="pointer-events-auto h-10 px-5 rounded-full bg-white/95 backdrop-blur-xl text-primary font-black uppercase text-[10px] tracking-widest shadow-2xl ring-1 ring-black/5 hover:bg-white"
+          >
+            <Compass size={14} className="mr-2" /> Discover
+          </Button>
+        )}
+      </div>
+
+      {/* Floating Buttons Stack - Bottom Right */}
+      <div className={cn(
+        "fixed bottom-4 right-4 z-[5000] flex flex-col gap-3 transition-all duration-300",
+        isNavigating && "bottom-[220px] md:bottom-4"
+      )}>
+        <Button 
+          onClick={detectLocation}
+          size="icon" 
+          className="h-11 w-11 rounded-xl shadow-2xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
+        >
+          {loading ? <Loader2 className="animate-spin" size={18} /> : <LocateFixed size={20} />}
+        </Button>
+        {/* Chatbot will render below this via RootLayout + fixed positioning, 
+            but we adjust its vertical offset if navigation is active */}
       </div>
 
       {isNavigating && userLocation && itinerarySites.length > 0 && (

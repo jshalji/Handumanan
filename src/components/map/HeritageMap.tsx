@@ -87,6 +87,7 @@ function MapController({
   }, [isNavigating, userLocation?.lat, userLocation?.lng, map]);
 
   useEffect(() => {
+    // Only recenter when explicitly requested via recenterKey increment
     if (recenterKey && recenterKey > 0 && userLocation) {
       map.setView([userLocation.lat, userLocation.lng], 17, { animate: true });
     }

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -6,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, X, Send, Sparkles, MapPin, Landmark, Church, Minimize2 } from 'lucide-react';
+import { MessageCircle, X, Send, Sparkles, MapPin, Landmark, Minimize2 } from 'lucide-react';
 import { chatWithHeritageBot } from '@/ai/flows/heritage-chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase';
+import { usePathname } from 'next/navigation';
 
 interface Message {
   role: 'user' | 'model';
@@ -31,6 +31,7 @@ export function HeritageChatBot() {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { user } = useUser();
+  const pathname = usePathname();
 
   useEffect(() => {
     setMounted(true);
@@ -89,13 +90,17 @@ export function HeritageChatBot() {
 
   if (!mounted) return null;
 
+  // Adjust bottom offset if the navigation card is present on the discover page
+  const isDiscoverPage = pathname === '/discover';
+
   return (
     <>
       <Button
         onClick={() => setIsOpen(true)}
         className={cn(
-          "fixed bottom-4 right-4 h-11 w-11 md:h-12 md:w-12 rounded-xl shadow-2xl z-[5000] transition-all duration-300 bg-primary hover:bg-primary/90 text-white p-0",
-          isOpen ? "scale-0 opacity-0" : "scale-100 opacity-100"
+          "fixed right-4 h-11 w-11 md:h-12 md:w-12 rounded-xl shadow-2xl z-[5000] transition-all duration-300 bg-primary hover:bg-primary/90 text-white p-0",
+          isOpen ? "scale-0 opacity-0" : "scale-100 opacity-100",
+          isDiscoverPage ? "bottom-4" : "bottom-4"
         )}
       >
         <MessageCircle size={22} />
@@ -103,8 +108,9 @@ export function HeritageChatBot() {
 
       <Card 
         className={cn(
-          "fixed bottom-3 right-3 md:bottom-6 md:right-6 w-[calc(100vw-24px)] md:w-[320px] h-[400px] md:h-[480px] max-h-[70vh] z-[5001] transition-all duration-500 flex flex-col rounded-[1.5rem] md:rounded-[2rem] shadow-2xl border-none overflow-hidden bg-white/95 backdrop-blur-2xl ring-1 ring-black/5",
-          isOpen ? "translate-y-0 opacity-100 scale-100" : "translate-y-10 opacity-0 scale-95 pointer-events-none"
+          "fixed right-3 md:right-6 w-[calc(100vw-24px)] md:w-[320px] h-[400px] md:h-[480px] max-h-[70vh] z-[5001] transition-all duration-500 flex flex-col rounded-[1.5rem] md:rounded-[2rem] shadow-2xl border-none overflow-hidden bg-white/95 backdrop-blur-2xl ring-1 ring-black/5",
+          isOpen ? "translate-y-0 opacity-100 scale-100" : "translate-y-10 opacity-0 scale-95 pointer-events-none",
+          isDiscoverPage ? "bottom-3 md:bottom-6" : "bottom-6"
         )}
       >
         <CardHeader className="bg-primary text-white p-3 md:p-4 flex flex-row items-center justify-between shrink-0">
