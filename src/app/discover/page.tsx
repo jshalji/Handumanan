@@ -367,14 +367,6 @@ function ExploreRouteContent() {
     toast({ title: "Trip Saved", description: "Access this trip in your profile." });
   };
 
-  const handleHomeClick = () => {
-    if (isNavigating || itineraryIds.length > 0) {
-      setIsHomeConfirmOpen(true);
-    } else {
-      router.push('/');
-    }
-  };
-
   const NavDrawer = () => (
     <Sheet open={isNavDrawerOpen} onOpenChange={setIsNavDrawerOpen}>
       <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0 border-none shadow-2xl bg-white flex flex-col">
@@ -453,25 +445,25 @@ function ExploreRouteContent() {
       {/* PERSISTENT GLOBAL NAVIGATION */}
       <div className="fixed top-4 left-4 z-[1001] flex flex-col gap-3 pointer-events-auto">
         <Button 
-          onClick={() => setIsNavDrawerOpen(true)}
+          onClick={() => setIsNavDrawerOpen(prev => !prev)}
           size="icon" 
           className="h-12 w-12 rounded-2xl shadow-3xl bg-white/95 backdrop-blur-xl text-primary hover:bg-white border-none ring-1 ring-black/5"
         >
           <Menu size={24} />
         </Button>
         <Button 
-          onClick={handleHomeClick}
+          onClick={() => setIsPanelExpanded(prev => !prev)}
           size="icon" 
           className="h-12 w-12 rounded-2xl shadow-3xl bg-white/95 backdrop-blur-xl text-slate-500 hover:text-primary hover:bg-white border-none ring-1 ring-black/5"
         >
-          <Home size={24} />
+          <Compass size={24} />
         </Button>
       </div>
 
       <NavDrawer />
 
       {/* TOP HEADER CONTROLS */}
-      <div className="fixed top-4 left-20 right-4 z-[1000] flex flex-col items-start gap-2 pointer-events-none md:max-w-[340px] md:left-24">
+      <div className="fixed top-4 left-20 right-4 z-[1000] flex flex-col items-start gap-2 pointer-events-none md:max-w-[400px] md:left-24">
         <div className="flex gap-2 items-center pointer-events-auto w-full">
           <div className="relative group flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -483,6 +475,14 @@ function ExploreRouteContent() {
             />
           </div>
           
+          <Button 
+            onClick={detectLocation}
+            size="icon" 
+            className="h-12 w-12 shrink-0 rounded-2xl shadow-3xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
+          >
+            {loading ? <Loader2 className="animate-spin" size={20} /> : <LocateFixed size={20} />}
+          </Button>
+
           <Button 
             onClick={() => setIsPanelExpanded(!isPanelExpanded)}
             size="icon" 
@@ -534,7 +534,7 @@ function ExploreRouteContent() {
                   </div>
 
                   <div className="space-y-2">
-                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Heritage Categories</p>
+                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Categories</p>
                     <div className="grid grid-cols-1 gap-2">
                       {CATEGORIES.map(cat => (
                         <button 
@@ -727,7 +727,6 @@ function ExploreRouteContent() {
                           </div>
                         )}
                     </div>
-                  </>
                   )}
                 </TabsContent>
               </div>
@@ -736,21 +735,14 @@ function ExploreRouteContent() {
         )}
       </div>
 
-      {/* BOTTOM RIGHT FLOATING CONTROLS (Coordinated stacking) */}
+      {/* BOTTOM RIGHT FLOATING CONTROLS */}
       <div className="fixed bottom-6 right-6 z-[1001] flex flex-col gap-4 items-end pointer-events-auto">
-        <Button 
-          onClick={detectLocation}
-          size="icon" 
-          className="h-12 w-12 shrink-0 rounded-2xl shadow-3xl bg-white/95 backdrop-blur-xl text-primary hover:bg-white border-none ring-1 ring-black/5"
-        >
-          {loading ? <Loader2 className="animate-spin" size={24} /> : <LocateFixed size={24} />}
-        </Button>
-        
-        {/* Chatbot is controlled independently but coordinates its spacing via HeritageChatBot.tsx */}
+        {/* Only Chatbot here now, location is beside search bar */}
       </div>
 
+      {/* AUTO-GENERATE DIALOG */}
       <Dialog open={isAutoDialogOpen} onOpenChange={setIsAutoDialogOpen}>
-        <DialogContent className="max-w-[340px] rounded-[2.5rem] p-8 border-none shadow-3xl bg-white text-slate-900">
+        <DialogContent className="max-w-[calc(100vw-32px)] sm:max-w-[400px] rounded-[2.5rem] p-6 sm:p-8 border-none shadow-3xl bg-white text-slate-900">
           <DialogHeader>
             <DialogTitle className="text-xl font-headline font-black">Auto-Generate Trip</DialogTitle>
             <DialogDescription className="text-xs text-slate-500 leading-relaxed">
@@ -758,7 +750,7 @@ function ExploreRouteContent() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-6 mt-4">
+          <div className="space-y-5 mt-4">
             <div className="space-y-2">
               <Label className="text-[9px] font-black uppercase text-slate-400">Generation Mode</Label>
               <div className="grid grid-cols-1 gap-2">
@@ -771,11 +763,11 @@ function ExploreRouteContent() {
                     key={mode.id}
                     onClick={() => setAutoMode(mode.id as any)}
                     className={cn(
-                      "flex items-center gap-4 p-4 rounded-2xl border text-left transition-all",
+                      "flex items-center gap-4 p-3.5 rounded-2xl border text-left transition-all",
                       autoMode === mode.id ? "bg-slate-900 text-white border-slate-900 shadow-lg" : "bg-white border-slate-100 text-slate-600 hover:bg-slate-50"
                     )}
                   >
-                    <mode.icon size={20} className={cn(autoMode === mode.id ? "text-primary" : "text-slate-400")} />
+                    <mode.icon size={18} className={cn(autoMode === mode.id ? "text-primary" : "text-slate-400")} />
                     <div>
                       <p className="text-[11px] font-bold">{mode.label}</p>
                       <p className="text-[9px] opacity-70">{mode.desc}</p>
@@ -789,7 +781,7 @@ function ExploreRouteContent() {
               <div className="space-y-2 animate-in slide-in-from-top-1">
                 <Label className="text-[9px] font-black uppercase text-slate-400">Select Theme</Label>
                 <Select value={autoTheme} onValueChange={setAutoTheme}>
-                  <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-none text-[11px] font-bold">
+                  <SelectTrigger className="h-11 rounded-xl bg-slate-50 border-none text-[11px] font-bold">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl">
@@ -809,7 +801,7 @@ function ExploreRouteContent() {
                     key={preset.value}
                     onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
                     className={cn(
-                      "px-2 py-3 rounded-2xl text-[10px] font-black uppercase border h-10 transition-all",
+                      "px-2 py-2.5 rounded-2xl text-[10px] font-black uppercase border h-10 transition-all",
                       plannerTimeType === 'preset' && selectedPresetTime === preset.value ? "bg-primary text-white border-primary" : "bg-white border-slate-100 text-slate-500"
                     )}
                   >
@@ -822,11 +814,11 @@ function ExploreRouteContent() {
 
           <DialogFooter className="mt-8">
             <Button 
-              className="w-full h-14 rounded-2xl bg-primary text-white font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/20" 
+              className="w-full h-12 rounded-2xl bg-primary text-white font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/20" 
               onClick={handleAutoGenerate}
               disabled={isGeneratingPlanner}
             >
-              {isGeneratingPlanner ? <><Loader2 className="animate-spin mr-2" size={18} /> Planning...</> : "Generate My Trip"}
+              {isGeneratingPlanner ? <><Loader2 className="animate-spin mr-2" size={16} /> Planning...</> : "Generate My Trip"}
             </Button>
           </DialogFooter>
         </DialogContent>
