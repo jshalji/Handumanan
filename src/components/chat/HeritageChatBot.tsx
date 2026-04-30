@@ -90,7 +90,6 @@ export function HeritageChatBot() {
 
   if (!mounted) return null;
 
-  // Adjust bottom offset if the navigation card is present on the discover page
   const isDiscoverPage = pathname === '/discover';
 
   return (
@@ -98,48 +97,48 @@ export function HeritageChatBot() {
       <Button
         onClick={() => setIsOpen(true)}
         className={cn(
-          "fixed right-4 h-11 w-11 md:h-12 md:w-12 rounded-xl shadow-2xl z-[5000] transition-all duration-300 bg-primary hover:bg-primary/90 text-white p-0",
+          "fixed h-12 w-12 md:h-14 md:w-14 rounded-2xl shadow-3xl z-[5000] transition-all duration-300 bg-primary hover:bg-primary/90 text-white p-0",
           isOpen ? "scale-0 opacity-0" : "scale-100 opacity-100",
-          isDiscoverPage ? "bottom-4" : "bottom-4"
+          "bottom-6 right-6"
         )}
       >
-        <MessageCircle size={22} />
+        <MessageCircle size={28} />
       </Button>
 
       <Card 
         className={cn(
-          "fixed right-3 md:right-6 w-[calc(100vw-24px)] md:w-[320px] h-[400px] md:h-[480px] max-h-[70vh] z-[5001] transition-all duration-500 flex flex-col rounded-[1.5rem] md:rounded-[2rem] shadow-2xl border-none overflow-hidden bg-white/95 backdrop-blur-2xl ring-1 ring-black/5",
+          "fixed right-4 md:right-8 w-[calc(100vw-32px)] md:w-[360px] h-[450px] md:h-[520px] max-h-[75vh] z-[5001] transition-all duration-500 flex flex-col rounded-[2.5rem] shadow-3xl border-none overflow-hidden bg-white/95 backdrop-blur-3xl ring-1 ring-black/5",
           isOpen ? "translate-y-0 opacity-100 scale-100" : "translate-y-10 opacity-0 scale-95 pointer-events-none",
-          isDiscoverPage ? "bottom-3 md:bottom-6" : "bottom-6"
+          isDiscoverPage ? "bottom-6 md:bottom-8" : "bottom-8"
         )}
       >
-        <CardHeader className="bg-primary text-white p-3 md:p-4 flex flex-row items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="bg-white/20 p-1 rounded-lg">
-              <Sparkles size={14} />
+        <CardHeader className="bg-primary text-white p-5 md:p-6 flex flex-row items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-1.5 rounded-xl">
+              <Sparkles size={18} />
             </div>
-            <CardTitle className="text-xs md:text-sm font-headline font-black">Heritage Guide</CardTitle>
+            <CardTitle className="text-sm md:text-base font-headline font-black uppercase tracking-widest">Heritage Guide</CardTitle>
           </div>
           <div className="flex gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-white" onClick={() => setIsOpen(false)}>
-              <Minimize2 size={16} />
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/10 rounded-full" onClick={() => setIsOpen(false)}>
+              <Minimize2 size={20} />
             </Button>
           </div>
         </CardHeader>
 
-        <CardContent className="flex-1 overflow-hidden p-0 flex flex-col bg-slate-50/20">
-          <ScrollArea className="flex-1 p-3 md:p-4" ref={scrollRef}>
-            <div className="space-y-3 pb-4">
+        <CardContent className="flex-1 overflow-hidden p-0 flex flex-col bg-slate-50/10">
+          <ScrollArea className="flex-1 p-4 md:p-5" ref={scrollRef}>
+            <div className="space-y-4 pb-6">
               {messages.map((msg, i) => (
                 <div 
                   key={i} 
                   className={cn(
-                    "flex flex-col max-w-[85%] animate-in fade-in slide-in-from-bottom-1 duration-300",
+                    "flex flex-col max-w-[88%] animate-in fade-in slide-in-from-bottom-2 duration-400",
                     msg.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
                   )}
                 >
                   <div className={cn(
-                    "p-2.5 md:p-3 rounded-xl md:rounded-2xl text-[11px] md:text-[13px] leading-relaxed shadow-sm",
+                    "p-3.5 md:p-4 rounded-2xl md:rounded-[1.5rem] text-[12px] md:text-[14px] font-medium leading-relaxed shadow-sm",
                     msg.role === 'user' 
                       ? "bg-primary text-white rounded-tr-none" 
                       : "bg-white text-slate-800 rounded-tl-none ring-1 ring-black/5"
@@ -149,50 +148,50 @@ export function HeritageChatBot() {
                 </div>
               ))}
               {isLoading && (
-                <div className="flex gap-1 p-2">
-                  <div className="w-1 h-1 bg-slate-300 rounded-full animate-bounce" />
-                  <div className="w-1 h-1 bg-slate-300 rounded-full animate-bounce delay-100" />
-                  <div className="w-1 h-1 bg-slate-300 rounded-full animate-bounce delay-200" />
+                <div className="flex gap-1.5 p-3">
+                  <div className="w-1.5 h-1.5 bg-primary/30 rounded-full animate-bounce" />
+                  <div className="w-1.5 h-1.5 bg-primary/30 rounded-full animate-bounce delay-150" />
+                  <div className="w-1.5 h-1.5 bg-primary/30 rounded-full animate-bounce delay-300" />
                 </div>
               )}
             </div>
           </ScrollArea>
 
-          <div className="px-3 pb-2 overflow-x-auto scrollbar-hide shrink-0">
-            <div className="flex gap-1.5">
+          <div className="px-4 pb-3 overflow-x-auto scrollbar-hide shrink-0">
+            <div className="flex gap-2">
               {QUICK_REPLIES.map((reply, i) => (
                 <Button
                   key={i}
                   variant="outline"
                   size="sm"
-                  className="h-7 rounded-full bg-white text-[9px] font-bold gap-1 px-2.5 shadow-sm border-slate-100"
+                  className="h-8 rounded-full bg-white text-[10px] font-black uppercase tracking-wider gap-2 px-4 shadow-sm border-slate-100 hover:bg-slate-50 transition-colors"
                   onClick={() => handleSendMessage(reply.label)}
                 >
-                  {reply.label}
+                  <reply.icon size={12} /> {reply.label}
                 </Button>
               ))}
             </div>
           </div>
         </CardContent>
 
-        <CardFooter className="p-2 md:p-3 bg-white border-t shrink-0">
+        <CardFooter className="p-3 md:p-4 bg-white border-t shrink-0">
           <form 
             onSubmit={(e) => { e.preventDefault(); handleSendMessage(input); }} 
-            className="flex w-full items-center gap-2"
+            className="flex w-full items-center gap-3"
           >
             <Input
-              placeholder="Ask Guide..."
+              placeholder="Ask the Guide..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="rounded-xl h-9 md:h-10 bg-slate-100 border-none text-[11px] md:text-[13px] px-3 focus-visible:ring-1 focus-visible:ring-primary/30"
+              className="rounded-2xl h-11 md:h-12 bg-slate-50 border-none text-[13px] px-4 focus-visible:ring-2 focus-visible:ring-primary/20"
             />
             <Button 
               type="submit" 
               size="icon" 
-              className="h-9 w-9 md:h-10 md:w-10 rounded-xl shrink-0" 
+              className="h-11 w-11 md:h-12 md:w-12 rounded-2xl shrink-0 shadow-xl shadow-primary/20" 
               disabled={isLoading || !input.trim()}
             >
-              <Send size={14} />
+              <Send size={18} />
             </Button>
           </form>
         </CardFooter>
