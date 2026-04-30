@@ -292,16 +292,18 @@ function ExploreRouteContent() {
         </div>
 
         {isPanelExpanded && (
-          <Card className="pointer-events-auto w-full border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-2xl flex flex-col overflow-hidden max-h-[60vh] mt-2">
-            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50/50 border-b">
+          <Card 
+            className="pointer-events-auto w-full border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-2xl flex flex-col overflow-hidden max-h-[60vh] md:max-h-[70vh] mt-2 z-[1000]"
+          >
+            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50/50 border-b shrink-0">
               <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Discover & Plan</span>
               <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full" onClick={() => setIsPanelExpanded(false)}>
                 <ChevronDown size={14} />
               </Button>
             </div>
             
-            <Tabs defaultValue="discover" className="w-full flex flex-col">
-              <TabsList className="grid w-full grid-cols-2 bg-slate-50 rounded-none h-9">
+            <Tabs defaultValue="discover" className="w-full flex-1 flex flex-col min-h-0">
+              <TabsList className="grid w-full grid-cols-2 bg-slate-50 rounded-none h-9 shrink-0">
                 <TabsTrigger value="discover" className="text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-white">
                   <Compass size={12} className="mr-1.5" /> Discover
                 </TabsTrigger>
@@ -310,7 +312,10 @@ function ExploreRouteContent() {
                 </TabsTrigger>
               </TabsList>
               
-              <div className="flex-1 overflow-y-auto scrollbar-hide">
+              <div 
+                className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pb-8 scrollbar-hide pointer-events-auto"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
                 <TabsContent value="discover" className="m-0 p-2.5 space-y-3 animate-in fade-in duration-300">
                   <div className="space-y-1">
                     <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Cities</p>
