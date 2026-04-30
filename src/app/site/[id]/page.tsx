@@ -1,7 +1,8 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Navbar } from '@/components/layout/Navbar';
 import { getSiteById } from '@/lib/heritage-data';
 import { Button } from '@/components/ui/button';
@@ -11,9 +12,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, serverTimestamp, doc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Route, Heart, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Route, Heart, Loader2, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 
 export default function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -26,6 +34,9 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   const [rating, setRating] = useState(5);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDescExpanded, setIsDescExpanded] = useState(false);
+
+  // Combine main image and gallery images for the carousel
+  const allImages = site ? [site.imageUrl, ...(site.galleryImages || [])].filter(Boolean) : [];
 
   const reviewsQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -91,8 +102,8 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
     <div className="min-h-screen bg-background pb-20">
       <Navbar />
       
-      {/* Header section - Text Optimized */}
-      <div className="bg-slate-900 py-16 md:py-24 text-white">
+      {/* Header section */}
+      <div className="bg-slate-900 pt-16 pb-12 md:pt-24 md:pb-16 text-white overflow-hidden">
         <div className="container mx-auto px-4">
           <Link href="/explore" className="inline-flex items-center text-white/60 hover:text-white mb-8 transition-colors">
             <ArrowLeft className="mr-2" size={18} /> Back to directory
@@ -105,6 +116,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
               <span className="text-sm font-bold">{site.rating}</span>
             </div>
           </div>
+          
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
             <div className="space-y-4 max-w-3xl">
               <h1 className="font-headline text-4xl md:text-6xl font-bold leading-tight">{site.name}</h1>
@@ -123,7 +135,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
               onClick={handleToggleFavorite} 
               variant={isFavorited ? "default" : "outline"} 
               className={cn(
-                "rounded-full h-14 px-6 border-white/20 font-bold", 
+                "rounded-full h-14 px-6 border-white/20 font-bold shrink-0", 
                 isFavorited ? "bg-accent text-white" : "bg-white/5 backdrop-blur text-white hover:bg-white/10"
               )}
             >
@@ -131,7 +143,41 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
               {isFavorited ? 'Saved' : 'Save to Favorites'}
             </Button>
           </div>
-          <p className="mt-12 text-[10px] font-black uppercase tracking-[0.3em] text-white/30 italic">Images will be added soon.</p>
+
+          {/* Image Gallery Carousel */}
+          {allImages.length > 0 && (
+            <div className="mt-12 relative">
+              <Carousel className="w-full max-w-5xl mx-auto group">
+                <CarouselContent className="-ml-4">
+                  {allImages.map((img, index) => (
+                    <CarouselItem key={index} className="pl-4 basis-full md:basis-1/2 lg:basis-1/3">
+                      <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-slate-800">
+                        <Image 
+                          src={img} 
+                          alt={`${site.name} - image ${index + 1}`} 
+                          fill 
+                          className="object-cover transition-transform duration-700 hover:scale-110"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          data-ai-hint="heritage site"
+                        />
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <div className="hidden md:block">
+                  <CarouselPrevious className="left-0 -translate-x-1/2 bg-white/10 backdrop-blur-md border-none text-white hover:bg-white/20" />
+                  <CarouselNext className="right-0 translate-x-1/2 bg-white/10 backdrop-blur-md border-none text-white hover:bg-white/20" />
+                </div>
+              </Carousel>
+              <div className="flex justify-center gap-2 mt-4 md:hidden">
+                 <div className="flex gap-1">
+                    {allImages.map((_, i) => (
+                      <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                    ))}
+                 </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
