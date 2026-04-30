@@ -369,10 +369,10 @@ function ExploreRouteContent() {
   const NavDrawer = () => (
     <Sheet open={isNavDrawerOpen} onOpenChange={setIsNavDrawerOpen}>
       <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0 border-none shadow-2xl bg-white flex flex-col">
-        <SheetHeader className="p-8 bg-primary text-white shrink-0">
-          <div className="text-white font-headline text-3xl font-black flex items-center gap-3">
+        <SheetHeader className="p-8 bg-primary text-white shrink-0 text-left">
+          <SheetTitle className="text-white font-headline text-3xl font-black flex items-center gap-3">
              <Landmark size={32} /> Handumanan
-          </div>
+          </SheetTitle>
           <p className="text-white/70 text-xs font-bold uppercase tracking-widest mt-2">Cebu Heritage Guide</p>
         </SheetHeader>
 
