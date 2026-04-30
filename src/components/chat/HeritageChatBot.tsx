@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, X, Send, Sparkles, MapPin, Landmark, Minimize2 } from 'lucide-react';
+import { MessageCircle, Send, Sparkles, MapPin, Landmark, Minimize2 } from 'lucide-react';
 import { chatWithHeritageBot } from '@/ai/flows/heritage-chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase';
 import { usePathname } from 'next/navigation';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Message {
   role: 'user' | 'model';
@@ -32,6 +33,7 @@ export function HeritageChatBot() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { user } = useUser();
   const pathname = usePathname();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     setMounted(true);
@@ -52,32 +54,14 @@ export function HeritageChatBot() {
     setIsLoading(true);
 
     try {
-      const routeDataStr = localStorage.getItem('active_itinerary_context');
-      let currentRoute = undefined;
-      if (routeDataStr) {
-        try {
-          currentRoute = JSON.parse(routeDataStr);
-        } catch (e) {}
-      }
-
       const history = newMessages.map(m => ({
         role: m.role as 'user' | 'model',
         content: [{ text: m.text }]
       }));
 
-      let userLocation = undefined;
-      try {
-        const pos = await new Promise<GeolocationPosition>((res, rej) => 
-          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 })
-        );
-        userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      } catch (e) {}
-
       const response = await chatWithHeritageBot({
         history,
-        userLocation,
         userId: user?.uid,
-        currentRoute
       });
 
       setMessages(prev => [...prev, { role: 'model', text: response.text }]);
@@ -99,7 +83,8 @@ export function HeritageChatBot() {
         className={cn(
           "fixed h-12 w-12 md:h-14 md:w-14 rounded-2xl shadow-3xl z-[5000] transition-all duration-300 bg-primary hover:bg-primary/90 text-white p-0",
           isOpen ? "scale-0 opacity-0" : "scale-100 opacity-100",
-          "bottom-6 right-6"
+          "right-6",
+          isDiscoverPage ? (isMobile ? "bottom-20" : "bottom-6") : "bottom-6"
         )}
       >
         <MessageCircle size={28} />
@@ -109,7 +94,7 @@ export function HeritageChatBot() {
         className={cn(
           "fixed right-4 md:right-8 w-[calc(100vw-32px)] md:w-[360px] h-[450px] md:h-[520px] max-h-[75vh] z-[5001] transition-all duration-500 flex flex-col rounded-[2.5rem] shadow-3xl border-none overflow-hidden bg-white/95 backdrop-blur-3xl ring-1 ring-black/5",
           isOpen ? "translate-y-0 opacity-100 scale-100" : "translate-y-10 opacity-0 scale-95 pointer-events-none",
-          isDiscoverPage ? "bottom-6 md:bottom-8" : "bottom-8"
+          isDiscoverPage ? (isMobile ? "bottom-20" : "bottom-8") : "bottom-8"
         )}
       >
         <CardHeader className="bg-primary text-white p-5 md:p-6 flex flex-row items-center justify-between shrink-0">

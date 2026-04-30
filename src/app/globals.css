@@ -34,6 +34,7 @@
   }
   body {
     @apply bg-background text-foreground font-body overflow-x-hidden;
+    max-width: 100vw;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-headline;
@@ -122,4 +123,37 @@
 .transition-all {
   transition-duration: 300ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Panel Layout Utilities */
+.discover-panel {
+  max-height: 75vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  pointer-events: auto;
+}
+
+.discover-panel-content {
+  flex: 1;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  padding-bottom: 32px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+}
+
+.shadow-3xl-up {
+  box-shadow: 0 -20px 50px -12px rgb(0 0 0 / 0.25);
+}
+
+@media (max-width: 768px) {
+  .discover-panel {
+    max-height: 70vh;
+  }
+  .discover-panel-content {
+    max-height: 60vh;
+  }
 }
