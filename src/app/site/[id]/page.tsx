@@ -1,7 +1,6 @@
-
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use, useState } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { getSiteById } from '@/lib/heritage-data';
@@ -12,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, serverTimestamp, doc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Navigation, Heart, Loader2, Route, ChevronDown, ChevronUp } from 'lucide-react';
+import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Route, Heart, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -92,7 +91,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
     <div className="min-h-screen bg-background pb-20">
       <Navbar />
       
-      {/* Header section - Images temporarily disabled */}
+      {/* Header section - Text Optimized */}
       <div className="bg-slate-900 py-16 md:py-24 text-white">
         <div className="container mx-auto px-4">
           <Link href="/explore" className="inline-flex items-center text-white/60 hover:text-white mb-8 transition-colors">
