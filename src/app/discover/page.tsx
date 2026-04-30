@@ -125,7 +125,7 @@ function ExploreRouteContent() {
   const [focusedLocation, setFocusedLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   const [isNavigating, setIsNavigating] = useState(false);
-  const [isPanelExpanded, setIsPanelExpanded] = useState(true);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState('discover');
   const [recenterKey, setRecenterKey] = useState(0);
   
@@ -409,14 +409,14 @@ function ExploreRouteContent() {
         <div className="p-6 border-t bg-slate-50/50">
           {user ? (
             <button 
-              onClick={() => signOut(auth)} 
+              onClick={() => { signOut(auth); setIsNavDrawerOpen(false); }} 
               className="flex items-center gap-4 w-full p-4 rounded-2xl text-red-500 hover:bg-red-50 transition-colors"
             >
               <LogOut size={20} />
               <span className="text-sm font-black uppercase tracking-widest">Logout</span>
             </button>
           ) : (
-            <Button asChild className="w-full h-12 rounded-2xl font-black uppercase tracking-widest">
+            <Button asChild className="w-full h-12 rounded-2xl font-black uppercase tracking-widest" onClick={() => setIsNavDrawerOpen(false)}>
               <Link href="/auth">Sign In</Link>
             </Button>
           )}
@@ -456,7 +456,7 @@ function ExploreRouteContent() {
           size="icon" 
           className="h-12 w-12 rounded-2xl shadow-3xl bg-white/95 backdrop-blur-xl text-slate-500 hover:text-primary hover:bg-white border-none ring-1 ring-black/5"
         >
-          <Compass size={24} />
+          {isPanelExpanded ? <X size={24} /> : <Compass size={24} />}
         </Button>
       </div>
 
@@ -727,6 +727,7 @@ function ExploreRouteContent() {
                           </div>
                         )}
                     </div>
+                    </>
                   )}
                 </TabsContent>
               </div>
