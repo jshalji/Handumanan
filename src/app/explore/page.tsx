@@ -20,15 +20,17 @@ import {
 import { cn } from '@/lib/utils';
 
 function SiteCard({ site }: { site: HeritageSite }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
     <Card className="group overflow-hidden hover:ring-2 hover:ring-primary/20 transition-all duration-300 border-none shadow-md flex flex-col h-full bg-white rounded-2xl">
       <Link href={`/site/${site.id}`}>
-        <div className="relative h-56">
+        <div className="relative h-56 w-full bg-slate-100 overflow-hidden">
           <Image
             src={site.imageUrl || "https://picsum.photos/seed/placeholder/800/600"}
             alt={site.name}
             fill
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
+            className="object-cover group-hover:scale-105 transition-transform duration-500" // User requested 'cover' for cards
           />
           <div className="absolute top-3 left-3">
             <Badge variant="secondary" className="bg-white/90 backdrop-blur text-primary border-none shadow-sm text-[10px] font-black uppercase tracking-widest">
@@ -48,10 +50,21 @@ function SiteCard({ site }: { site: HeritageSite }) {
         </Link>
       </CardHeader>
       <CardContent className="p-5 pt-0 flex-1 flex flex-col">
-        <div className="space-y-4">
-          <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
-            {site.description}
-          </p>
+        <div className="space-y-4 flex-1">
+          <div className="space-y-2">
+             <p className={cn(
+               "text-xs text-slate-600 leading-relaxed",
+               !isExpanded && "line-clamp-4"
+             )}>
+               {site.overview}
+             </p>
+             <button 
+               onClick={() => setIsExpanded(!isExpanded)}
+               className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline"
+             >
+               {isExpanded ? 'Show Less' : 'Show More'}
+             </button>
+          </div>
           
           <Button 
             asChild

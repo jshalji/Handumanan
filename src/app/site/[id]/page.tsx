@@ -122,7 +122,6 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-10">
             <div className="space-y-4 max-w-4xl">
               <h1 className="font-headline text-5xl md:text-7xl font-bold leading-tight animate-in fade-in slide-in-from-bottom-4">{site.name}</h1>
-              <p className="text-white/40 text-[10px] font-black uppercase tracking-widest">Images will be added soon for this record.</p>
             </div>
             <div className="flex flex-wrap gap-3 w-full md:w-auto">
               <Button 
@@ -145,19 +144,19 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
           <div className="lg:col-span-2 space-y-10">
             
-            {/* Minimalist Image Gallery */}
+            {/* Gallery with aspect ratio fix */}
             {allImages.length > 0 && (
               <div className="bg-white rounded-[2.5rem] p-4 shadow-xl ring-1 ring-black/5 animate-in fade-in duration-700">
                 <Carousel className="w-full">
                   <CarouselContent>
                     {allImages.map((img, index) => (
                       <CarouselItem key={index} className="basis-full">
-                        <div className="relative aspect-[16/9] md:aspect-[21/9] rounded-[2rem] overflow-hidden bg-slate-100">
+                        <div className="relative aspect-[16/9] md:aspect-[21/9] rounded-[2rem] overflow-hidden bg-slate-50 flex items-center justify-center">
                           <Image 
                             src={img} 
                             alt={site.name} 
                             fill 
-                            className="object-cover" 
+                            className="object-contain" // User requested 'contain' for detail view
                             priority={index === 0}
                             data-ai-hint="heritage landmark"
                           />
@@ -182,10 +181,10 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
                 <div className="space-y-4">
                   <p className={cn(
-                    "text-lg leading-relaxed text-slate-700 transition-all duration-500",
+                    "text-lg leading-relaxed text-slate-700 transition-all duration-500 whitespace-pre-wrap",
                     !isDescExpanded && "line-clamp-4"
                   )}>
-                    {site.description}
+                    {site.overview}
                   </p>
                   <Button 
                     variant="ghost" 
@@ -210,7 +209,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
                 <div className="space-y-4">
                   <p className={cn(
-                    "text-lg leading-relaxed text-slate-600 italic transition-all duration-500",
+                    "text-lg leading-relaxed text-slate-600 italic transition-all duration-500 whitespace-pre-wrap",
                     !isSignificanceExpanded && "line-clamp-4"
                   )}>
                     {site.significance}
@@ -327,13 +326,18 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                     <Route size={20} className="mr-3" /> Initialize Route
                   </Link>
                 </Button>
+                <Button 
+                   className="w-full h-16 bg-accent text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl shadow-accent/20 hover:scale-[1.02] transition-transform"
+                   asChild
+                >
+                   <Link href="/discover">
+                      <Plus size={20} className="mr-3" /> Add to Itinerary
+                   </Link>
+                </Button>
                 <Button variant="outline" className="w-full h-16 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] border-2 border-slate-100 hover:bg-slate-50 transition-all">
                   <Share2 size={20} className="mr-3" /> Share Record
                 </Button>
               </div>
-              <p className="mt-8 text-[9px] text-center text-slate-400 font-black uppercase tracking-widest leading-relaxed">
-                Precision routing optimized for Metro Cebu infrastructure.
-              </p>
             </div>
           </div>
         </div>
