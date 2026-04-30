@@ -493,7 +493,7 @@ function ExploreRouteContent() {
                      {/* Step 2: Category */}
                      {selectedCity && (
                        <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                         <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Step 2: Category</p>
+                         <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Categories</p>
                          <div className="grid grid-cols-1 gap-1">
                            {CATEGORIES.map(cat => (
                              <button 
