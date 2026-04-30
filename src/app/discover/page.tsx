@@ -2,15 +2,12 @@
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
-import Link from 'next/link';
 import { HeritageSite, HERITAGE_SITES } from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation } from '@/lib/location-utils';
 import { getRouteMulti } from '@/lib/routing-service';
 import { generatePersonalizedItinerary } from '@/ai/flows/generate-personalized-itinerary';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,26 +18,24 @@ import {
   Search,
   LocateFixed,
   X,
-  Home,
   Church,
   Landmark,
   TreePine,
   Menu,
   Trash2,
   MapPin,
-  ChevronUp,
   ChevronDown,
   Sparkles,
   Save as SaveIcon,
-  ArrowUp,
   Compass,
-  Clock,
   Plus,
   Building2,
-  Route
+  Route,
+  Home,
+  Clock
 } from 'lucide-react';
-import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useUser } from '@/firebase';
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -53,24 +48,18 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useIsMobile } from '@/hooks/use-mobile';
+import Link from 'next/link';
 
 const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), { 
   ssr: false,
   loading: () => <div className="h-full w-full bg-slate-100 flex items-center justify-center font-black uppercase tracking-widest text-[10px] opacity-30">Map Initializing...</div>
 });
 
-const CITIES = ["Cebu City", "Mandaue City", "Lapu-Lapu City", "Talisay City"];
-
-const CITY_COORDS: Record<string, { lat: number; lng: number; zoom: number }> = {
-  "Cebu City": { lat: 10.3157, lng: 123.8854, zoom: 13 },
-  "Mandaue City": { lat: 10.3403, lng: 123.9416, zoom: 13 },
-  "Lapu-Lapu City": { lat: 10.3103, lng: 123.9494, zoom: 13 },
-  "Talisay City": { lat: 10.2447, lng: 123.8494, zoom: 13 }
-};
+const CITIES = ["Cebu City", "Mandaue City", "Talisay City", "Lapu-Lapu City"];
 
 const CATEGORIES = [
   { label: "Churches & Religious Heritage Sites", value: "Churches & Religious Heritage Sites", icon: Church },
-  { label: "Ancestral Houses & Heritage Residences", value: "Ancestral Houses & Heritage Residences", icon: Home },
+  { label: "Ancestral Houses & Heritage Residences", value: "Ancestral Houses & Heritage Residences", icon: Landmark },
   { label: "Museums & Cultural Institutions", value: "Museums & Cultural Institutions", icon: Landmark },
   { label: "Historical Landmarks & Monuments", value: "Historical Landmarks & Monuments", icon: MapPin },
   { label: "Plazas, Parks & Public Spaces", value: "Plazas, Parks & Public Spaces", icon: TreePine },
@@ -81,8 +70,8 @@ const CATEGORIES = [
 const TIME_PRESETS = [
   { label: '1h', value: 1 },
   { label: '2h', value: 2 },
-  { label: 'Half-Day', value: 4 },
-  { label: 'Full-Day', value: 8 },
+  { label: 'Half Day', value: 4 },
+  { label: 'Full Day', value: 8 },
 ];
 
 function ExploreRouteContent() {
@@ -101,7 +90,6 @@ function ExploreRouteContent() {
   
   const [isNavigating, setIsNavigating] = useState(false);
   const [isPanelExpanded, setIsPanelExpanded] = useState(true);
-  const [cityTarget, setCityTarget] = useState<{ lat: number; lng: number; zoom: number; timestamp: number } | null>(null);
   const [recenterKey, setRecenterKey] = useState(0);
   
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
@@ -140,23 +128,15 @@ function ExploreRouteContent() {
       setRecenterKey(prev => prev + 1);
       return loc;
     } catch (err: any) {
-      const message = err.code === 1 ? "Location permission is required to show your position." : "Unable to retrieve your location.";
-      toast({ title: "Location Error", description: message, variant: "destructive" });
+      toast({ title: "Location Error", description: "Location permission is required to show your position.", variant: "destructive" });
       return null;
     } finally {
       setLoading(false);
     }
   }, [toast]);
 
-  // Initial load auto-zoom/pan is disabled per requirements
-  // We only track location when the user initiates it via the floating button
-
   const allSites = useMemo(() => {
-    let result = HERITAGE_SITES.map(site => ({
-      ...site,
-      coordinates: site.coordinates
-    })) as HeritageSite[];
-
+    let result = HERITAGE_SITES;
     if (selectedCity) result = result.filter(s => s.city === selectedCity);
     if (selectedCategory) result = result.filter(s => s.category === selectedCategory);
     return result;
@@ -199,7 +179,12 @@ function ExploreRouteContent() {
   }, [itineraryIds, orsKey, itinerarySites]);
 
   const toggleSite = (id: string) => {
-    setItineraryIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    if (itineraryIds.includes(id)) {
+      setItineraryIds(prev => prev.filter(i => i !== id));
+    } else {
+      setItineraryIds(prev => [...prev, id]);
+      toast({ title: "Added to Itinerary" });
+    }
   };
 
   const centerOnSite = (site: HeritageSite) => {
@@ -259,81 +244,83 @@ function ExploreRouteContent() {
           onAddSite={toggleSite}
           focusedLocation={focusedLocation}
           isNavigating={isNavigating}
-          cityTarget={cityTarget}
           recenterKey={recenterKey}
         />
       </div>
 
-      <div className="absolute top-3 left-3 right-3 z-50 flex flex-col items-start gap-2 pointer-events-none md:max-w-[360px] md:top-6 md:left-6">
+      <div className="absolute top-3 left-3 right-3 z-50 flex flex-col items-start gap-2 pointer-events-none md:max-w-[320px] md:top-6 md:left-6">
         <div className="flex gap-2 items-center pointer-events-auto w-full">
           <Button 
             onClick={() => setIsPanelExpanded(!isPanelExpanded)}
             size="icon" 
-            className="h-10 w-10 shrink-0 rounded-xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
+            className="h-9 w-9 shrink-0 rounded-xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
           >
-            <Menu size={18} />
+            <Menu size={16} />
           </Button>
 
           <div className="relative group flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
             <Input 
               placeholder="Search heritage..." 
-              className="pl-9 h-10 rounded-xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full text-xs font-bold" 
+              className="pl-8 h-9 rounded-xl shadow-xl border-none bg-white/95 backdrop-blur-2xl w-full text-xs font-bold" 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            {searchQuery && filteredAndSortedSites.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-2xl border-none ring-1 ring-black/5 max-h-[200px] overflow-y-auto pointer-events-auto">
+            {searchQuery && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-2xl border-none ring-1 ring-black/5 max-h-[200px] overflow-y-auto pointer-events-auto scrollbar-hide">
                 {filteredAndSortedSites.slice(0, 8).map(site => (
                   <button 
                     key={site.id} 
                     onClick={() => { centerOnSite(site); setSearchQuery(''); }}
-                    className="w-full text-left p-3 hover:bg-slate-50 flex flex-col gap-0.5 border-b border-slate-50 last:border-none"
+                    className="w-full text-left p-2.5 hover:bg-slate-50 flex flex-col gap-0.5 border-b border-slate-50 last:border-none"
                   >
-                    <span className="text-xs font-black text-slate-900">{site.name}</span>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{site.city} • {site.category.split(' & ')[0]}</span>
+                    <span className="text-[11px] font-black text-slate-900">{site.name}</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{site.city}</span>
                   </button>
                 ))}
               </div>
             )}
-            {searchQuery && filteredAndSortedSites.length === 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-2xl p-4 text-center pointer-events-auto">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No results found</p>
-              </div>
-            )}
           </div>
+          
+          <Button 
+            onClick={detectLocation}
+            size="icon" 
+            className="h-9 w-9 shrink-0 rounded-xl shadow-xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
+          >
+            {loading ? <Loader2 className="animate-spin" size={16} /> : <LocateFixed size={16} />}
+          </Button>
         </div>
 
         {isPanelExpanded && (
           <Card className="pointer-events-auto w-full border-none shadow-2xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-2xl flex flex-col overflow-hidden max-h-[60vh] mt-2">
-            <div className="flex items-center justify-between px-4 py-2 bg-slate-50/50 border-b">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Workspace</span>
-              <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full md:hidden" onClick={() => setIsPanelExpanded(false)}>
+            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50/50 border-b">
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Discover & Plan</span>
+              <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full" onClick={() => setIsPanelExpanded(false)}>
                 <ChevronDown size={14} />
               </Button>
             </div>
             
             <Tabs defaultValue="discover" className="w-full flex flex-col">
-              <TabsList className="grid w-full grid-cols-2 bg-slate-50 rounded-none h-10">
-                <TabsTrigger value="discover" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-white">
-                  <Compass size={14} className="mr-2" /> Discover
+              <TabsList className="grid w-full grid-cols-2 bg-slate-50 rounded-none h-9">
+                <TabsTrigger value="discover" className="text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-white">
+                  <Compass size={12} className="mr-1.5" /> Discover
                 </TabsTrigger>
-                <TabsTrigger value="planner" className="text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-white">
-                  <Sparkles size={14} className="mr-2" /> Planner
+                <TabsTrigger value="planner" className="text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-white">
+                  <Sparkles size={12} className="mr-1.5" /> AI Planner
                 </TabsTrigger>
               </TabsList>
               
               <div className="flex-1 overflow-y-auto scrollbar-hide">
-                <TabsContent value="discover" className="m-0 p-3 space-y-4 animate-in fade-in duration-300">
-                  <div className="space-y-1.5">
+                <TabsContent value="discover" className="m-0 p-2.5 space-y-3 animate-in fade-in duration-300">
+                  <div className="space-y-1">
                     <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Cities</p>
                     <div className="grid grid-cols-2 gap-1">
                       {CITIES.map(city => (
                         <button 
                           key={city} 
-                          onClick={() => { setSelectedCity(city); setCityTarget({ ...CITY_COORDS[city], timestamp: Date.now() }); }} 
+                          onClick={() => setSelectedCity(selectedCity === city ? null : city)} 
                           className={cn(
-                            "text-[10px] font-bold py-1.5 rounded-xl transition-all border h-9",
+                            "text-[9px] font-bold py-1.5 rounded-xl transition-all border h-8",
                             selectedCity === city ? "bg-primary text-white border-primary shadow-lg" : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
                           )}
                         >
@@ -343,7 +330,7 @@ function ExploreRouteContent() {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Categories</p>
                     <div className="grid grid-cols-1 gap-1">
                       {CATEGORIES.map(cat => (
@@ -351,67 +338,104 @@ function ExploreRouteContent() {
                           key={cat.value} 
                           onClick={() => setSelectedCategory(selectedCategory === cat.value ? null : cat.value)} 
                           className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border text-left min-h-[40px]",
+                            "flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all border text-left min-h-[36px]",
                             selectedCategory === cat.value ? "bg-slate-900 text-white border-slate-900 shadow-lg" : "bg-white border-slate-100 text-slate-600"
                           )}
                         >
                           <cat.icon size={12} className="shrink-0" />
-                          <span className="text-[10px] font-bold leading-tight break-words">{cat.label}</span>
+                          <span className="text-[9px] font-bold leading-tight break-words">{cat.label}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {itineraryIds.length > 0 && (
-                    <div className="pt-3 border-t space-y-2">
-                       <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Selected Stops</p>
-                       <div className="space-y-1">
-                         {itineraryIds.map((id, idx) => {
-                           const site = HERITAGE_SITES.find(s => s.id === id);
-                           return site ? (
-                             <div key={id} className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border border-slate-100">
-                               <span className="text-[10px] font-black text-primary">{idx + 1}</span>
-                               <span className="text-[10px] font-bold text-slate-700 flex-1 truncate">{site.name}</span>
-                               <button onClick={() => toggleSite(id)} className="text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>
-                             </div>
-                           ) : null;
-                         })}
-                       </div>
-                       <Button onClick={() => setIsNavigating(true)} className="w-full h-10 bg-primary text-[10px] font-black uppercase tracking-widest rounded-xl">
-                         <Route size={14} className="mr-2" /> Start Navigation
-                       </Button>
+                  <div className="space-y-1">
+                    <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Heritage Sites</p>
+                    <div className="space-y-1">
+                       {filteredAndSortedSites.slice(0, 10).map(site => (
+                         <div key={site.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="flex-1 truncate mr-2">
+                               <p className="text-[10px] font-bold text-slate-900 truncate">{site.name}</p>
+                               <p className="text-[8px] text-slate-400 font-bold uppercase">{site.city}</p>
+                            </div>
+                            <Button 
+                              onClick={() => toggleSite(site.id)}
+                              size="icon" 
+                              className={cn(
+                                "h-7 w-7 rounded-lg shrink-0",
+                                itineraryIds.includes(site.id) ? "bg-slate-200 text-slate-500 hover:bg-slate-300" : "bg-primary text-white"
+                              )}
+                            >
+                               {itineraryIds.includes(site.id) ? <X size={12} /> : <Plus size={12} />}
+                            </Button>
+                         </div>
+                       ))}
                     </div>
-                  )}
+                  </div>
                 </TabsContent>
 
-                <TabsContent value="planner" className="m-0 p-3 space-y-4 animate-in fade-in duration-300">
+                <TabsContent value="planner" className="m-0 p-2.5 space-y-3 animate-in fade-in duration-300">
                   <div className="space-y-3">
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] font-black uppercase text-slate-400">Time Estimate</Label>
+                      <Label className="text-[9px] font-black uppercase text-slate-400">Available Time</Label>
                       <div className="grid grid-cols-2 gap-1.5">
                         {TIME_PRESETS.map(preset => (
                           <button 
                             key={preset.value}
                             onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
                             className={cn(
-                              "px-2 py-1.5 rounded-xl text-[10px] font-black uppercase border h-9 transition-all",
+                              "px-2 py-1.5 rounded-xl text-[9px] font-black uppercase border h-8 transition-all",
                               plannerTimeType === 'preset' && selectedPresetTime === preset.value ? "bg-primary text-white border-primary shadow-lg" : "bg-white border-slate-100 text-slate-500"
                             )}
                           >
                             {preset.label}
                           </button>
                         ))}
+                        <button 
+                          onClick={() => setPlannerTimeType('custom')}
+                          className={cn(
+                            "px-2 py-1.5 rounded-xl text-[9px] font-black uppercase border h-8 transition-all col-span-2",
+                            plannerTimeType === 'custom' ? "bg-primary text-white border-primary shadow-lg" : "bg-white border-slate-100 text-slate-500"
+                          )}
+                        >
+                          Custom Time
+                        </button>
                       </div>
+                      
+                      {plannerTimeType === 'custom' && (
+                        <div className="flex items-center gap-2 mt-2 animate-in slide-in-from-top-1">
+                          <Input type="number" value={customHours} onChange={(e) => setCustomHours(e.target.value)} placeholder="Hr" className="h-8 text-xs rounded-lg" />
+                          <span className="text-[9px] font-black text-slate-400">:</span>
+                          <Input type="number" value={customMinutes} onChange={(e) => setCustomMinutes(e.target.value)} placeholder="Min" className="h-8 text-xs rounded-lg" />
+                        </div>
+                      )}
                     </div>
                     
-                    <Button onClick={handleGeneratePlanner} disabled={isGeneratingPlanner} className="w-full h-10 rounded-xl bg-primary text-[10px] font-black uppercase tracking-widest shadow-xl shadow-primary/20">
+                    <Button onClick={handleGeneratePlanner} disabled={isGeneratingPlanner} className="w-full h-9 rounded-xl bg-primary text-[9px] font-black uppercase tracking-widest shadow-xl shadow-primary/20">
                       {isGeneratingPlanner ? <Loader2 className="animate-spin" size={14} /> : "Build Itinerary"}
                     </Button>
 
                     {itineraryIds.length > 0 && (
-                      <Button variant="outline" onClick={handleSavePlanner} className="w-full h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border-2">
-                        <SaveIcon size={14} className="mr-2" /> Save Trip
-                      </Button>
+                      <div className="space-y-1.5 pt-2 border-t">
+                        <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">Active Route</p>
+                        <div className="space-y-1">
+                           {itinerarySites.map((site, idx) => (
+                             <div key={site.id} className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border border-slate-100">
+                               <span className="text-[9px] font-black text-primary">{idx + 1}</span>
+                               <span className="text-[9px] font-bold text-slate-700 flex-1 truncate">{site.name}</span>
+                               <button onClick={() => toggleSite(site.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={12} /></button>
+                             </div>
+                           ))}
+                        </div>
+                        <div className="flex gap-1 mt-2">
+                           <Button onClick={() => setIsNavigating(true)} className="flex-1 h-9 bg-slate-900 text-[9px] font-black uppercase tracking-widest rounded-xl">
+                             <Route size={12} className="mr-1.5" /> Start
+                           </Button>
+                           <Button variant="outline" onClick={handleSavePlanner} className="h-9 px-3 rounded-xl border-2">
+                             <SaveIcon size={12} />
+                           </Button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </TabsContent>
@@ -423,57 +447,17 @@ function ExploreRouteContent() {
         {!isPanelExpanded && (
           <Button 
             onClick={() => setIsPanelExpanded(true)}
-            className="pointer-events-auto h-10 px-5 rounded-full bg-white/95 backdrop-blur-xl text-primary font-black uppercase text-[10px] tracking-widest shadow-2xl ring-1 ring-black/5 hover:bg-white"
+            className="pointer-events-auto h-9 px-4 rounded-full bg-white/95 backdrop-blur-xl text-primary font-black uppercase text-[9px] tracking-widest shadow-2xl ring-1 ring-black/5 hover:bg-white"
           >
-            <Compass size={14} className="mr-2" /> Discover
+            <Compass size={12} className="mr-1.5" /> Discover
           </Button>
         )}
+        
+        <Link href="/" className="pointer-events-auto flex items-center gap-2 bg-white/95 backdrop-blur-xl px-3 py-2 rounded-xl shadow-xl ring-1 ring-black/5 hover:bg-slate-50 transition-colors">
+          <Home size={14} className="text-primary" />
+          <span className="text-[9px] font-black uppercase tracking-widest text-slate-900">Home</span>
+        </Link>
       </div>
-
-      {/* Floating Buttons Stack - Bottom Right */}
-      <div className={cn(
-        "fixed bottom-4 right-4 z-[5000] flex flex-col gap-3 transition-all duration-300",
-        isNavigating && "bottom-[220px] md:bottom-4"
-      )}>
-        <Button 
-          onClick={detectLocation}
-          size="icon" 
-          className="h-11 w-11 rounded-xl shadow-2xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5"
-        >
-          {loading ? <Loader2 className="animate-spin" size={18} /> : <LocateFixed size={20} />}
-        </Button>
-        {/* Chatbot will render below this via RootLayout + fixed positioning, 
-            but we adjust its vertical offset if navigation is active */}
-      </div>
-
-      {isNavigating && userLocation && itinerarySites.length > 0 && (
-        <div className="absolute bottom-6 left-3 right-3 md:left-auto md:right-6 md:w-[320px] z-[70] pointer-events-none">
-          <Card className="pointer-events-auto border-none shadow-3xl bg-white/95 backdrop-blur-2xl ring-1 ring-black/5 rounded-3xl p-4 animate-in slide-in-from-bottom-4">
-            <div className="flex flex-col items-center">
-              <div className="w-full flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  <p className="text-[10px] font-black uppercase text-primary tracking-widest">In Transit</p>
-                </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-red-50 text-red-500" onClick={() => setIsNavigating(false)}><X size={16} /></Button>
-              </div>
-              <h4 className="text-sm font-black text-slate-900 mb-1 text-center w-full truncate">{itinerarySites[0].name}</h4>
-              <p className="text-[10px] font-bold text-slate-400 uppercase mb-4">{itinerarySites[0].city}</p>
-              
-              <div className="grid grid-cols-2 gap-2 w-full">
-                 <div className="bg-slate-50 p-3 rounded-2xl text-center">
-                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Total Distance</p>
-                    <p className="text-sm font-black text-primary">{totalDist.toFixed(1)} KM</p>
-                 </div>
-                 <div className="bg-slate-50 p-3 rounded-2xl text-center">
-                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Est. Arrival</p>
-                    <p className="text-sm font-black text-primary">{Math.round(totalTime)} MIN</p>
-                 </div>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
 
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
         <DialogContent className="max-w-xs rounded-3xl p-6 border-none shadow-3xl bg-white">
@@ -481,9 +465,9 @@ function ExploreRouteContent() {
             <DialogTitle className="text-lg font-black text-slate-900">Map Key Required</DialogTitle>
             <DialogDescription className="text-xs text-slate-500">Enter your OpenRouteService API key to enable road-accurate routing.</DialogDescription>
           </DialogHeader>
-          <Input placeholder="API Key" value={tempKey} onChange={(e) => setTempKey(e.target.value)} className="h-11 rounded-xl bg-slate-100 border-none px-4" />
+          <Input placeholder="API Key" value={tempKey} onChange={(e) => setTempKey(e.target.value)} className="h-10 rounded-xl bg-slate-100 border-none px-4" />
           <DialogFooter className="mt-4">
-            <Button className="w-full h-11 rounded-xl bg-primary text-white font-black text-[10px] uppercase tracking-widest" onClick={handleSaveKey}>Initialize Maps</Button>
+            <Button className="w-full h-10 rounded-xl bg-primary text-white font-black text-[9px] uppercase tracking-widest" onClick={handleSaveKey}>Initialize Maps</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

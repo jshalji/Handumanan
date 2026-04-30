@@ -19,7 +19,7 @@ const GeneratePersonalizedItineraryInputSchema = z.object({
     .describe('The total available time for the itinerary in hours.'),
   startingLocation: z
     .string()
-    .describe('The user\'s starting geographic location (e.g., "Cebu City Center", "Mactan-Cebu International Airport").'),
+    .describe('The user\'s starting geographic location (e.g., "Cebu City Center").'),
   siteDatabase: z
     .string()
     .describe('A JSON string representing an array of available cultural heritage sites.'),
@@ -35,6 +35,9 @@ const GeneratePersonalizedItineraryOutputSchema = z.object({
       estimatedVisitDurationMinutes: z
         .number()
         .describe('The estimated time in minutes required to visit this specific site.'),
+      estimatedTravelTimeMinutes: z
+        .number()
+        .describe('The estimated time in minutes to travel to this site from the previous stop.'),
       description: z
         .string()
         .describe('A short, simple description of the site and its significance.'),
@@ -65,12 +68,18 @@ const generatePersonalizedItineraryPrompt = ai.definePrompt({
 
 Your task is to generate a simple and realistic travel itinerary based on the user's location, interests, and available time.
 
+### Schedule Rules:
+- If time is 1 hour: Recommend 1-2 sites.
+- If time is 2 hours: Recommend 2-3 sites.
+- If time is 4 hours (Half Day): Recommend 3-5 sites.
+- If time is 8 hours or more (Full Day): Recommend 5-8 sites.
+
 ### Instructions:
-1. **Real Sites Only**: Only suggest REAL and EXISTING cultural heritage sites from the provided database. Do NOT invent locations.
-2. **Proximity Matters**: Use a practical travel order based on geographic proximity. Do not jump between far-away locations randomly.
-3. **Keep it Simple**: Use clear, easy-to-understand language. Avoid complex or academic words.
-4. **Logical Flow**: Suggest a logical route (like a Google Maps style flow) starting from the user's location.
-5. **Respect Time**: Ensure the total time (visiting + estimated transit) fits within the available hours.
+1. **Real Sites Only**: Only suggest REAL and EXISTING cultural heritage sites from the provided database.
+2. **Proximity Matters**: Use a practical travel order based on geographic proximity.
+3. **Estimated Times**: Provide realistic estimated visit times (e.g., 30-60 mins per site) and travel times (15-30 mins between sites).
+4. **Logical Flow**: Suggest a logical route starting from the user's location.
+5. **Respect Time**: Ensure the total time (visiting + transit) fits strictly within the available hours.
 
 ### Input Data:
 - **Starting Location**: {{{startingLocation}}}
@@ -80,8 +89,8 @@ Your task is to generate a simple and realistic travel itinerary based on the us
 {{{siteDatabase}}}
 
 ### Output Format Requirements:
-Generate a "Day Plan" with site names, short descriptions, and estimated visit times. 
-Provide a "Route Suggestion" that explains the travel sequence simply.
+Provide an ordered list of sites with durations and descriptions.
+Provide a "Route Suggestion" summary.
 `,
 });
 
@@ -93,19 +102,17 @@ const generatePersonalizedItineraryFlow = ai.defineFlow(
   },
   async input => {
     let lastError;
-    // Implementation of a simple retry loop to handle 503 (Service Unavailable) errors
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const {output} = await generatePersonalizedItineraryPrompt(input);
         if (output) return output;
       } catch (error: any) {
         lastError = error;
-        // If it's a 503 or demand spike, wait and try again
         if (error.message?.includes('503') || error.message?.includes('high demand')) {
           await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)));
           continue;
         }
-        throw error; // Throw immediately for non-transient errors
+        throw error;
       }
     }
     throw lastError || new Error('Failed to generate itinerary after multiple attempts.');

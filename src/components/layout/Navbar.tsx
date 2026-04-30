@@ -1,9 +1,8 @@
-
 'use client';
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Landmark, MapPin, User as UserIcon, LogOut, Search, Menu, Settings, Shield } from 'lucide-react';
+import { Landmark, MapPin, User as UserIcon, LogOut, Search, Menu, Settings, Shield, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -59,7 +58,17 @@ export function Navbar() {
         </Link>
 
         {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-6">
+          <Link
+            href="/"
+            className={cn(
+              "flex items-center gap-2 text-xs font-black uppercase tracking-widest transition-all hover:text-primary py-2",
+              pathname === '/' ? "text-primary border-b-2 border-primary" : "text-muted-foreground"
+            )}
+          >
+            <Home size={16} /> Home
+          </Link>
+          
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -68,7 +77,7 @@ export function Navbar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-2.5 text-xs font-black uppercase tracking-widest transition-all hover:text-primary py-2",
+                  "flex items-center gap-2 text-xs font-black uppercase tracking-widest transition-all hover:text-primary py-2",
                   isActive ? "text-primary border-b-2 border-primary" : "text-muted-foreground"
                 )}
               >
@@ -140,6 +149,9 @@ export function Navbar() {
                 <SheetTitle className="font-headline text-2xl font-black text-primary text-left">Menu</SheetTitle>
               </SheetHeader>
               <div className="flex flex-col gap-2">
+                <Link href="/" className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
+                  <Home size={18} className="text-primary" /> Home
+                </Link>
                 {NAV_ITEMS.map((item) => (
                   <Link key={item.href} href={item.href} className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
                     <item.icon size={18} className="text-primary" /> {item.label}
