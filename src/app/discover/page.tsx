@@ -893,83 +893,85 @@ function ExploreRouteContent() {
       {/* AUTO-GENERATE DIALOG */}
       <Dialog open={isAutoDialogOpen} onOpenChange={setIsAutoDialogOpen}>
         <DialogContent className={cn(
-          "border-none shadow-3xl bg-white text-slate-900 transition-all",
+          "border-none shadow-3xl bg-white text-slate-900 transition-all p-0 flex flex-col overflow-hidden",
           isMobile 
-            ? "max-w-full bottom-0 top-auto translate-y-0 rounded-t-[2.5rem] p-6 pb-10" 
-            : "max-w-[400px] rounded-[2.5rem] p-8"
+            ? "max-w-[calc(100vw-24px)] bottom-4 top-auto translate-y-0 rounded-[2rem] max-h-[70vh]" 
+            : "max-w-[400px] rounded-[2rem] max-h-[75vh]"
         )}>
-          <DialogHeader>
+          <DialogHeader className="p-6 pb-2 shrink-0">
             <DialogTitle className="text-xl font-headline font-black">Auto-Generate Trip</DialogTitle>
-            <DialogDescription className="text-xs text-slate-500 leading-relaxed">
-              Let AI build a perfect heritage tour for you in seconds.
+            <DialogDescription className="text-[10px] text-slate-500 leading-relaxed uppercase tracking-wider font-bold">
+              Let AI build a perfect heritage tour in seconds.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-5 mt-4">
-            <div className="space-y-2">
-              <Label className="text-[9px] font-black uppercase text-slate-400">Generation Mode</Label>
-              <div className="grid grid-cols-1 gap-2">
-                {[
-                  { id: 'near', label: 'Near Me', icon: LocateFixed, desc: 'Minimize travel distance' },
-                  { id: 'theme', label: 'Themed Trip', icon: LandmarkIcon, desc: 'Focus on one category' },
-                  { id: 'balanced', label: 'Balanced Tour', icon: Sparkles, desc: 'A mix of everything' }
-                ].map(mode => (
-                  <button 
-                    key={mode.id}
-                    onClick={() => setAutoMode(mode.id as any)}
-                    className={cn(
-                      "flex items-center gap-4 p-3.5 rounded-2xl border text-left transition-all",
-                      autoMode === mode.id ? "bg-slate-900 text-white border-slate-900 shadow-lg" : "bg-white border-slate-100 text-slate-600 hover:bg-slate-50"
-                    )}
-                  >
-                    <mode.icon size={18} className={cn(autoMode === mode.id ? "text-primary" : "text-slate-400")} />
-                    <div>
-                      <p className="text-[11px] font-bold">{mode.label}</p>
-                      <p className="text-[9px] opacity-70">{mode.desc}</p>
-                    </div>
-                  </button>
-                ))}
+          <ScrollArea className="flex-1 overflow-y-auto px-6">
+            <div className="space-y-6 pb-6">
+              <div className="space-y-3">
+                <Label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Generation Mode</Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { id: 'near', label: 'Near Me', icon: LocateFixed, desc: 'Minimize travel distance' },
+                    { id: 'theme', label: 'Themed Trip', icon: LandmarkIcon, desc: 'Focus on one category' },
+                    { id: 'balanced', label: 'Balanced Tour', icon: Sparkles, desc: 'A mix of everything' }
+                  ].map(mode => (
+                    <button 
+                      key={mode.id}
+                      onClick={() => setAutoMode(mode.id as any)}
+                      className={cn(
+                        "flex items-center gap-4 p-3 rounded-2xl border text-left transition-all",
+                        autoMode === mode.id ? "bg-slate-900 text-white border-slate-900 shadow-lg" : "bg-white border-slate-100 text-slate-600 hover:bg-slate-50"
+                      )}
+                    >
+                      <mode.icon size={18} className={cn(autoMode === mode.id ? "text-primary" : "text-slate-400")} />
+                      <div>
+                        <p className="text-[11px] font-bold">{mode.label}</p>
+                        <p className="text-[9px] opacity-70 font-medium">{mode.desc}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {autoMode === 'theme' && (
+                <div className="space-y-2 animate-in slide-in-from-top-1">
+                  <Label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Select Theme</Label>
+                  <Select value={autoTheme} onValueChange={setAutoTheme}>
+                    <SelectTrigger className="h-10 rounded-xl bg-slate-50 border-none text-[10px] font-bold">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl">
+                      {CATEGORIES.map(cat => (
+                        <SelectItem key={cat.value} value={cat.value} className="text-[10px] py-2">{cat.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <Label className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Trip Duration</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {TIME_PRESETS.map(preset => (
+                    <button 
+                      key={preset.value}
+                      onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
+                      className={cn(
+                        "px-2 py-2.5 rounded-2xl text-[10px] font-black uppercase border h-10 transition-all",
+                        plannerTimeType === 'preset' && selectedPresetTime === preset.value ? "bg-primary text-white border-primary" : "bg-white border-slate-100 text-slate-500"
+                      )}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
+          </ScrollArea>
 
-            {autoMode === 'theme' && (
-              <div className="space-y-2 animate-in slide-in-from-top-1">
-                <Label className="text-[9px] font-black uppercase text-slate-400">Select Theme</Label>
-                <Select value={autoTheme} onValueChange={setAutoTheme}>
-                  <SelectTrigger className="h-11 rounded-xl bg-slate-50 border-none text-[11px] font-bold">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-2xl">
-                    {CATEGORIES.map(cat => (
-                      <SelectItem key={cat.value} value={cat.value} className="text-[11px]">{cat.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label className="text-[9px] font-black uppercase text-slate-400">Trip Duration</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {TIME_PRESETS.map(preset => (
-                  <button 
-                    key={preset.value}
-                    onClick={() => { setPlannerTimeType('preset'); setSelectedPresetTime(preset.value); }}
-                    className={cn(
-                      "px-2 py-2.5 rounded-2xl text-[10px] font-black uppercase border h-10 transition-all",
-                      plannerTimeType === 'preset' && selectedPresetTime === preset.value ? "bg-primary text-white border-primary" : "bg-white border-slate-100 text-slate-500"
-                    )}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="mt-8">
+          <DialogFooter className="p-6 pt-2 border-t shrink-0">
             <Button 
-              className="w-full h-14 rounded-2xl bg-primary text-white font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/20" 
+              className="w-full h-12 rounded-2xl bg-primary text-white font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/20" 
               onClick={handleAutoGenerate}
               disabled={isGeneratingPlanner}
             >
