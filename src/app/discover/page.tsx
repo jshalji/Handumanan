@@ -154,8 +154,10 @@ function ExploreRouteContent() {
   const [showKeyDialog, setShowKeyDialog] = useState(false);
   const [tempKey, setTempKey] = useState('');
 
-  const [isHomeConfirmOpen, setIsHomeConfirmOpen] = useState(false);
   const [isNavDrawerOpen, setIsNavDrawerOpen] = useState(false);
+
+  const [searchSuggestions, setSearchSuggestions] = useState<HeritageSite[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const db = useFirestore();
 
@@ -199,6 +201,29 @@ function ExploreRouteContent() {
       setLoading(false);
     }
   }, [toast]);
+
+  // Autocomplete logic
+  useEffect(() => {
+    if (searchQuery.length > 0) {
+      const q = searchQuery.toLowerCase();
+      const matches = HERITAGE_SITES.filter(site => 
+        site.name.toLowerCase().includes(q) || 
+        site.city.toLowerCase().includes(q) ||
+        site.category.toLowerCase().includes(q)
+      ).slice(0, 6);
+      setSearchSuggestions(matches);
+      setShowSuggestions(true);
+    } else {
+      setSearchSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, [searchQuery]);
+
+  const handleSelectSuggestion = (site: HeritageSite) => {
+    setSearchQuery(site.name);
+    setShowSuggestions(false);
+    centerOnSite(site);
+  };
 
   // LIVE NAVIGATION EFFECT
   useEffect(() => {
@@ -260,7 +285,6 @@ function ExploreRouteContent() {
 
   useEffect(() => {
     const fetchRoute = async () => {
-      // If navigating, we only care about user to current target
       if (isNavigating) {
         if (!userLocation || !itinerarySites[activeStopIndex] || !orsKey) return;
         const data = await getRoute(userLocation, itinerarySites[activeStopIndex].coordinates, orsKey);
@@ -273,7 +297,6 @@ function ExploreRouteContent() {
         return;
       }
 
-      // Default itinerary overview route
       if (itineraryIds.length < 2 || !orsKey) {
         setRouteCoords([]); setTotalDist(0); setTotalTime(0);
         return;
@@ -531,13 +554,25 @@ function ExploreRouteContent() {
 
       {/* TOP NAVIGATION */}
       <div className="fixed top-4 left-4 right-4 z-[1000] flex gap-2 items-center pointer-events-none md:max-w-4xl md:mx-auto md:left-1/2 md:-translate-x-1/2">
-        <Button 
-          onClick={() => setIsNavDrawerOpen(prev => !prev)}
-          size="icon" 
-          className="h-12 w-12 rounded-2xl shadow-3xl bg-white/95 backdrop-blur-xl text-primary hover:bg-white border-none ring-1 ring-black/5 shrink-0 pointer-events-auto"
-        >
-          <Menu size={24} />
-        </Button>
+        <div className="flex flex-col gap-2 pointer-events-auto">
+          <Button 
+            onClick={() => setIsNavDrawerOpen(prev => !prev)}
+            size="icon" 
+            className="h-12 w-12 rounded-2xl shadow-3xl bg-white/95 backdrop-blur-xl text-primary hover:bg-white border-none ring-1 ring-black/5 shrink-0"
+          >
+            <Menu size={24} />
+          </Button>
+          <Button 
+            onClick={() => setIsPanelExpanded(prev => !prev)}
+            size="icon" 
+            className={cn(
+              "h-12 w-12 shrink-0 rounded-2xl shadow-3xl backdrop-blur-xl border-none ring-1 ring-black/5 transition-all",
+              isPanelExpanded ? "bg-primary text-white" : "bg-white/95 text-slate-500"
+            )}
+          >
+            {isPanelExpanded ? <X size={20} /> : <Compass size={20} />}
+          </Button>
+        </div>
 
         <div className="relative group flex-1 pointer-events-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -546,7 +581,38 @@ function ExploreRouteContent() {
             className="pl-9 h-12 rounded-2xl shadow-3xl border-none bg-white/95 backdrop-blur-2xl w-full text-xs font-bold" 
             value={searchQuery} 
             onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
           />
+          
+          {/* Autocomplete Dropdown */}
+          {showSuggestions && (
+            <Card className="absolute top-14 left-0 right-0 rounded-2xl shadow-3xl border-none bg-white/95 backdrop-blur-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[1001]">
+              <ScrollArea className="max-h-[300px]">
+                <div className="p-2 space-y-1">
+                  {searchSuggestions.length > 0 ? searchSuggestions.map(site => (
+                    <button
+                      key={site.id}
+                      onClick={() => handleSelectSuggestion(site)}
+                      className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-primary/5 transition-colors text-left group"
+                    >
+                      <div className="h-10 w-10 rounded-lg overflow-hidden bg-slate-100 shrink-0">
+                        <img src={site.imageUrl} className="h-full w-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-black text-slate-900 truncate group-hover:text-primary transition-colors">{site.name}</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{site.city} • {site.category.split(' & ')[0]}</p>
+                      </div>
+                    </button>
+                  )) : (
+                    <div className="p-8 text-center opacity-30">
+                      <Search size={24} className="mx-auto mb-2" />
+                      <p className="text-[10px] font-black uppercase tracking-widest">No results found</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </Card>
+          )}
         </div>
         
         <Button 
@@ -555,17 +621,6 @@ function ExploreRouteContent() {
           className="h-12 w-12 shrink-0 rounded-2xl shadow-3xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5 pointer-events-auto"
         >
           {loading ? <Loader2 className="animate-spin" size={20} /> : <LocateFixed size={20} />}
-        </Button>
-
-        <Button 
-          onClick={() => setIsPanelExpanded(!isPanelExpanded)}
-          size="icon" 
-          className={cn(
-            "h-12 w-12 shrink-0 rounded-2xl shadow-3xl backdrop-blur-xl border-none ring-1 ring-black/5 pointer-events-auto transition-all",
-            isPanelExpanded ? "bg-primary text-white" : "bg-white/95 text-slate-500"
-          )}
-        >
-          {isPanelExpanded ? <X size={20} /> : <Compass size={20} />}
         </Button>
       </div>
 
@@ -980,27 +1035,6 @@ function ExploreRouteContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* CONFIRMATION FOR LEAVING NAVIGATION */}
-      <AlertDialog open={isHomeConfirmOpen} onOpenChange={setIsHomeConfirmOpen}>
-        <AlertDialogContent className="rounded-[2.5rem] p-10 border-none shadow-3xl bg-white text-slate-900">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-2xl font-headline font-black">Return Home?</AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-slate-500 leading-relaxed">
-              This will reset your current itinerary and end navigation. Are you sure you want to return to the landing page?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="mt-8 flex-col sm:flex-row gap-2">
-            <AlertDialogCancel className="h-12 rounded-2xl border-2 font-black uppercase text-[10px] tracking-widest">Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => { setIsNavigating(false); router.push('/'); }}
-              className="h-12 rounded-2xl bg-red-500 text-white hover:bg-red-600 font-black uppercase text-[10px] tracking-widest"
-            >
-              Confirm & Return
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
         <DialogContent className="max-w-xs rounded-[2.5rem] p-8 border-none shadow-3xl bg-white">
