@@ -70,33 +70,60 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
      Total distance is ${input.currentRoute.totalDistance.toFixed(1)} km, taking approx ${Math.round(input.currentRoute.estimatedTime)} mins.` : 
     "No active route yet.";
 
-  const { text } = await ai.generate({
-    prompt: lastMessage,
-    history: input.history.slice(0, -1),
-    tools: [searchSitesTool],
-    model: 'googleai/gemini-2.5-flash',
-    system: `You are the "Handumanan Guide", an expert virtual tour guide for Metro Cebu.
-    
-    CONTEXT:
-    - You help users find heritage sites and understand their active travel route.
-    - Active Route Info: ${routeContext}
-    - Use real data from the searchSites tool if the user asks for details about a landmark.
-    
-    GOALS:
-    1. ANSWER ROUTE QUERIES: If asked about the next stop, distance, or time, use the provided Route Info.
-    2. PROVIDE LANDMARK INFO: Use searchSites to get the overview and significance of sites.
-    3. STAY CONCISE: Keep responses to 2-4 sentences max. Use simple, natural language.
-    
-    STYLE:
-    - Friendly, helpful, and Cebuano-proud.
-    - If asked an unrelated question, politely say: "I can only help with Metro Cebu heritage sites and route information."`,
-    config: {
-      temperature: 0.7,
+  let lastError;
+  const maxAttempts = 5;
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const { text } = await ai.generate({
+        prompt: lastMessage,
+        history: input.history.slice(0, -1),
+        tools: [searchSitesTool],
+        model: 'googleai/gemini-2.5-flash',
+        system: `You are the "Handumanan Guide", an expert virtual tour guide for Metro Cebu.
+        
+        CONTEXT:
+        - You help users find heritage sites and understand their active travel route.
+        - Active Route Info: ${routeContext}
+        - Use real data from the searchSites tool if the user asks for details about a landmark.
+        
+        GOALS:
+        1. ANSWER ROUTE QUERIES: If asked about the next stop, distance, or time, use the provided Route Info.
+        2. PROVIDE LANDMARK INFO: Use searchSites to get the overview and significance of sites.
+        3. STAY CONCISE: Keep responses to 2-4 sentences max. Use simple, natural language.
+        
+        STYLE:
+        - Friendly, helpful, and Cebuano-proud.
+        - If asked an unrelated question, politely say: "I can only help with Metro Cebu heritage sites and route information."`,
+        config: {
+          temperature: 0.7,
+        }
+      });
+
+      return {
+        text: text || "I'm sorry, I couldn't find details on that right now. Try asking about your next stop or a specific museum.",
+        suggestedAction: 'none'
+      };
+    } catch (error: any) {
+      lastError = error;
+      const errorMessage = error.message || '';
+      const isRetryable = 
+        errorMessage.includes('503') || 
+        errorMessage.includes('high demand') || 
+        errorMessage.includes('UNAVAILABLE') ||
+        errorMessage.includes('DEADLINE_EXCEEDED');
+
+      if (isRetryable && attempt < maxAttempts - 1) {
+        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      break;
     }
-  });
+  }
 
   return {
-    text: text || "I'm sorry, I couldn't find details on that right now. Try asking about your next stop or a specific museum.",
+    text: "I'm currently receiving too many requests. Please wait a moment and try again.",
     suggestedAction: 'none'
   };
 }

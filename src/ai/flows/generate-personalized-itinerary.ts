@@ -104,14 +104,24 @@ const generatePersonalizedItineraryFlow = ai.defineFlow(
   },
   async input => {
     let lastError;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    const maxAttempts = 5;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         const {output} = await generatePersonalizedItineraryPrompt(input);
         if (output) return output;
       } catch (error: any) {
         lastError = error;
-        if (error.message?.includes('503') || error.message?.includes('high demand')) {
-          await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)));
+        const errorMessage = error.message || '';
+        const isRetryable = 
+          errorMessage.includes('503') || 
+          errorMessage.includes('high demand') || 
+          errorMessage.includes('UNAVAILABLE') ||
+          errorMessage.includes('DEADLINE_EXCEEDED');
+
+        if (isRetryable && attempt < maxAttempts - 1) {
+          // Exponential backoff with jitter
+          const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
         throw error;
