@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
-import dynamic from 'next/dynamic';
+import { useState, useEffect, useMemo, useCallback, Suspense, useRef } from 'react';
+import dynamic from 'next/next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { HeritageSite, HERITAGE_SITES } from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation } from '@/lib/location-utils';
-import { getRouteMulti } from '@/lib/routing-service';
+import { getRouteMulti, RouteStep, getRoute } from '@/lib/routing-service';
 import { generatePersonalizedItinerary, type GeneratePersonalizedItineraryOutput } from '@/ai/flows/generate-personalized-itinerary';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -19,7 +19,7 @@ import {
   LocateFixed,
   X,
   Church,
-  Landmark,
+  Landmark as LandmarkIcon,
   TreePine,
   Menu,
   Trash2,
@@ -40,7 +40,10 @@ import {
   LogOut,
   ChevronRight,
   Shield,
-  Map as MapIcon
+  Map as MapIcon,
+  CheckCircle2,
+  Flag,
+  ArrowRight
 } from 'lucide-react';
 import { useFirestore, useUser, useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -79,6 +82,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useIsMobile } from '@/hooks/use-mobile';
 import Link from 'next/link';
 
@@ -91,8 +95,8 @@ const CITIES = ["Cebu City", "Mandaue City", "Talisay City", "Lapu-Lapu City"];
 
 const CATEGORIES = [
   { label: "Churches & Religious Heritage Sites", value: "Churches & Religious Heritage Sites", icon: Church },
-  { label: "Ancestral Houses & Heritage Residences", value: "Ancestral Houses & Heritage Residences", icon: Landmark },
-  { label: "Museums & Cultural Institutions", value: "Museums & Cultural Institutions", icon: Landmark },
+  { label: "Ancestral Houses & Heritage Residences", value: "Ancestral Houses & Heritage Residences", icon: LandmarkIcon },
+  { label: "Museums & Cultural Institutions", value: "Museums & Cultural Institutions", icon: LandmarkIcon },
   { label: "Historical Landmarks & Monuments", value: "Historical Landmarks & Monuments", icon: MapPin },
   { label: "Plazas, Parks & Public Spaces", value: "Plazas, Parks & Public Spaces", icon: TreePine },
   { label: "Government & Historic Buildings", value: "Government & Historic Buildings", icon: Building2 },
@@ -124,7 +128,12 @@ function ExploreRouteContent() {
   const [focusedLocation, setFocusedLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   const [isNavigating, setIsNavigating] = useState(false);
-  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+  const [activeStopIndex, setActiveStopIndex] = useState(0);
+  const [navigationSteps, setNavigationSteps] = useState<RouteStep[]>([]);
+  const [hasArrived, setHasArrived] = useState(false);
+  const watchIdRef = useRef<number | null>(null);
+
+  const [isPanelExpanded, setIsPanelExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState('discover');
   const [recenterKey, setRecenterKey] = useState(0);
   
@@ -189,6 +198,37 @@ function ExploreRouteContent() {
     }
   }, [toast]);
 
+  // LIVE LIVE NAVIGATION EFFECT
+  useEffect(() => {
+    if (isNavigating && !watchIdRef.current) {
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const newLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setUserLocation(newLoc);
+
+          // Arrival detection (within 50 meters)
+          const targetSite = itinerarySites[activeStopIndex];
+          if (targetSite) {
+            const dist = calculateDistance(newLoc.lat, newLoc.lng, targetSite.coordinates.lat, targetSite.coordinates.lng);
+            if (dist <= 0.05 && !hasArrived) { // 50m
+              setHasArrived(true);
+              toast({ title: "Arrived!", description: `You have reached ${targetSite.name}.` });
+            }
+          }
+        },
+        (err) => console.error("Navigation watch error:", err),
+        { enableHighAccuracy: true }
+      );
+    }
+
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, [isNavigating, activeStopIndex, hasArrived, toast]);
+
   const allSites = useMemo(() => {
     let result = HERITAGE_SITES;
     if (selectedCity) result = result.filter(s => s.city === selectedCity);
@@ -218,6 +258,20 @@ function ExploreRouteContent() {
 
   useEffect(() => {
     const fetchRoute = async () => {
+      // If navigating, we only care about user to current target
+      if (isNavigating) {
+        if (!userLocation || !itinerarySites[activeStopIndex] || !orsKey) return;
+        const data = await getRoute(userLocation, itinerarySites[activeStopIndex].coordinates, orsKey);
+        if (data) {
+          setRouteCoords(data.coordinates);
+          setNavigationSteps(data.steps);
+          setTotalDist(data.distance);
+          setTotalTime(data.duration);
+        }
+        return;
+      }
+
+      // Default itinerary overview route
       if (itineraryIds.length < 2 || !orsKey) {
         setRouteCoords([]); setTotalDist(0); setTotalTime(0);
         return;
@@ -230,14 +284,14 @@ function ExploreRouteContent() {
       }
     };
     fetchRoute();
-  }, [itineraryIds, orsKey, itinerarySites]);
+  }, [itineraryIds, orsKey, itinerarySites, isNavigating, activeStopIndex, userLocation]);
 
   const toggleSite = (id: string) => {
     if (itineraryIds.includes(id)) {
       setItineraryIds(prev => prev.filter(i => i !== id));
     } else {
       setItineraryIds(prev => [...prev, id]);
-      toast({ title: "Added to Itinerary", description: "Head to the AI Planner to optimize your trip." });
+      toast({ title: "Added to Itinerary", description: "Optimize your route in the AI Planner." });
     }
   };
 
@@ -268,7 +322,36 @@ function ExploreRouteContent() {
 
   const centerOnSite = (site: HeritageSite) => {
     setFocusedLocation({ lat: site.coordinates.lat, lng: site.coordinates.lng });
-    setIsNavigating(false);
+  };
+
+  const handleStartNavigation = async () => {
+    if (itineraryIds.length === 0) {
+      toast({ title: "No Destination", description: "Please select at least one heritage site." });
+      return;
+    }
+
+    const loc = await detectLocation();
+    if (!loc) {
+      toast({ title: "Location Denied", description: "Location permission is required to start navigation.", variant: "destructive" });
+      return;
+    }
+
+    setIsNavigating(true);
+    setActiveStopIndex(0);
+    setHasArrived(false);
+    setIsPanelExpanded(false);
+    
+    toast({ title: "Navigation Started", description: `Heading to ${itinerarySites[0].name}` });
+  };
+
+  const handleNextStop = () => {
+    if (activeStopIndex < itineraryIds.length - 1) {
+      setActiveStopIndex(prev => prev + 1);
+      setHasArrived(false);
+    } else {
+      setIsNavigating(false);
+      toast({ title: "Journey Complete", description: "You've reached all stops in your itinerary!" });
+    }
   };
 
   const handleGeneratePlanner = async (forcedSites?: string[]) => {
@@ -371,7 +454,7 @@ function ExploreRouteContent() {
       <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0 border-none shadow-2xl bg-white flex flex-col">
         <SheetHeader className="p-8 bg-primary text-white shrink-0 text-left">
           <SheetTitle className="text-white font-headline text-3xl font-black flex items-center gap-3">
-             <Landmark size={32} /> Handumanan
+             <LandmarkIcon size={32} /> Handumanan
           </SheetTitle>
           <p className="text-white/70 text-xs font-bold uppercase tracking-widest mt-2">Cebu Heritage Guide</p>
         </SheetHeader>
@@ -381,7 +464,7 @@ function ExploreRouteContent() {
             { label: 'Home', href: '/', icon: Home },
             { label: 'Explore & Route', href: '/discover', icon: Compass },
             { label: 'Site Directory', href: '/explore', icon: Search },
-            { label: 'My Profile', href: '/profile', icon: Landmark },
+            { label: 'My Profile', href: '/profile', icon: LandmarkIcon },
           ].map(item => (
             <Link 
               key={item.label} 
@@ -443,7 +526,7 @@ function ExploreRouteContent() {
 
       <NavDrawer />
 
-      {/* TOP NAVIGATION CLEANUP (MOBILE) */}
+      {/* TOP NAVIGATION */}
       <div className="fixed top-4 left-4 right-4 z-[1000] flex gap-2 items-center pointer-events-none md:max-w-4xl md:mx-auto md:left-1/2 md:-translate-x-1/2">
         <Button 
           onClick={() => setIsNavDrawerOpen(prev => !prev)}
@@ -483,7 +566,71 @@ function ExploreRouteContent() {
         </Button>
       </div>
 
-      {/* DISCOVER PANEL (MOBILE BOTTOM SHEET / DESKTOP FLOATING) */}
+      {/* LIVE NAVIGATION UI */}
+      {isNavigating && (
+        <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-96 z-[1001] animate-in slide-in-from-bottom-6">
+          <Card className="rounded-[2rem] shadow-3xl border-none overflow-hidden bg-white/95 backdrop-blur-2xl p-6">
+            <div className="flex items-center justify-between mb-6">
+               <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-primary text-white flex items-center justify-center shadow-lg">
+                     <Navigation size={20} className="animate-pulse" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Stop {activeStopIndex + 1} of {itineraryIds.length}</p>
+                    <h3 className="font-headline text-lg font-black text-slate-900 truncate max-w-[200px]">{itinerarySites[activeStopIndex]?.name}</h3>
+                  </div>
+               </div>
+               <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { setIsNavigating(false); setIsPanelExpanded(true); }}>
+                 <X size={18} />
+               </Button>
+            </div>
+
+            <ScrollArea className="h-48 mb-6 border-y py-4">
+              <div className="space-y-4">
+                {navigationSteps.length > 0 ? navigationSteps.map((step, i) => (
+                  <div key={i} className="flex gap-4 items-start">
+                    <div className="mt-1"><ChevronRight size={14} className="text-primary" /></div>
+                    <div className="flex-1">
+                       <p className="text-xs font-bold text-slate-700 leading-snug">{step.instruction}</p>
+                       <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">{step.distance.toFixed(1)} km • {Math.round(step.duration)} min</p>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="flex flex-col items-center justify-center py-10 opacity-50">
+                    <Loader2 className="animate-spin text-primary mb-2" />
+                    <p className="text-[10px] font-black uppercase">Calculating Route...</p>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+
+            {hasArrived ? (
+              <div className="flex flex-col gap-3">
+                 <div className="bg-green-50 p-4 rounded-2xl border border-green-100 flex items-center gap-3">
+                    <CheckCircle2 className="text-green-500" />
+                    <p className="text-xs font-black text-green-700 uppercase">You have arrived!</p>
+                 </div>
+                 <Button onClick={handleNextStop} className="w-full h-14 rounded-2xl bg-slate-900 text-white font-black uppercase tracking-widest shadow-xl">
+                   {activeStopIndex < itineraryIds.length - 1 ? "Navigate to Next Stop" : "Finish Journey"} <ArrowRight size={18} className="ml-2" />
+                 </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                 <div className="bg-slate-50 p-4 rounded-2xl">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Remaining</p>
+                    <p className="text-lg font-black text-slate-900">{totalDist.toFixed(1)} KM</p>
+                 </div>
+                 <div className="bg-slate-50 p-4 rounded-2xl">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Time ETE</p>
+                    <p className="text-lg font-black text-slate-900">{Math.round(totalTime)} MIN</p>
+                 </div>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* DISCOVER PANEL */}
       <div className={cn(
         "fixed transition-all duration-500 ease-in-out z-[1000] pointer-events-auto",
         isMobile 
@@ -712,7 +859,7 @@ function ExploreRouteContent() {
 
                       {itineraryIds.length > 0 && (
                         <div className="flex flex-col gap-3 mt-6">
-                           <Button onClick={() => setIsNavigating(true)} className="w-full h-12 bg-slate-900 text-[10px] font-black uppercase tracking-widest rounded-[1.25rem] shadow-xl">
+                           <Button onClick={handleStartNavigation} className="w-full h-12 bg-slate-900 text-[10px] font-black uppercase tracking-widest rounded-[1.25rem] shadow-xl">
                              <Route size={18} className="mr-2" /> Start Navigation
                            </Button>
                            <div className="flex gap-3">
@@ -740,7 +887,7 @@ function ExploreRouteContent() {
         </Card>
       </div>
 
-      {/* AUTO-GENERATE DIALOG (MOBILE BOTTOM SHEET STYLE) */}
+      {/* AUTO-GENERATE DIALOG */}
       <Dialog open={isAutoDialogOpen} onOpenChange={setIsAutoDialogOpen}>
         <DialogContent className={cn(
           "border-none shadow-3xl bg-white text-slate-900 transition-all",
@@ -761,7 +908,7 @@ function ExploreRouteContent() {
               <div className="grid grid-cols-1 gap-2">
                 {[
                   { id: 'near', label: 'Near Me', icon: LocateFixed, desc: 'Minimize travel distance' },
-                  { id: 'theme', label: 'Themed Trip', icon: Landmark, desc: 'Focus on one category' },
+                  { id: 'theme', label: 'Themed Trip', icon: LandmarkIcon, desc: 'Focus on one category' },
                   { id: 'balanced', label: 'Balanced Tour', icon: Sparkles, desc: 'A mix of everything' }
                 ].map(mode => (
                   <button 

@@ -81,6 +81,7 @@ function MapController({
 
   useEffect(() => {
     if (isNavigating && userLocation) {
+      // Smoothly follow user with high zoom
       map.panTo([userLocation.lat, userLocation.lng], { animate: true, duration: 1 });
       if (map.getZoom() < 16) map.setZoom(17);
     }
@@ -94,10 +95,10 @@ function MapController({
   }, [recenterKey, userLocation, map]);
 
   useEffect(() => {
-    if (focusedLocation) {
+    if (focusedLocation && !isNavigating) {
       map.setView([focusedLocation.lat, focusedLocation.lng], 16, { animate: true });
     }
-  }, [focusedLocation, map]);
+  }, [focusedLocation, isNavigating, map]);
 
   useEffect(() => {
     if (!isNavigating && !focusedLocation && routeCoordinates && routeCoordinates.length > 1) {
