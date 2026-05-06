@@ -202,7 +202,6 @@ function ExploreRouteContent() {
     }
   }, [toast]);
 
-  // Autocomplete logic
   useEffect(() => {
     if (searchQuery.length > 0) {
       const q = searchQuery.toLowerCase();
@@ -225,7 +224,6 @@ function ExploreRouteContent() {
     centerOnSite(site);
   };
 
-  // LIVE NAVIGATION EFFECT
   useEffect(() => {
     if (isNavigating && !watchIdRef.current) {
       watchIdRef.current = navigator.geolocation.watchPosition(
@@ -233,11 +231,10 @@ function ExploreRouteContent() {
           const newLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           setUserLocation(newLoc);
 
-          // Arrival detection (within 50 meters)
           const targetSite = itinerarySites[activeStopIndex];
           if (targetSite) {
             const dist = calculateDistance(newLoc.lat, newLoc.lng, targetSite.coordinates.lat, targetSite.coordinates.lng);
-            if (dist <= 0.05 && !hasArrived) { // 50m
+            if (dist <= 0.05 && !hasArrived) {
               setHasArrived(true);
               toast({ title: "Arrived!", description: `You have reached ${targetSite.name}.` });
             }
@@ -477,7 +474,7 @@ function ExploreRouteContent() {
 
   const NavDrawer = () => (
     <Sheet open={isNavDrawerOpen} onOpenChange={setIsNavDrawerOpen}>
-      <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0 border-none shadow-2xl bg-white flex flex-col">
+      <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0 border-none shadow-2xl bg-white flex flex-col z-[10000]">
         <SheetHeader className="p-8 bg-primary text-white shrink-0 text-left">
           <SheetTitle className="text-white font-headline text-3xl font-black flex items-center gap-3">
              <LandmarkIcon size={32} /> Handumanan
@@ -499,7 +496,7 @@ function ExploreRouteContent() {
               className="flex items-center gap-4 p-4 rounded-2xl hover:bg-slate-50 transition-colors group"
             >
               <item.icon size={20} className="text-slate-400 group-hover:text-primary" />
-              <span className="text-sm font-black text-slate-700 uppercase tracking-widest">{item.label}</span>
+              <span className="text-sm font-black text-slate-700 uppercase tracking-widest leading-normal whitespace-normal overflow-wrap-anywhere word-break-break-word">{item.label}</span>
             </Link>
           ))}
           
@@ -584,7 +581,6 @@ function ExploreRouteContent() {
             onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
           />
           
-          {/* Autocomplete Dropdown */}
           {showSuggestions && (
             <Card className="absolute top-14 left-0 right-0 rounded-2xl shadow-3xl border-none bg-white/95 backdrop-blur-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-[1001]">
               <ScrollArea className="max-h-[300px]">
@@ -624,7 +620,6 @@ function ExploreRouteContent() {
         </Button>
       </div>
 
-      {/* LIVE NAVIGATION UI */}
       {isNavigating && (
         <div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-96 z-[1001] animate-in slide-in-from-bottom-6">
           <Card className="rounded-[2rem] shadow-3xl border-none overflow-hidden bg-white/95 backdrop-blur-2xl p-6">
@@ -638,7 +633,7 @@ function ExploreRouteContent() {
                     <h3 className="font-headline text-lg font-black text-slate-900 truncate max-w-[200px]">{itinerarySites[activeStopIndex]?.name}</h3>
                   </div>
                </div>
-               <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { setIsNavigating(false); setIsPanelExpanded(true); }}>
+               <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setIsNavigating(false)}>
                  <X size={18} />
                </Button>
             </div>
@@ -815,7 +810,7 @@ function ExploreRouteContent() {
                     </div>
                   </div>
                 ) : (
-                  <>
+                  <div className="space-y-6">
                     <div className="space-y-4">
                       <div className="space-y-2.5">
                         <Label className="text-[9px] font-black uppercase text-slate-400">How much time do you have?</Label>
@@ -937,7 +932,7 @@ function ExploreRouteContent() {
                         </div>
                       )}
                     </div>
-                  </>
+                  </div>
                 )}
               </TabsContent>
             </div>
@@ -948,7 +943,7 @@ function ExploreRouteContent() {
       {/* AUTO-GENERATE DIALOG */}
       <Dialog open={isAutoDialogOpen} onOpenChange={setIsAutoDialogOpen}>
         <DialogContent className={cn(
-          "border-none shadow-3xl bg-white text-slate-900 transition-all p-0 flex flex-col overflow-hidden",
+          "border-none shadow-3xl bg-white text-slate-900 transition-all p-0 flex flex-col overflow-hidden z-[9999]",
           isMobile 
             ? "max-w-[calc(100vw-24px)] bottom-4 top-auto translate-y-0 rounded-[2rem] max-h-[70vh]" 
             : "max-w-[400px] rounded-[2rem] max-h-[75vh]"
@@ -1037,7 +1032,7 @@ function ExploreRouteContent() {
       </Dialog>
 
       <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
-        <DialogContent className="max-w-xs rounded-[2.5rem] p-8 border-none shadow-3xl bg-white">
+        <DialogContent className="max-w-xs rounded-[2.5rem] p-8 border-none shadow-3xl bg-white z-[9999]">
           <DialogHeader>
             <DialogTitle className="text-xl font-headline font-black text-slate-900">Routing Key</DialogTitle>
             <DialogDescription className="text-xs text-slate-500 leading-relaxed">Enter your OpenRouteService API key to enable road-accurate navigation in Metro Cebu.</DialogDescription>
