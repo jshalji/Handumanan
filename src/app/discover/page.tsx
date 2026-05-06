@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, Suspense, useRef } from 'react';
-import dynamic from 'next/next/dynamic';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { HeritageSite, HERITAGE_SITES } from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation } from '@/lib/location-utils';
@@ -169,7 +169,9 @@ function ExploreRouteContent() {
       const site = HERITAGE_SITES.find(s => s.id === siteIdFromUrl);
       if (site) {
         centerOnSite(site);
-        toggleSite(siteIdFromUrl);
+        if (!itineraryIds.includes(siteIdFromUrl)) {
+          toggleSite(siteIdFromUrl);
+        }
       }
     }
   }, [searchParams]);
@@ -198,7 +200,7 @@ function ExploreRouteContent() {
     }
   }, [toast]);
 
-  // LIVE LIVE NAVIGATION EFFECT
+  // LIVE NAVIGATION EFFECT
   useEffect(() => {
     if (isNavigating && !watchIdRef.current) {
       watchIdRef.current = navigator.geolocation.watchPosition(
@@ -381,7 +383,8 @@ function ExploreRouteContent() {
         
       if (suggestedIds.length > 0) {
         setItineraryIds(suggestedIds);
-        centerOnSite(HERITAGE_SITES.find(s => s.id === suggestedIds[0])!);
+        const firstSite = HERITAGE_SITES.find(s => s.id === suggestedIds[0]);
+        if (firstSite) centerOnSite(firstSite);
       }
       
       toast({ title: "Itinerary Optimized", description: output.routeSuggestion });
@@ -422,7 +425,7 @@ function ExploreRouteContent() {
       candidateSites = [];
       for (let i = 0; i < limit; i++) {
         const cat = cats[i % cats.length];
-        const site = HERITAGE_SITES.find(s => s.category === cat && !candidateSites.includes(s));
+        const site = HERITAGE_SITES.find(s => s.category === cat && !candidateSites.some(cs => cs.id === s?.id));
         if (site) candidateSites.push(site);
       }
     }
