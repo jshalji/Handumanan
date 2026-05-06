@@ -10,11 +10,17 @@ import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 
+/**
+ * FIXED ICONS:
+ * Explicit iconAnchor [12, 41] ensures the pin tip is the reference point.
+ * This prevents markers from "moving" or drifting during zoom events.
+ */
 const DefaultIcon = L.icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
 });
 
 const destIcon = L.icon({
@@ -56,6 +62,22 @@ interface HeritageMapProps {
   recenterKey?: number;
 }
 
+/**
+ * Coordinate Validation:
+ * Prevents pins from appearing in the ocean (0,0) or outside valid bounds.
+ */
+const isValidCoordinate = (lat: any, lng: any) => {
+  const latitude = parseFloat(lat);
+  const longitude = parseFloat(lng);
+  return (
+    !isNaN(latitude) &&
+    !isNaN(longitude) &&
+    latitude >= -90 && latitude <= 90 &&
+    longitude >= -180 && longitude <= 180 &&
+    latitude !== 0 && longitude !== 0
+  );
+};
+
 function MapController({ 
   routeCoordinates,
   focusedLocation,
@@ -77,25 +99,23 @@ function MapController({
     if (cityTarget) {
       map.setView([cityTarget.lat, cityTarget.lng], cityTarget.zoom, { animate: true, duration: 1.5 });
     }
-  }, [cityTarget?.timestamp, map]);
+  }, [cityTarget?.timestamp, map, cityTarget]);
 
   useEffect(() => {
     if (isNavigating && userLocation) {
-      // Smoothly follow user with high zoom
       map.panTo([userLocation.lat, userLocation.lng], { animate: true, duration: 1 });
       if (map.getZoom() < 16) map.setZoom(17);
     }
-  }, [isNavigating, userLocation?.lat, userLocation?.lng, map]);
+  }, [isNavigating, userLocation?.lat, userLocation?.lng, map, userLocation]);
 
   useEffect(() => {
-    // Only recenter when explicitly requested via recenterKey increment
     if (recenterKey && recenterKey > 0 && userLocation) {
       map.setView([userLocation.lat, userLocation.lng], 17, { animate: true });
     }
   }, [recenterKey, userLocation, map]);
 
   useEffect(() => {
-    if (focusedLocation && !isNavigating) {
+    if (focusedLocation && !isNavigating && isValidCoordinate(focusedLocation.lat, focusedLocation.lng)) {
       map.setView([focusedLocation.lat, focusedLocation.lng], 16, { animate: true });
     }
   }, [focusedLocation, isNavigating, map]);
@@ -163,13 +183,18 @@ export default function HeritageMap({
           recenterKey={recenterKey}
         />
 
-        {userLocation && (
+        {userLocation && isValidCoordinate(userLocation.lat, userLocation.lng) && (
           <Marker position={[userLocation.lat, userLocation.lng]} icon={userPulse}>
             <Popup>Your Location</Popup>
           </Marker>
         )}
 
         {sites.map((site) => {
+          // SKIP INVALID COORDINATES - Do not render in the ocean
+          if (!isValidCoordinate(site.coordinates.lat, site.coordinates.lng)) {
+            return null;
+          }
+
           const isInItinerary = itinerary.some(i => i.id === site.id);
           const isLastInItinerary = itinerary.length > 0 && itinerary[itinerary.length - 1].id === site.id;
           
@@ -198,9 +223,9 @@ export default function HeritageMap({
                     
                     <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed">{site.description}</p>
                     
-                    {isAdmin && site.needsVerification && (
+                    {isAdmin && (site.needsVerification || site.coordinates.lat === 10.3) && (
                       <div className="flex items-center gap-2 p-2 bg-amber-50 rounded-lg text-amber-700 text-[8px] font-black uppercase">
-                        <AlertCircle size={10} /> Needs Verification
+                        <AlertCircle size={10} /> Needs Precise Locking
                       </div>
                     )}
 
