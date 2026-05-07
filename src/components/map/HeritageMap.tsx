@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, Circle, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Button } from '@/components/ui/button';
-import { Plus, Check, Navigation, AlertCircle, ExternalLink } from 'lucide-react';
+import { Plus, Check, Navigation, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -14,6 +14,7 @@ import { doc } from 'firebase/firestore';
  * FIXED ICONS:
  * Explicit iconAnchor [12, 41] ensures the pin tip is the reference point.
  * This prevents markers from "moving" or drifting during zoom events.
+ * Leaflet standard marker icon size is 25x41px.
  */
 const DefaultIcon = L.icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -58,13 +59,14 @@ interface HeritageMapProps {
   onAddSite: (id: string) => void;
   focusedLocation?: { lat: number; lng: number } | null;
   isNavigating?: boolean;
-  cityTarget?: { lat: number; lng: number; zoom: number; timestamp: number } | null;
   recenterKey?: number;
 }
 
 /**
  * Coordinate Validation:
  * Prevents pins from appearing in the ocean (0,0) or outside valid bounds.
+ * Latitude: -90 to 90
+ * Longitude: -180 to 180
  */
 const isValidCoordinate = (lat: any, lng: any) => {
   const latitude = parseFloat(lat);
@@ -83,23 +85,15 @@ function MapController({
   focusedLocation,
   isNavigating,
   userLocation,
-  cityTarget,
   recenterKey
 }: { 
   routeCoordinates?: [number, number][],
   focusedLocation?: { lat: number; lng: number } | null,
   isNavigating?: boolean,
   userLocation: { lat: number; lng: number } | null,
-  cityTarget?: { lat: number; lng: number; zoom: number; timestamp: number } | null,
   recenterKey?: number
 }) {
   const map = useMap();
-
-  useEffect(() => {
-    if (cityTarget) {
-      map.setView([cityTarget.lat, cityTarget.lng], cityTarget.zoom, { animate: true, duration: 1.5 });
-    }
-  }, [cityTarget?.timestamp, map, cityTarget]);
 
   useEffect(() => {
     if (isNavigating && userLocation) {
@@ -140,7 +134,6 @@ export default function HeritageMap({
   onAddSite,
   focusedLocation,
   isNavigating,
-  cityTarget,
   recenterKey
 }: HeritageMapProps) {
   const [mounted, setMounted] = useState(false);
@@ -179,7 +172,6 @@ export default function HeritageMap({
           focusedLocation={focusedLocation} 
           isNavigating={isNavigating}
           userLocation={userLocation}
-          cityTarget={cityTarget}
           recenterKey={recenterKey}
         />
 
@@ -190,7 +182,7 @@ export default function HeritageMap({
         )}
 
         {sites.map((site) => {
-          // SKIP INVALID COORDINATES - Do not render in the ocean
+          // SKIP INVALID COORDINATES
           if (!isValidCoordinate(site.coordinates.lat, site.coordinates.lng)) {
             return null;
           }
@@ -205,7 +197,7 @@ export default function HeritageMap({
           return (
             <Marker 
               key={site.id} 
-              position={[site.coordinates.lat, site.coordinates.lng]}
+              position={[Number(site.coordinates.lat), Number(site.coordinates.lng)]}
               icon={markerIcon}
             >
               <Popup className="compact-popup">
@@ -223,9 +215,9 @@ export default function HeritageMap({
                     
                     <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed">{site.description}</p>
                     
-                    {isAdmin && (site.needsVerification || site.coordinates.lat === 10.3) && (
+                    {isAdmin && (site.needsVerification) && (
                       <div className="flex items-center gap-2 p-2 bg-amber-50 rounded-lg text-amber-700 text-[8px] font-black uppercase">
-                        <AlertCircle size={10} /> Needs Precise Locking
+                        <AlertCircle size={10} /> Needs Verification
                       </div>
                     )}
 

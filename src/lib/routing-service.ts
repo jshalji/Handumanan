@@ -22,6 +22,7 @@ export interface RouteData {
 
 /**
  * Fetches an accurate road-based route using OpenRouteService POST API for multiple waypoints.
+ * IMPORTANT: Routing API expects [longitude, latitude] format.
  * @param points - Array of {lat, lng} coordinates in order
  * @param apiKey - OpenRouteService API Key
  * @param profile - 'driving-car' or 'foot-walking'
@@ -34,7 +35,8 @@ export async function getRouteMulti(
   if (points.length < 2 || !apiKey) return null;
 
   try {
-    const coordinates = points.map(p => [p.lng, p.lat]);
+    // ROUTING API REQUIREMENT: [longitude, latitude]
+    const coordinates = points.map(p => [Number(p.lng), Number(p.lat)]);
     
     const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
     
@@ -61,7 +63,8 @@ export async function getRouteMulti(
 
     if (data.features && data.features.length > 0) {
       const feature = data.features[0];
-      const coords = feature.geometry.coordinates.map((c: number[]) => [c[1], c[0]] as [number, number]);
+      // LEAFLET REQUIREMENT: [latitude, longitude]
+      const coords = feature.geometry.coordinates.map((c: number[]) => [Number(c[1]), Number(c[0])] as [number, number]);
       const properties = feature.properties;
       const summary = properties.summary;
       
@@ -92,7 +95,7 @@ export async function getRouteMulti(
 }
 
 /**
- * Legacy single route fetcher (now uses the multi-point logic internally for consistency)
+ * Legacy single route fetcher
  */
 export async function getRoute(
   start: { lat: number; lng: number } | null, 

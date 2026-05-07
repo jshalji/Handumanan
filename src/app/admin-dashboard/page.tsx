@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,7 +8,7 @@ import { collection, doc, query, orderBy, serverTimestamp } from 'firebase/fires
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Navbar } from '@/components/layout/Navbar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,8 +29,7 @@ import {
   AlertCircle,
   Loader2,
   ChevronRight,
-  Globe,
-  Star
+  Globe
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -73,8 +71,6 @@ export default function AdminDashboardPage() {
   const sitesQuery = useMemoFirebase(() => db ? query(collection(db, 'heritageSites'), orderBy('name')) : null, [db]);
   const { data: sites, isLoading: isSitesLoading } = useCollection(sitesQuery);
 
-  const reviewsQuery = useMemoFirebase(() => db ? query(collection(db, 'heritageSites'), orderBy('createdAt', 'desc')) : null, [db]); // Assuming top-level for admin overview
-  
   if (isUserLoading || isCheckingRole || !userData || userData.role !== 'admin') {
     return <div className="h-screen flex items-center justify-center bg-slate-900"><Loader2 className="animate-spin text-white" size={48} /></div>;
   }
@@ -96,8 +92,9 @@ export default function AdminDashboardPage() {
       imageUrl: formData.get('imageUrl') as string,
       description: formData.get('description') as string,
       significance: formData.get('significance') as string,
-      latitude: parseFloat(formData.get('latitude') as string),
-      longitude: parseFloat(formData.get('longitude') as string),
+      // CRITICAL: Ensure coordinates are saved as NUMBERS
+      latitude: Number(formData.get('latitude')),
+      longitude: Number(formData.get('longitude')),
       rating: parseFloat(formData.get('rating') as string) || 4.5,
       updatedAt: serverTimestamp(),
       createdAt: editingSite ? editingSite.createdAt : serverTimestamp()
@@ -184,59 +181,6 @@ export default function AdminDashboardPage() {
                     </Card>
                   ))}
                </div>
-
-               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <Card className="bg-slate-900 border-white/5 rounded-3xl overflow-hidden shadow-2xl">
-                     <CardHeader className="p-8 border-b border-white/5">
-                        <CardTitle className="text-xl font-headline">Recent Heritage Updates</CardTitle>
-                     </CardHeader>
-                     <CardContent className="p-0">
-                        <div className="divide-y divide-white/5">
-                           {sites?.slice(0, 5).map(site => (
-                             <div key={site.id} className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors">
-                                <div className="flex items-center gap-4">
-                                   <div className="h-10 w-10 rounded-xl overflow-hidden bg-slate-800"><img src={site.imageUrl} className="h-full w-full object-cover" /></div>
-                                   <div>
-                                      <p className="text-sm font-bold">{site.name}</p>
-                                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">{site.city}</p>
-                                   </div>
-                                </div>
-                                <CheckCircle2 className="text-green-500" size={16} />
-                             </div>
-                           ))}
-                        </div>
-                     </CardContent>
-                  </Card>
-
-                  <Card className="bg-slate-900 border-white/5 rounded-3xl p-8 shadow-2xl">
-                     <CardHeader className="p-0 mb-6">
-                        <CardTitle className="text-xl font-headline">System Status</CardTitle>
-                     </CardHeader>
-                     <div className="space-y-6">
-                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl">
-                           <div className="flex items-center gap-3">
-                              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                              <span className="text-sm font-bold text-slate-300">Firebase Core</span>
-                           </div>
-                           <span className="text-[10px] font-black uppercase text-green-500">Online</span>
-                        </div>
-                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl">
-                           <div className="flex items-center gap-3">
-                              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                              <span className="text-sm font-bold text-slate-300">OpenRouteService API</span>
-                           </div>
-                           <span className="text-[10px] font-black uppercase text-green-500">Healthy</span>
-                        </div>
-                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl">
-                           <div className="flex items-center gap-3">
-                              <div className="h-2 w-2 rounded-full bg-yellow-500" />
-                              <span className="text-sm font-bold text-slate-300">AI Prompt Engine</span>
-                           </div>
-                           <span className="text-[10px] font-black uppercase text-yellow-500">Standby</span>
-                        </div>
-                     </div>
-                  </Card>
-               </div>
             </div>
           )}
 
@@ -248,10 +192,6 @@ export default function AdminDashboardPage() {
                      <div className="relative flex-1 md:max-w-md">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                         <Input placeholder="Search heritage database..." className="pl-10 bg-white/5 border-none h-11 rounded-xl text-sm" />
-                     </div>
-                     <div className="flex gap-2">
-                        <Button variant="outline" className="border-white/10 bg-transparent text-slate-400 hover:bg-white/5 rounded-xl h-11">Filter City</Button>
-                        <Button variant="outline" className="border-white/10 bg-transparent text-slate-400 hover:bg-white/5 rounded-xl h-11">Export CSV</Button>
                      </div>
                   </div>
                   <div className="overflow-x-auto">
@@ -295,15 +235,6 @@ export default function AdminDashboardPage() {
                </Card>
             </div>
           )}
-
-          {/* OTHER TABS PLACEHOLDER */}
-          {(activeTab === 'categories' || activeTab === 'feedback' || activeTab === 'users' || activeTab === 'settings') && (
-            <div className="flex flex-col items-center justify-center py-40 opacity-30">
-               <AlertCircle size={64} className="mb-6" />
-               <p className="font-headline text-2xl font-black">Module Under Calibration</p>
-               <p className="text-sm mt-2">This administrative module is scheduled for the next system update.</p>
-            </div>
-          )}
         </main>
       </div>
 
@@ -311,8 +242,8 @@ export default function AdminDashboardPage() {
       <Dialog open={isSiteDialogOpen} onOpenChange={setIsSiteDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-slate-900 border-white/10 text-white rounded-[2.5rem] p-10">
           <DialogHeader>
-            <DialogTitle className="text-3xl font-headline font-black">{editingSite ? 'Edit' : 'Register New'} Heritage Site</DialogTitle>
-            <DialogDescription className="text-slate-500">Provide detailed historical and geographic data for accuracy.</DialogDescription>
+            <DialogTitle className="text-3xl font-headline font-black">{editingSite ? 'Edit' : 'Register'} Heritage Site</DialogTitle>
+            <DialogDescription className="text-slate-500">Provide precise historical and geographic data.</DialogDescription>
           </DialogHeader>
           
           <form onSubmit={handleSaveSite} className="space-y-8 mt-8">
@@ -322,43 +253,30 @@ export default function AdminDashboardPage() {
                 <Input name="name" defaultValue={editingSite?.name} required className="bg-white/5 border-none h-12 rounded-xl" />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-500">City Jurisdiction</Label>
-                <Input name="city" defaultValue={editingSite?.city} required placeholder="Cebu City, etc." className="bg-white/5 border-none h-12 rounded-xl" />
+                <Label className="text-[10px] font-black uppercase text-slate-500">Latitude (Exact)</Label>
+                <Input name="latitude" type="number" step="any" defaultValue={editingSite?.latitude} required className="bg-white/5 border-none h-12 rounded-xl" />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-500">Heritage Category</Label>
+                <Label className="text-[10px] font-black uppercase text-slate-500">Longitude (Exact)</Label>
+                <Input name="longitude" type="number" step="any" defaultValue={editingSite?.longitude} required className="bg-white/5 border-none h-12 rounded-xl" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-500">Jurisdiction (City)</Label>
+                <Input name="city" defaultValue={editingSite?.city} required className="bg-white/5 border-none h-12 rounded-xl" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-500">Category</Label>
                 <Input name="category" defaultValue={editingSite?.category} required className="bg-white/5 border-none h-12 rounded-xl" />
               </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase text-slate-500">Image Asset URL</Label>
                 <Input name="imageUrl" defaultValue={editingSite?.imageUrl} required className="bg-white/5 border-none h-12 rounded-xl" />
               </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-500">Physical Address</Label>
-                <Input name="location" defaultValue={editingSite?.location} required className="bg-white/5 border-none h-12 rounded-xl" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-500">Operational Hours</Label>
-                <Input name="visitingHours" defaultValue={editingSite?.visitingHours} required className="bg-white/5 border-none h-12 rounded-xl" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-500">Latitude</Label>
-                <Input name="latitude" type="number" step="any" defaultValue={editingSite?.latitude} required className="bg-white/5 border-none h-12 rounded-xl" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-500">Longitude</Label>
-                <Input name="longitude" type="number" step="any" defaultValue={editingSite?.longitude} required className="bg-white/5 border-none h-12 rounded-xl" />
-              </div>
             </div>
 
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500">Public Description</Label>
               <Textarea name="description" defaultValue={editingSite?.description} required className="bg-white/5 border-none min-h-[100px] rounded-xl" />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-slate-500">Historical Significance</Label>
-              <Textarea name="significance" defaultValue={editingSite?.significance} required className="bg-white/5 border-none min-h-[100px] rounded-xl italic" />
             </div>
 
             <DialogFooter className="pt-6 border-t border-white/5">
