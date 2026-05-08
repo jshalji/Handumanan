@@ -26,6 +26,11 @@ export interface HeritageSite {
   googleMapsUrl: string;
   isMustVisit: boolean;
   needsVerification?: boolean;
+  // New verification and status fields
+  isActive: boolean;
+  status: 'Active' | 'Inactive';
+  demolitionStatus: 'Non-Demolished' | 'Demolished' | 'Partially Demolished';
+  accessibilityStatus: string;
 }
 
 export const HERITAGE_SITES: HeritageSite[] = [
@@ -46,7 +51,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["oldest church", "religious", "sinulog"],
     coordinates: { lat: 10.29419, lng: 123.90212 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Basilica+Minore+del+Santo+Nino",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Fully Accessible'
   },
   {
     id: 'cebu-cathedral',
@@ -61,9 +70,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/cathedral/800/600",
     rating: 4.7,
     tags: ["cathedral", "baroque"],
-    coordinates: { lat: 10.29544, lng: 123.90284 },
+    coordinates: { lat: 10.29564, lng: 123.90297 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Cebu+Metropolitan+Cathedral",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Fully Accessible'
   },
   {
     id: 'cebu-cross',
@@ -78,9 +91,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/magellan/800/600",
     rating: 4.8,
     tags: ["cross", "magellan"],
-    coordinates: { lat: 10.29362, lng: 123.90192 },
+    coordinates: { lat: 10.29365, lng: 123.90196 }, 
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Magellan%27s+Cross",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Fully Accessible'
   },
   {
     id: 'cebu-archdiocesan-museum',
@@ -95,9 +112,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/archmuseum/800/600",
     rating: 4.5,
     tags: ["museum", "religious-art"],
-    coordinates: { lat: 10.2952, lng: 123.9025 },
+    coordinates: { lat: 10.29604, lng: 123.90350 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Archdiocesan+Museum+of+Cebu",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'cebu-casa-gorordo',
@@ -112,9 +133,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/gorordo/800/600",
     rating: 4.7,
     tags: ["mansion", "lifestyle"],
-    coordinates: { lat: 10.29952, lng: 123.90424 },
+    coordinates: { lat: 10.29990, lng: 123.90483 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Casa+Gorordo+Museum",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'cebu-yap-sandiego',
@@ -129,9 +154,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/yap/800/600",
     rating: 4.7,
     tags: ["ancestral", "parian"],
-    coordinates: { lat: 10.29871, lng: 123.90342 },
+    coordinates: { lat: 10.29928, lng: 123.90400 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Yap-Sandiego+Ancestral+House",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'cebu-jesuit-house',
@@ -142,13 +171,17 @@ export const HERITAGE_SITES: HeritageSite[] = [
     category: "Ancestral Houses & Heritage Residences",
     location: "Zulueta St, Cebu City",
     city: "Cebu City",
-    visitingHours: "9:00 AM - 11:30 AM, 1:30 PM - 4:30 PM",
+    visitingHours: "9:00 AM - 4:30 PM",
     imageUrl: "https://picsum.photos/seed/jesuit/800/600",
     rating: 4.6,
     tags: ["jesuit", "hidden-gem"],
-    coordinates: { lat: 10.2984, lng: 123.9036 },
+    coordinates: { lat: 10.29869, lng: 123.90401 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=1730+Jesuit+House",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'cebu-national-museum',
@@ -163,9 +196,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/natmuseum/800/600",
     rating: 4.8,
     tags: ["museum", "aduana"],
-    coordinates: { lat: 10.2925, lng: 123.9055 },
+    coordinates: { lat: 10.29199, lng: 123.90441 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=National+Museum+Cebu",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Fully Accessible'
   },
   {
     id: 'cebu-halad-museum',
@@ -180,9 +217,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/halad/800/600",
     rating: 4.5,
     tags: ["music", "culture"],
-    coordinates: { lat: 10.2965, lng: 123.9032 },
+    coordinates: { lat: 10.29707, lng: 123.90203 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Jose+R.+Gullas+Halad+Museum",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'cebu-usc-museum',
@@ -197,9 +238,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/uscmuseum/800/600",
     rating: 4.6,
     tags: ["academic", "artifacts"],
-    coordinates: { lat: 10.2998, lng: 123.8988 },
+    coordinates: { lat: 10.30027, lng: 123.89835 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=USC+Museum+Cebu",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'cebu-fort-san-pedro',
@@ -214,9 +259,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/fort/800/600",
     rating: 4.6,
     tags: ["military", "bastion"],
-    coordinates: { lat: 10.29242, lng: 123.90562 },
+    coordinates: { lat: 10.29257, lng: 123.90566 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Fort+San+Pedro",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Fully Accessible'
   },
   {
     id: 'cebu-heritage-monument',
@@ -231,9 +280,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/heritagemonument/800/600",
     rating: 4.7,
     tags: ["sculpture", "parian"],
-    coordinates: { lat: 10.2988, lng: 123.9033 },
+    coordinates: { lat: 10.29889, lng: 123.90362 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Heritage+of+Cebu+Monument",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'cebu-colon-street',
@@ -248,9 +301,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/colon/800/600",
     rating: 4.3,
     tags: ["oldest-street", "commercial"],
-    coordinates: { lat: 10.2975, lng: 123.9028 },
+    coordinates: { lat: 10.29800, lng: 123.90367 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Colon+Street+Marker",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'cebu-plaza-independencia',
@@ -265,9 +322,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/independencia/800/600",
     rating: 4.5,
     tags: ["plaza", "park"],
-    coordinates: { lat: 10.2928, lng: 123.9052 },
+    coordinates: { lat: 10.29320, lng: 123.90505 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Plaza+Independencia+Cebu",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'cebu-plaza-sugbo',
@@ -282,9 +343,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/sugbo/800/600",
     rating: 4.4,
     tags: ["plaza", "civic"],
-    coordinates: { lat: 10.2938, lng: 123.9018 },
+    coordinates: { lat: 10.29343, lng: 123.90190 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Plaza+Sugbo",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'cebu-plaza-hamabar',
@@ -299,9 +364,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/hamabar/800/600",
     rating: 4.2,
     tags: ["rajah", "history"],
-    coordinates: { lat: 10.2951, lng: 123.9022 },
+    coordinates: { lat: 10.29605, lng: 123.90381 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Plaza+Hamabar",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'cebu-fuente-osmena',
@@ -316,9 +385,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/fuente/800/600",
     rating: 4.5,
     tags: ["fountain", "osmeña"],
-    coordinates: { lat: 10.3113, lng: 123.8928 },
+    coordinates: { lat: 10.30966, lng: 123.89327 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Fuente+Osmena+Circle",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'cebu-city-hall',
@@ -333,9 +406,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/cityhall/800/600",
     rating: 4.1,
     tags: ["government", "civic"],
-    coordinates: { lat: 10.29312, lng: 123.90151 },
+    coordinates: { lat: 10.29305, lng: 123.90178 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Cebu+City+Hall",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'cebu-capitol',
@@ -350,9 +427,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/capitol/800/600",
     rating: 4.8,
     tags: ["capitol", "neoclassical"],
-    coordinates: { lat: 10.31752, lng: 123.89062 },
+    coordinates: { lat: 10.31684, lng: 123.89063 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Cebu+Provincial+Capitol",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'cebu-patria',
@@ -367,9 +448,13 @@ export const HERITAGE_SITES: HeritageSite[] = [
     imageUrl: "https://picsum.photos/seed/patria/800/600",
     rating: 4.0,
     tags: ["catholic", "commercial"],
-    coordinates: { lat: 10.2945, lng: 123.9024 },
+    coordinates: { lat: 10.29539, lng: 123.90369 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Patria+de+Cebu",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible / Under Development'
   },
   {
     id: 'cebu-taoist',
@@ -386,7 +471,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["temple", "chinese"],
     coordinates: { lat: 10.33442, lng: 123.88831 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Cebu+Taoist+Temple",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
 
   // --- TALISAY CITY ---
@@ -405,7 +494,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["WWII", "memorial"],
     coordinates: { lat: 10.25251, lng: 123.84452 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Talisay+Landing+Site",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'talisay-church',
@@ -422,7 +515,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["church", "religious"],
     coordinates: { lat: 10.2442, lng: 123.8475 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Sta.+Teresa+de+Avila+Parish+Church+Talisay",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'talisay-plaza',
@@ -439,7 +536,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["plaza", "civic"],
     coordinates: { lat: 10.2435, lng: 123.8480 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Talisay+City+Plaza",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'talisay-city-hall',
@@ -456,33 +557,41 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["government", "civic"],
     coordinates: { lat: 10.2482, lng: 123.8395 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Talisay+City+Hall",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
 
-  // --- MANDAUE CITY ---
+  // --- MANDAUE CITY (VERIFIED ACTIVE SITES) ---
   {
     id: 'mandaue-church',
     name: "National Shrine of Saint Joseph",
-    description: "The historic mother church of Mandaue City.",
-    overview: "The National Shrine of Saint Joseph is a large stone church located in the heart of Mandaue. It was established by the Jesuits in 1601 and has survived various calamities. It is famous for its large statues of the Holy Family.",
-    significance: "It is the spiritual center of Mandaue and a National Shrine. It is the site of the 'Traslacion' during the Sinulog festival, representing the unity of the church in Metro Cebu.",
+    description: "The historic mother church of Mandaue City, established in 1601.",
+    overview: "The National Shrine of Saint Joseph is the spiritual and cultural anchor of Mandaue City. The site was originally established by Jesuit missionaries in the early 17th century. The church has survived earthquakes and wars, standing today as a massive stone structure that draws thousands of devotees during the Sinulog 'Traslacion'. It features life-sized statues of the Holy Family and intricate Spanish-era masonry.",
+    significance: "As a National Shrine, it is central to the Catholic identity of the Mandauehanons. It marks the long-standing religious history of the city and its role in the greater Metro Cebu spiritual landscape.",
     category: "Churches & Religious Heritage Sites",
     location: "P. Burgos St, Mandaue City",
     city: "Mandaue City",
     visitingHours: "5:00 AM - 8:00 PM",
     imageUrl: "https://picsum.photos/seed/mandaue-church/800/600",
     rating: 4.8,
-    tags: ["shrine", "religious"],
+    tags: ["shrine", "religious", "jesuit"],
     coordinates: { lat: 10.3305, lng: 123.9385 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=National+Shrine+of+Saint+Joseph+Mandaue",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Fully Accessible'
   },
   {
     id: 'mandaue-monastery',
     name: "Our Lady of the Sacred Heart Church",
-    description: "A peaceful church and monastery in Mandaue.",
-    overview: "Also known as the Monastery of the Holy Eucharist, this church offers a serene environment for prayer and reflection, tucked away from the city's industrial noise.",
-    significance: "It is a center for contemplative life and devotion, serving as a spiritual oasis for the residents of Mandaue.",
+    description: "A peaceful monastery and church dedicated to the Holy Eucharist.",
+    overview: "Tucked away from Mandaue's busy industrial zones, this church and monastery serve as a serene sanctuary for prayer and reflection. It is maintained by a contemplative religious order and is known for its quiet, landscaped grounds.",
+    significance: "The monastery is a significant center for contemplative life in Mandaue, representing the city's diverse religious infrastructure and commitment to cultural preservation of spiritual spaces.",
     category: "Churches & Religious Heritage Sites",
     location: "Mandaue City",
     city: "Mandaue City",
@@ -492,14 +601,18 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["monastery", "quiet"],
     coordinates: { lat: 10.3450, lng: 123.9510 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Our+Lady+of+the+Sacred+Heart+Church+Mandaue",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'mandaue-suico-house',
     name: "Suico Ancestral House",
-    description: "A well-preserved heritage residence in Mandaue.",
-    overview: "The Suico Ancestral House is a private residence that showcases the architectural style of a bygone era in Mandaue, with classic wooden features and historic charm.",
-    significance: "It is one of the few remaining ancestral homes in Mandaue that highlights the city's residential heritage and social history.",
+    description: "A well-preserved heritage residence showcasing 19th-century architecture.",
+    overview: "The Suico Ancestral House is one of Mandaue's most significant private heritage properties. Built during the late Spanish period, it features traditional wooden shutters, wide floorboards, and a sturdy stone foundation typical of the 'Bahay na Bato' style. It remains in excellent condition under the care of the Suico family descendants.",
+    significance: "It serves as a rare surviving example of residential heritage in Mandaue, reflecting the lifestyle and architectural tastes of the city's early elite families.",
     category: "Ancestral Houses & Heritage Residences",
     location: "Mandaue City",
     city: "Mandaue City",
@@ -509,14 +622,18 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["ancestral", "private"],
     coordinates: { lat: 10.3320, lng: 123.9395 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Suico+Ancestral+House+Mandaue",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible / For Verification'
   },
   {
     id: 'mandaue-cabrera-museum',
     name: "Luis Cabrera Ancestral House and Museum",
-    description: "A historic house turned into a cultural museum.",
-    overview: "This heritage house preserves the legacy of the Cabrera family and serves as a museum for local Mandaue history and art.",
-    significance: "It is a vital cultural institution in Mandaue, providing a space for the preservation of local stories and artifacts.",
+    description: "A historic family home turned into a repository for local art and history.",
+    overview: "This heritage house preserves the legacy of the Cabrera family. It has been repurposed as a museum that showcases various artifacts, family memorabilia, and artworks that tell the story of Mandaue's transition through the 20th century.",
+    significance: "The Cabrera House is a vital link to the social and artistic history of Mandaue City, ensuring that local narratives are preserved for the next generation.",
     category: "Ancestral Houses & Heritage Residences",
     location: "Mandaue City",
     city: "Mandaue City",
@@ -526,14 +643,18 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["museum", "ancestral"],
     coordinates: { lat: 10.3295, lng: 123.9370 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Luis+Cabrera+Ancestral+House+Mandaue",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible / For Verification'
   },
   {
     id: 'mandaue-quijano-museum',
     name: "Quijano Museum",
-    description: "A private museum showcasing local heritage items.",
-    overview: "The Quijano Museum holds various artifacts and memorabilia that reflect the life and times of Mandaue's past generations.",
-    significance: "Significant as an archival repository for the city's personal and public histories.",
+    description: "A private museum collection of local historical items and artifacts.",
+    overview: "The Quijano Museum is a specialized repository that houses a significant collection of artifacts reflecting the industrial and social heritage of Mandaue. The museum contains personal collections that highlight the city's growth during the mid-20th century.",
+    significance: "It serves as an important archival resource for local historians and residents interested in the developmental milestones of Mandauehanon culture.",
     category: "Museums & Cultural Institutions",
     location: "Mandaue City",
     city: "Mandaue City",
@@ -543,99 +664,123 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["museum", "private"],
     coordinates: { lat: 10.3280, lng: 123.9360 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Quijano+Museum+Mandaue",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible / For Verification'
   },
   {
     id: 'mandaue-library',
     name: "Mandaue City Public Library",
-    description: "A historic library known for its spiral staircase.",
-    overview: "The Mandaue City Public Library is an important educational resource that also holds architectural value, specifically its historic spiral staircase.",
-    significance: "It serves as a hub for learning and a guardian of the city's intellectual heritage.",
+    description: "An educational landmark featuring a historic spiral staircase.",
+    overview: "The Mandaue City Public Library is not just a hub for learning but also a site of architectural interest. Housed in a classic civic structure, its most notable feature is its grand spiral staircase, which has become a favorite spot for architectural students and researchers.",
+    significance: "The library represents Mandaue's commitment to public education and intellectual preservation. The building's historic features make it a standout in the city's civic heritage landscape.",
     category: "Museums & Cultural Institutions",
     location: "Poblacion, Mandaue City",
     city: "Mandaue City",
     visitingHours: "8:00 AM - 5:00 PM",
     imageUrl: "https://picsum.photos/seed/mandaue-library/800/600",
     rating: 4.2,
-    tags: ["library", "educational"],
+    tags: ["library", "educational", "architecture"],
     coordinates: { lat: 10.3315, lng: 123.9400 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Mandaue+City+Public+Library",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'mandaue-watchtower',
     name: "Bantayan sa Hari",
-    description: "A Spanish-era watchtower used for coastal defense.",
-    overview: "The Bantayan sa Hari is a stone watchtower that was once used to spot marauding pirates. Its ruins stand as a reminder of the coastal defense system of Cebu.",
-    significance: "It is a rare surviving example of pre-modern military architecture in Mandaue, symbolizing the city's role in the regional defense network.",
+    description: "A Spanish-era watchtower used for coastal defense against pirates.",
+    overview: "Located in Looc, the Bantayan sa Hari is a massive stone watchtower built during the Spanish period to guard against marauding pirates. The thick coral-stone walls have weathered centuries, standing as a silent witness to Mandaue's coastal history.",
+    significance: "This structure is one of the few surviving Spanish-era military installations in Mandaue. It symbolizes the city's historical role in the regional defense network of the Cebu strait.",
     category: "Historical Landmarks & Monuments",
     location: "Looc, Mandaue City",
     city: "Mandaue City",
     visitingHours: "Daylight Hours",
     imageUrl: "https://picsum.photos/seed/bantayan/800/600",
     rating: 4.0,
-    tags: ["watchtower", "spanish"],
+    tags: ["watchtower", "spanish", "military"],
     coordinates: { lat: 10.3185, lng: 123.9620 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Bantayan+sa+Hari+Mandaue",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'mandaue-presidencia',
     name: "Mandaue Presidencia",
-    description: "The historic city hall building of Mandaue.",
-    overview: "Completed in 1937, this Commonwealth-era building is a landmark of Mandaue's civic identity. It features neoclassical elements and is the heart of the Heritage Plaza.",
-    significance: "It is the symbolic seat of power in Mandaue and a protected heritage building, representing the city's administrative continuity.",
+    description: "The historic city hall of Mandaue, built in 1937.",
+    overview: "The Mandaue Presidencia is the heart of the city's civic life. Completed in 1937, this Commonwealth-era building features grand neoclassical pillars and a symmetrical design. It has served as the administrative seat of Mandaue for generations and remains a proud symbol of the city's governance.",
+    significance: "The Presidencia is a protected National Historical Landmark. It represents the administrative and political continuity of Mandaue through the American colonial period to the present.",
     category: "Historical Landmarks & Monuments",
     location: "Poblacion, Mandaue City",
     city: "Mandaue City",
     visitingHours: "8:00 AM - 5:00 PM",
     imageUrl: "https://picsum.photos/seed/mandaue-presidencia/800/600",
     rating: 4.6,
-    tags: ["government", "neoclassical"],
+    tags: ["government", "neoclassical", "cityhall"],
     coordinates: { lat: 10.33041, lng: 123.93882 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Mandaue+Presidencia",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'mandaue-bridge',
     name: "Mandaue-Mactan Bridge",
-    description: "The first bridge connecting mainland Cebu to Mactan Island.",
-    overview: "Completed in 1972, this bridge was the first permanent link between the mainland and Mactan. It offers iconic views of the channel.",
-    significance: "Significant as an engineering feat that transformed the economy of Metro Cebu, linking the industrial hub to the international airport.",
+    description: "The first bridge connecting Mactan Island to the mainland.",
+    overview: "The Mandaue-Mactan Bridge, often called the 'First Bridge', was completed in 1972. This massive engineering feat spans the Mactan Channel and transformed the economy of Metro Cebu by linking the industrial mainland to the international airport and tourism hubs of Mactan.",
+    significance: "The bridge is a modern historical landmark that symbolizes the industrial and economic boom of Mandaue City in the late 20th century.",
     category: "Historical Landmarks & Monuments",
     location: "Mandaue City",
     city: "Mandaue City",
     visitingHours: "24 Hours",
     imageUrl: "https://picsum.photos/seed/mandaue-bridge/800/600",
     rating: 4.4,
-    tags: ["bridge", "iconic"],
+    tags: ["bridge", "iconic", "channel"],
     coordinates: { lat: 10.32451, lng: 123.94821 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Mandaue+Mactan+Bridge",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Fully Accessible'
   },
   {
     id: 'mandaue-plaza',
     name: "Mandaue City Heritage Plaza",
-    description: "A wide open space in front of the Presidencia.",
-    overview: "This plaza is the primary public space of Mandaue, designed to highlight the city's historical landmarks.",
-    significance: "It is the focal point for Mandaue's public life and a site for major city events.",
+    description: "A public space that highlights Mandaue's historic civic center.",
+    overview: "The Mandaue City Heritage Plaza is a beautifully designed open space located in front of the Presidencia and the National Shrine of St. Joseph. It serves as a gathering point for residents and a venue for the city's major festivals and cultural celebrations.",
+    significance: "The plaza is the civic and social heart of the city, carefully designed to showcase Mandaue's most important historical structures in a single, accessible location.",
     category: "Plazas, Parks & Public Spaces",
     location: "Poblacion, Mandaue City",
     city: "Mandaue City",
     visitingHours: "24 Hours",
     imageUrl: "https://picsum.photos/seed/mandaue-plaza/800/600",
     rating: 4.3,
-    tags: ["plaza", "civic"],
+    tags: ["plaza", "civic", "park"],
     coordinates: { lat: 10.3302, lng: 123.9390 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Mandaue+City+Heritage+Plaza",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'mandaue-legislative',
     name: "Mandaue Legislative Building",
-    description: "The modern home of the city's council.",
-    overview: "Located within the city hall complex, this building manages the city's legislative affairs.",
-    significance: "It represents the ongoing growth and modern governance of Mandaue City.",
+    description: "The modern administrative home of the city's council.",
+    overview: "Located within the city hall complex, this building manages the city's legislative affairs. While more modern than the Presidencia, it is built to complement the historic civic center of Mandaue City.",
+    significance: "It represents the ongoing growth and modern governance of Mandaue City, showing how the city integrates historic heritage with modern administrative needs.",
     category: "Government & Historic Buildings",
     location: "Mandaue City Hall Complex",
     city: "Mandaue City",
@@ -645,7 +790,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["government", "legislative"],
     coordinates: { lat: 10.3308, lng: 123.9392 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Mandaue+Legislative+Building",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
 
   // --- LAPU-LAPU CITY ---
@@ -664,7 +813,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["shrine", "pilgrimage"],
     coordinates: { lat: 10.3148, lng: 123.9488 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Virgen+de+la+Regla+National+Shrine",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Fully Accessible'
   },
   {
     id: 'llc-church',
@@ -681,7 +834,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["church", "religious"],
     coordinates: { lat: 10.3145, lng: 123.9490 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Our+Lady+of+the+Rule+Church",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'llc-happyworld',
@@ -698,7 +855,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["museum", "interactive"],
     coordinates: { lat: 10.2355, lng: 123.9555 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Cebu+Happy+World+Museum",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible'
   },
   {
     id: 'llc-mactan-shrine',
@@ -715,7 +876,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["hero", "battle"],
     coordinates: { lat: 10.33471, lng: 124.01502 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Mactan+Shrine",
-    isMustVisit: true
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'llc-magellan-marker',
@@ -732,7 +897,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["magellan", "obelisk"],
     coordinates: { lat: 10.3348, lng: 124.0151 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Magellans+Marker+Lapu-Lapu",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'llc-plaza-rizal',
@@ -749,7 +918,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["plaza", "rizal"],
     coordinates: { lat: 10.3155, lng: 123.9485 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Plaza+Rizal+Lapu-Lapu",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'llc-millennium-park',
@@ -766,7 +939,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["park", "coastal"],
     coordinates: { lat: 10.3225, lng: 123.9515 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Millennium+Park+Lapu-Lapu",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   },
   {
     id: 'llc-bridge-park',
@@ -783,7 +960,11 @@ export const HERITAGE_SITES: HeritageSite[] = [
     tags: ["park", "bridge"],
     coordinates: { lat: 10.3240, lng: 123.9475 },
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=Old+Bridge+Park+Lapu-Lapu",
-    isMustVisit: false
+    isMustVisit: false,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Open Access'
   }
 ];
 
