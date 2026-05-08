@@ -65,8 +65,6 @@ interface HeritageMapProps {
 /**
  * Coordinate Validation:
  * Prevents pins from appearing in the ocean (0,0) or outside valid bounds.
- * Latitude: -90 to 90
- * Longitude: -180 to 180
  */
 const isValidCoordinate = (lat: any, lng: any) => {
   const latitude = parseFloat(lat);
@@ -78,6 +76,22 @@ const isValidCoordinate = (lat: any, lng: any) => {
     longitude >= -180 && longitude <= 180 &&
     latitude !== 0 && longitude !== 0
   );
+};
+
+const getDistanceInMeters = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+  const R = 6371000; // Radius of the Earth in meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 };
 
 function MapController({ 
@@ -137,6 +151,7 @@ export default function HeritageMap({
   recenterKey
 }: HeritageMapProps) {
   const [mounted, setMounted] = useState(false);
+  const [hasArrived, setHasArrived] = useState(false);
   const { user } = useUser();
   const db = useFirestore();
 
@@ -147,6 +162,28 @@ export default function HeritageMap({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!isNavigating || !userLocation || itinerary.length === 0 || hasArrived) return;
+  
+    const destination = itinerary[0];
+    const destLat = destination.coordinates?.lat ?? destination.latitude;
+    const destLng = destination.coordinates?.lng ?? destination.longitude;
+  
+    if (!isValidCoordinate(destLat, destLng)) return;
+  
+    const distance = getDistanceInMeters(
+      userLocation.lat,
+      userLocation.lng,
+      Number(destLat),
+      Number(destLng)
+    );
+  
+    if (distance <= 50) {
+      setHasArrived(true);
+      alert(`You have arrived at ${destination.name}!`);
+    }
+  }, [isNavigating, userLocation, itinerary, hasArrived]);
 
   const userPulse = useMemo(() => createUserPulseIcon(), []);
 
@@ -182,8 +219,10 @@ export default function HeritageMap({
         )}
 
         {sites.map((site) => {
-          // SKIP INVALID COORDINATES
-          if (!isValidCoordinate(site.coordinates.lat, site.coordinates.lng)) {
+          const lat = site.coordinates?.lat ?? site.latitude;
+          const lng = site.coordinates?.lng ?? site.longitude;
+
+          if (!isValidCoordinate(lat, lng)) {
             return null;
           }
 
@@ -197,7 +236,7 @@ export default function HeritageMap({
           return (
             <Marker 
               key={site.id} 
-              position={[Number(site.coordinates.lat), Number(site.coordinates.lng)]}
+              position={[Number(lat), Number(lng)]}
               icon={markerIcon}
             >
               <Popup className="compact-popup">
