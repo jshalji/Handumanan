@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, MapPin, X, ExternalLink } from 'lucide-react';
+import { Search, MapPin, X, ExternalLink, Star } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -20,26 +20,38 @@ import {
 
 function SiteCard({ site }: { site: HeritageSite }) {
   return (
-    <Card className="group overflow-hidden hover:shadow-xl transition-all duration-300 border-none shadow-md flex flex-col h-full bg-white rounded-2xl">
+    <Card className="group overflow-hidden hover:shadow-xl transition-all duration-300 border-none shadow-md flex flex-col h-full bg-white rounded-3xl">
       <Link href={`/site/${site.id}`} className="block">
-        <div className="relative h-48 w-full bg-slate-100 overflow-hidden">
+        <div className="relative h-56 w-full bg-slate-100 overflow-hidden">
           <Image
             src={site.imageUrl || "https://picsum.photos/seed/placeholder/800/600"}
             alt={site.name}
             fill
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
+            className="object-cover group-hover:scale-105 transition-transform duration-700"
           />
-          <div className="absolute top-3 left-3">
-            <Badge variant="secondary" className="bg-white/90 backdrop-blur text-primary border-none shadow-sm text-[10px] font-black uppercase tracking-widest">
+          <div className="absolute top-4 left-4">
+            <Badge variant="secondary" className="bg-white/95 backdrop-blur text-primary border-none shadow-sm text-[10px] font-black uppercase tracking-widest px-3">
               {site.category.split(' & ')[0]}
             </Badge>
           </div>
+          {site.isMustVisit && (
+            <div className="absolute top-4 right-4">
+               <Badge className="bg-accent text-white border-none shadow-sm text-[10px] font-black uppercase tracking-widest px-3">
+                 Must Visit
+               </Badge>
+            </div>
+          )}
         </div>
       </Link>
       
-      <CardHeader className="p-5 pb-2">
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-1 uppercase font-black tracking-widest">
-          <MapPin size={12} className="text-primary" /> {site.city}
+      <CardHeader className="p-6 pb-2">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase font-black tracking-widest">
+            <MapPin size={12} className="text-primary" /> {site.city}
+          </div>
+          <div className="flex items-center gap-1 text-yellow-500 font-black text-[10px]">
+            <Star size={10} fill="currentColor" /> {site.rating.toFixed(1)}
+          </div>
         </div>
         <Link href={`/site/${site.id}`}>
           <CardTitle className="font-headline text-xl group-hover:text-primary transition-colors leading-tight line-clamp-1">
@@ -48,9 +60,9 @@ function SiteCard({ site }: { site: HeritageSite }) {
         </Link>
       </CardHeader>
       
-      <CardContent className="p-5 pt-0 flex-1 flex flex-col">
+      <CardContent className="p-6 pt-0 flex-1 flex flex-col">
         <div className="space-y-4 flex-1 flex flex-col">
-          <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
+          <p className="text-xs text-slate-500 leading-relaxed line-clamp-3">
             {site.description}
           </p>
           
@@ -59,7 +71,7 @@ function SiteCard({ site }: { site: HeritageSite }) {
               asChild
               variant="outline" 
               size="sm" 
-              className="w-full h-10 text-[10px] font-black uppercase tracking-widest border-2 rounded-xl group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all"
+              className="w-full h-11 text-[10px] font-black uppercase tracking-widest border-2 rounded-2xl group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all shadow-sm"
             >
               <Link href={`/site/${site.id}`}>
                 View Details <ExternalLink size={14} className="ml-2" />
@@ -115,7 +127,7 @@ export default function ExplorePage() {
         </header>
 
         {/* Search and Filters */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border-none ring-1 ring-black/5 mb-10">
+        <div className="bg-white p-6 rounded-[2rem] shadow-sm border-none ring-1 ring-black/5 mb-10">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="relative md:col-span-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -166,7 +178,7 @@ export default function ExplorePage() {
             ))
           ) : (
             <div className="col-span-full py-24 text-center">
-              <div className="bg-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl ring-1 ring-black/5">
+              <div className="bg-white w-20 h-20 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-xl ring-1 ring-black/5">
                 <Search size={32} className="text-slate-200" />
               </div>
               <h3 className="text-xl font-headline font-bold mb-2">No matching sites found</h3>

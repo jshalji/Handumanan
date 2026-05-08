@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Navbar } from '@/components/layout/Navbar';
@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, serverTimestamp, doc, orderBy } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Route, Heart, Loader2, ChevronDown, ChevronUp, Plus } from 'lucide-react';
+import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Route, Heart, Loader2, ChevronDown, ChevronUp, Plus, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -32,7 +32,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   // Combine main image and gallery images
-  const allImages = site ? [site.imageUrl, ...(site.galleryImages || [])].filter(Boolean) : [];
+  const allImages = site ? [site.imageUrl, ...(site.galleryImages || [])].filter(Boolean) : ["https://picsum.photos/seed/placeholder/800/600"];
 
   // Fetch Reviews
   const reviewsQuery = useMemoFirebase(() => {
@@ -64,7 +64,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
 
   const averageRating = reviews && reviews.length > 0 
     ? (reviews.reduce((acc, rev) => acc + (rev.rating || 0), 0) / reviews.length).toFixed(1)
-    : "New";
+    : site.rating.toFixed(1);
 
   const handleToggleFavorite = () => {
     if (!user || !db) {
@@ -129,8 +129,8 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
       <Navbar />
       
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <Link href="/explore" className="inline-flex items-center text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary mb-8 transition-colors">
-          <ArrowLeft className="mr-2" size={14} /> Site Directory
+        <Link href="/explore" className="inline-flex items-center text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary mb-8 transition-colors group">
+          <ArrowLeft className="mr-2 group-hover:-translate-x-1 transition-transform" size={14} /> Site Directory
         </Link>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
@@ -149,20 +149,23 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   <div className="flex items-center gap-1 text-yellow-500 font-black text-xs">
                      <Star size={12} fill="currentColor" /> {averageRating} / 5.0
                   </div>
+                  {site.isMustVisit && (
+                    <Badge variant="secondary" className="bg-accent text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1">Must Visit</Badge>
+                  )}
                 </div>
                 <h1 className="font-headline text-4xl md:text-5xl font-bold text-slate-900 leading-tight">
                   {site.name}
                 </h1>
               </div>
 
-              {/* Responsive Gallery */}
+              {/* Enhanced Gallery UI */}
               <div className="space-y-4">
                 <div className="relative h-[220px] md:h-[400px] w-full rounded-[2.5rem] overflow-hidden shadow-2xl border bg-slate-100 ring-1 ring-black/5">
                   <Image 
                     src={allImages[activeImageIndex]} 
                     alt={site.name} 
                     fill 
-                    className="object-cover"
+                    className="object-cover transition-opacity duration-500"
                     priority
                   />
                 </div>
@@ -189,7 +192,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
-            {/* Information Sections */}
+            {/* Information Sections with Progressive Disclosure */}
             <div className="bg-white rounded-[2.5rem] p-6 md:p-12 shadow-sm border border-slate-100 space-y-12">
               <section>
                 <div className="flex items-center gap-3 mb-6">
@@ -197,18 +200,18 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   <h2 className="font-headline text-2xl font-bold">Overview</h2>
                 </div>
                 <div className="space-y-4">
-                  <p className={cn(
-                    "text-slate-600 leading-relaxed whitespace-pre-wrap text-sm md:text-base",
-                    !isDescExpanded && "line-clamp-4"
+                  <div className={cn(
+                    "text-slate-600 leading-relaxed whitespace-pre-wrap text-sm md:text-base transition-all duration-500 overflow-hidden",
+                    !isDescExpanded && "max-h-[120px]"
                   )}>
                     {site.overview}
-                  </p>
+                  </div>
                   <Button 
-                    variant="link" 
+                    variant="ghost" 
                     onClick={() => setIsDescExpanded(!isDescExpanded)}
-                    className="text-primary font-black uppercase text-[10px] p-0 h-auto tracking-widest"
+                    className="text-primary font-black uppercase text-[10px] p-0 h-auto tracking-widest hover:bg-transparent"
                   >
-                    {isDescExpanded ? 'Show Less' : 'Read Full Overview'}
+                    {isDescExpanded ? <span className="flex items-center gap-1">Show Less <ChevronUp size={14} /></span> : <span className="flex items-center gap-1">Read Full Overview <ChevronDown size={14} /></span>}
                   </Button>
                 </div>
               </section>
@@ -221,18 +224,18 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   <h2 className="font-headline text-2xl font-bold">Historical Significance</h2>
                 </div>
                 <div className="space-y-4">
-                  <p className={cn(
-                    "text-slate-600 leading-relaxed italic whitespace-pre-wrap text-sm md:text-base",
-                    !isSignificanceExpanded && "line-clamp-4"
+                  <div className={cn(
+                    "text-slate-600 leading-relaxed italic whitespace-pre-wrap text-sm md:text-base transition-all duration-500 overflow-hidden",
+                    !isSignificanceExpanded && "max-h-[120px]"
                   )}>
                     {site.significance}
-                  </p>
+                  </div>
                   <Button 
-                    variant="link" 
+                    variant="ghost" 
                     onClick={() => setIsSignificanceExpanded(!isSignificanceExpanded)}
-                    className="text-primary font-black uppercase text-[10px] p-0 h-auto tracking-widest"
+                    className="text-primary font-black uppercase text-[10px] p-0 h-auto tracking-widest hover:bg-transparent"
                   >
-                    {isSignificanceExpanded ? 'Show Less' : 'Read More History'}
+                    {isSignificanceExpanded ? <span className="flex items-center gap-1">Show Less <ChevronUp size={14} /></span> : <span className="flex items-center gap-1">Read More History <ChevronDown size={14} /></span>}
                   </Button>
                 </div>
               </section>
@@ -324,6 +327,9 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   <div>
                     <h4 className="font-black text-[10px] text-slate-400 uppercase tracking-widest mb-1.5">Official Address</h4>
                     <p className="text-sm md:text-base font-bold text-slate-700 leading-tight">{site.location}</p>
+                    <a href={site.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-primary uppercase mt-2 flex items-center gap-1 hover:underline">
+                      Open in Maps <ExternalLink size={10} />
+                    </a>
                   </div>
                 </div>
                 <div className="flex items-start gap-5">
@@ -333,12 +339,19 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                     <p className="text-sm md:text-base font-bold text-slate-700 leading-tight">{site.visitingHours}</p>
                   </div>
                 </div>
+                <div className="flex items-start gap-5">
+                  <div className="p-3 bg-slate-50 rounded-2xl text-primary shadow-sm"><Info size={24} /></div>
+                  <div>
+                    <h4 className="font-black text-[10px] text-slate-400 uppercase tracking-widest mb-1.5">Accessibility</h4>
+                    <p className="text-sm md:text-base font-bold text-slate-700 leading-tight">{site.accessibilityStatus}</p>
+                  </div>
+                </div>
               </div>
 
               <div className="flex flex-col gap-4">
                 <Button className="w-full h-14 bg-primary rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-primary/30 active:scale-95 transition-all" asChild>
                   <Link href={`/discover?siteId=${site.id}`}>
-                    <Route size={20} className="mr-2" /> Start Navigation
+                    <Route size={20} className="mr-2" /> Initialize Route
                   </Link>
                 </Button>
                 
