@@ -32,7 +32,10 @@ export async function getRouteMulti(
   apiKey: string,
   profile: 'driving-car' | 'foot-walking' = 'driving-car'
 ): Promise<RouteData | null> {
-  if (points.length < 2 || !apiKey) return null;
+  // Defensive checks for input data
+  if (!points || points.length < 2 || !apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
+    return null;
+  }
 
   try {
     // ROUTING API REQUIREMENT: [longitude, latitude]
@@ -45,17 +48,21 @@ export async function getRouteMulti(
       headers: {
         'Accept': 'application/json, application/geo+json',
         'Content-Type': 'application/json',
-        'Authorization': apiKey
+        'Authorization': apiKey.trim()
       },
       body: JSON.stringify({
         coordinates: coordinates,
         instructions: true,
         units: 'km'
       })
+    }).catch(err => {
+      // Catch network-level errors (DNS, CORS, offline) to prevent bubbling TypeErrors
+      console.warn("ORS Fetch Network Error:", err.message);
+      return null;
     });
 
-    if (!response.ok) {
-      console.warn(`OpenRouteService returned ${response.status}. Falling back to direct calculation.`);
+    if (!response || !response.ok) {
+      if (response) console.warn(`OpenRouteService returned ${response.status}.`);
       return null;
     }
 
@@ -89,7 +96,8 @@ export async function getRouteMulti(
     
     return null;
   } catch (error) {
-    console.error("Critical routing fetch error:", error);
+    // Top-level catch for any parsing or unexpected logic errors
+    console.error("Critical routing service error:", error);
     return null;
   }
 }

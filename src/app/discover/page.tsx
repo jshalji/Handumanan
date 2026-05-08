@@ -153,8 +153,11 @@ function ExploreRouteContent() {
 
   useEffect(() => {
     const savedKey = localStorage.getItem('ors_api_key');
-    if (savedKey) setOrsKey(savedKey);
-    else setShowKeyDialog(true);
+    if (savedKey && savedKey !== 'null' && savedKey !== 'undefined') {
+      setOrsKey(savedKey);
+    } else {
+      setShowKeyDialog(true);
+    }
 
     const siteIdFromUrl = searchParams.get('siteId');
     if (siteIdFromUrl) {
@@ -243,27 +246,33 @@ function ExploreRouteContent() {
 
   useEffect(() => {
     const fetchRoute = async () => {
-      if (isNavigating) {
-        if (!userLocation || !itinerarySites[activeStopIndex] || !orsKey) return;
-        const data = await getRoute(userLocation, itinerarySites[activeStopIndex].coordinates, orsKey);
+      // Silent failure wrapper to prevent unhandled rejections from crashing the UI
+      try {
+        if (isNavigating) {
+          if (!userLocation || !itinerarySites[activeStopIndex] || !orsKey) return;
+          const data = await getRoute(userLocation, itinerarySites[activeStopIndex].coordinates, orsKey);
+          if (data) {
+            setRouteCoords(data.coordinates);
+            setNavigationSteps(data.steps);
+            setTotalDist(data.distance);
+            setTotalTime(data.duration);
+          }
+          // CRITICAL: Return early so it doesn't fall through to multi-route calculation
+          return;
+        }
+
+        if (itineraryIds.length < 2 || !orsKey) {
+          setRouteCoords([]); setTotalDist(0); setTotalTime(0);
+          return;
+        }
+        const data = await getRouteMulti(itinerarySites.map(s => s.coordinates), orsKey);
         if (data) {
           setRouteCoords(data.coordinates);
-          setNavigationSteps(data.steps);
           setTotalDist(data.distance);
           setTotalTime(data.duration);
         }
-        return;
-      }
-
-      if (itineraryIds.length < 2 || !orsKey) {
-        setRouteCoords([]); setTotalDist(0); setTotalTime(0);
-        return;
-      }
-      const data = await getRouteMulti(itinerarySites.map(s => s.coordinates), orsKey);
-      if (data) {
-        setRouteCoords(data.coordinates);
-        setTotalDist(data.distance);
-        setTotalTime(data.duration);
+      } catch (err) {
+        console.warn("Routing effect suppressed a failure:", err);
       }
     };
     fetchRoute();
