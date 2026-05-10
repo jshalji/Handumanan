@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -5,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, Send, Sparkles, MapPin, Landmark, Minimize2 } from 'lucide-react';
+import { MessageCircle, Send, Sparkles, MapPin, Landmark, Minimize2, Loader2 } from 'lucide-react';
 import { chatWithHeritageBot } from '@/ai/flows/heritage-chat-flow';
 import { cn } from '@/lib/utils';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { usePathname } from 'next/navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -18,8 +20,8 @@ interface Message {
 }
 
 const QUICK_REPLIES = [
+  { label: 'My Favorites', icon: Landmark },
   { label: 'Next Stop?', icon: MapPin },
-  { label: 'Route Info', icon: Landmark },
 ];
 
 export function HeritageChatBot() {
@@ -31,9 +33,24 @@ export function HeritageChatBot() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
   const { user } = useUser();
+  const db = useFirestore();
   const pathname = usePathname();
   const isMobile = useIsMobile();
+
+  // READ DATA FROM DATABASE (Firestore)
+  const favoritesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(collection(db, 'users', user.uid, 'favorites'));
+  }, [db, user]);
+  const { data: favorites } = useCollection(favoritesQuery);
+
+  const itinerariesQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return query(collection(db, 'users', user.uid, 'itineraries'), orderBy('createdAt', 'desc'), limit(1));
+  }, [db, user]);
+  const { data: itineraries } = useCollection(itinerariesQuery);
 
   useEffect(() => {
     setMounted(true);
@@ -59,14 +76,17 @@ export function HeritageChatBot() {
         content: [{ text: m.text }]
       }));
 
+      // Pass Database Context to AI
       const response = await chatWithHeritageBot({
         history,
         userId: user?.uid,
+        favorites: favorites?.map(f => f.siteName),
+        lastItinerary: itineraries?.[0]?.summary,
       });
 
       setMessages(prev => [...prev, { role: 'model', text: response.text }]);
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'model', text: 'Sorry, I couldn\'t process that right now.' }]);
+      setMessages(prev => [...prev, { role: 'model', text: 'I encountered an error. Please ensure your Gemini API key is configured correctly in the .env file.' }]);
     } finally {
       setIsLoading(false);
     }
@@ -133,10 +153,9 @@ export function HeritageChatBot() {
                 </div>
               ))}
               {isLoading && (
-                <div className="flex gap-1.5 p-3">
-                  <div className="w-1.5 h-1.5 bg-primary/30 rounded-full animate-bounce" />
-                  <div className="w-1.5 h-1.5 bg-primary/30 rounded-full animate-bounce delay-150" />
-                  <div className="w-1.5 h-1.5 bg-primary/30 rounded-full animate-bounce delay-300" />
+                <div className="flex items-center gap-2 p-3 text-primary">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Guide is thinking...</span>
                 </div>
               )}
             </div>
@@ -150,7 +169,7 @@ export function HeritageChatBot() {
                   variant="outline"
                   size="sm"
                   className="h-8 rounded-full bg-white text-[10px] font-black uppercase tracking-wider gap-2 px-4 shadow-sm border-slate-100 hover:bg-slate-50 transition-colors"
-                  onClick={() => handleSendMessage(reply.label)}
+                  onClick={() => handleSendMessage(`Tell me about ${reply.label === 'My Favorites' ? 'my favorited sites' : 'my next stop'}`)}
                 >
                   <reply.icon size={12} /> {reply.label}
                 </Button>

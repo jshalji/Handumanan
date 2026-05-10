@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Refined AI Chatbot flow for the Handumanan system.
@@ -22,6 +23,8 @@ const HeritageChatInputSchema = z.object({
     lng: z.number(),
   }).optional(),
   userId: z.string().optional(),
+  favorites: z.array(z.string()).optional().describe('List of site names the user has favorited.'),
+  lastItinerary: z.string().optional().describe('Summary of the user\'s last saved itinerary.'),
   currentRoute: z.object({
     stops: z.array(z.string()),
     totalDistance: z.number(),
@@ -70,8 +73,14 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
      Total distance is ${input.currentRoute.totalDistance.toFixed(1)} km, taking approx ${Math.round(input.currentRoute.estimatedTime)} mins.` : 
     "No active route yet.";
 
+  const userContext = `
+    User Saved Data (from Database):
+    - Favorites: ${input.favorites?.join(', ') || 'None yet'}
+    - Recent Trip: ${input.lastItinerary || 'No saved trips yet'}
+  `;
+
   let lastError;
-  const maxAttempts = 5;
+  const maxAttempts = 3;
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -84,17 +93,19 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
         
         CONTEXT:
         - You help users find heritage sites and understand their active travel route.
+        - User Context: ${userContext}
         - Active Route Info: ${routeContext}
         - Use real data from the searchSites tool if the user asks for details about a landmark.
         
         GOALS:
-        1. ANSWER ROUTE QUERIES: If asked about the next stop, distance, or time, use the provided Route Info.
-        2. PROVIDE LANDMARK INFO: Use searchSites to get the overview and significance of sites.
-        3. STAY CONCISE: Keep responses to 2-4 sentences max. Use simple, natural language.
+        1. RECOGNIZE USER DATA: If the user asks about their saved sites or trips, use the User Context provided.
+        2. ANSWER ROUTE QUERIES: If asked about the next stop, distance, or time, use the provided Route Info.
+        3. PROVIDE LANDMARK INFO: Use searchSites to get the overview and significance of sites.
+        4. STAY CONCISE: Keep responses to 2-4 sentences max. Use simple, natural language.
         
         STYLE:
         - Friendly, helpful, and Cebuano-proud.
-        - If asked an unrelated question, politely say: "I can only help with Metro Cebu heritage sites and route information."`,
+        - If asked an unrelated question, politely say: "I can only help with Metro Cebu heritage sites and your cultural journey here."`,
         config: {
           temperature: 0.7,
         }
@@ -106,16 +117,8 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
       };
     } catch (error: any) {
       lastError = error;
-      const errorMessage = error.message || '';
-      const isRetryable = 
-        errorMessage.includes('503') || 
-        errorMessage.includes('high demand') || 
-        errorMessage.includes('UNAVAILABLE') ||
-        errorMessage.includes('DEADLINE_EXCEEDED');
-
-      if (isRetryable && attempt < maxAttempts - 1) {
-        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
+      if (attempt < maxAttempts - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
         continue;
       }
       break;
@@ -123,7 +126,7 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
   }
 
   return {
-    text: "I'm currently receiving too many requests. Please wait a moment and try again.",
+    text: "I'm currently receiving too many requests or the API key is missing. Please check your configuration and try again.",
     suggestedAction: 'none'
   };
 }
