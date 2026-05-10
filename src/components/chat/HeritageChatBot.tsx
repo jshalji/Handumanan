@@ -115,7 +115,7 @@ export function HeritageChatBot() {
       <Button
         onClick={() => setIsOpen(true)}
         className={cn(
-          "fixed h-12 w-12 md:h-14 md:w-14 rounded-2xl shadow-3xl z-[5000] transition-all duration-300 bg-primary hover:bg-primary/90 text-white p-0",
+          "fixed h-12 w-12 md:h-14 md:w-14 rounded-2xl shadow-3xl z-40 transition-all duration-300 bg-primary hover:bg-primary/90 text-white p-0",
           isOpen ? "scale-0 opacity-0" : "scale-100 opacity-100",
           "right-6",
           isDiscoverPage ? (isMobile ? "bottom-20" : "bottom-6") : "bottom-6"
@@ -126,7 +126,7 @@ export function HeritageChatBot() {
 
       <Card 
         className={cn(
-          "fixed right-4 md:right-8 w-[calc(100vw-32px)] md:w-[380px] h-[550px] md:h-[620px] max-h-[85vh] z-[5001] transition-all duration-500 flex flex-col rounded-[2.5rem] shadow-3xl border-none overflow-hidden bg-white/95 backdrop-blur-3xl ring-1 ring-black/5",
+          "fixed right-4 md:right-8 w-[calc(100vw-32px)] md:w-[380px] h-[550px] md:h-[620px] max-h-[85vh] z-50 transition-all duration-500 flex flex-col rounded-[2.5rem] shadow-3xl border-none overflow-hidden bg-white/95 backdrop-blur-3xl ring-1 ring-black/5",
           isOpen ? "translate-y-0 opacity-100 scale-100" : "translate-y-10 opacity-0 scale-95 pointer-events-none",
           isDiscoverPage ? (isMobile ? "bottom-20" : "bottom-8") : "bottom-8"
         )}

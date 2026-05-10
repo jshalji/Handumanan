@@ -379,7 +379,7 @@ function ExploreRouteContent() {
 
   const NavDrawer = () => (
     <Sheet open={isNavDrawerOpen} onOpenChange={setIsNavDrawerOpen}>
-      <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0 border-none shadow-2xl bg-white flex flex-col z-[10000]">
+      <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0 border-none shadow-2xl bg-white flex flex-col z-50">
         <SheetHeader className="p-8 bg-primary text-white shrink-0 text-left">
           <SheetTitle className="text-white font-headline text-3xl font-black flex items-center gap-3">
              <LandmarkIcon size={32} /> Handumanan
@@ -435,7 +435,7 @@ function ExploreRouteContent() {
       <NavDrawer />
 
       {/* FIXED ALIGNED HEADER ROW */}
-      <div className="fixed top-4 left-4 right-4 z-[1000] flex items-center justify-center gap-3 pointer-events-none md:max-w-4xl md:mx-auto md:left-1/2 md:-translate-x-1/2">
+      <div className="fixed top-4 left-4 right-4 z-40 flex items-center justify-center gap-3 pointer-events-none md:max-w-4xl md:mx-auto md:left-1/2 md:-translate-x-1/2">
         <div className="flex items-center gap-2 pointer-events-auto">
           <Button 
             onClick={() => setIsNavDrawerOpen(prev => !prev)}
@@ -538,7 +538,7 @@ function ExploreRouteContent() {
 
       {/* DISCOVER PANEL */}
       <div className={cn(
-        "fixed transition-all duration-500 ease-in-out z-[1000] pointer-events-auto",
+        "fixed transition-all duration-500 ease-in-out z-30 pointer-events-auto",
         isMobile ? "bottom-0 left-0 right-0 rounded-t-[2.5rem] shadow-3xl-up bg-white/95 backdrop-blur-2xl border-t" : "top-20 left-4 w-96 rounded-[2rem] shadow-3xl bg-white/95 backdrop-blur-2xl",
         isPanelExpanded ? "translate-y-0 opacity-100" : (isMobile ? "translate-y-full opacity-0" : "-translate-x-full opacity-0 pointer-events-none")
       )}>
@@ -650,7 +650,7 @@ function ExploreRouteContent() {
 
       {/* AUTO-GENERATE DIALOG */}
       <Dialog open={isAutoDialogOpen} onOpenChange={setIsAutoDialogOpen}>
-        <DialogContent className={cn("border-none shadow-3xl bg-white text-slate-900 p-0 flex flex-col overflow-hidden z-[9999]", isMobile ? "max-w-[calc(100vw-24px)] bottom-4 top-auto translate-y-0 rounded-[2rem] max-h-[70vh]" : "max-w-[400px] rounded-[2rem] max-h-[75vh]")}>
+        <DialogContent className={cn("border-none shadow-3xl bg-white text-slate-900 p-0 flex flex-col overflow-hidden z-50", isMobile ? "max-w-[calc(100vw-24px)] bottom-4 top-auto translate-y-0 rounded-[2rem] max-h-[70vh]" : "max-w-[400px] rounded-[2rem] max-h-[75vh]")}>
           <DialogHeader className="p-6 pb-2 shrink-0">
             <DialogTitle className="text-xl font-headline font-black">Auto-Generate Trip</DialogTitle>
             <DialogDescription className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">AI builds your perfect heritage tour.</DialogDescription>
