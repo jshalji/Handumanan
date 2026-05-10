@@ -33,16 +33,12 @@ import {
   Route,
   Home,
   RefreshCcw,
-  ArrowUp,
-  ArrowDown,
   Clock,
   Zap,
   LogOut,
   ChevronRight,
-  Shield,
   Map as MapIcon,
   CheckCircle2,
-  Flag,
   ArrowRight
 } from 'lucide-react';
 import { useFirestore, useUser, useAuth } from '@/firebase';
@@ -105,9 +101,11 @@ function ExploreRouteContent() {
   const auth = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const router = useRouter();
   const searchParams = useSearchParams();
   
+  // API Key from environment variable
+  const orsKey = process.env.NEXT_PUBLIC_ORS_API_KEY || '';
+
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [itineraryIds, setItineraryIds] = useState<string[]>([]);
@@ -121,7 +119,6 @@ function ExploreRouteContent() {
   const [activeStopIndex, setActiveStopIndex] = useState(0);
   const [navigationSteps, setNavigationSteps] = useState<RouteStep[]>([]);
   const [hasArrived, setHasArrived] = useState(false);
-  const watchIdRef = useRef<number | null>(null);
 
   const [isPanelExpanded, setIsPanelExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState('discover');
@@ -132,33 +129,21 @@ function ExploreRouteContent() {
   const [isGeneratingPlanner, setIsGeneratingPlanner] = useState(false);
   const [plannerTimeType, setPlannerTimeType] = useState<'preset' | 'custom'>('preset');
   const [selectedPresetTime, setSelectedPresetTime] = useState(4);
-  const [customHours, setCustomHours] = useState('3');
-  const [customMinutes, setCustomMinutes] = useState('30');
+  const [customHours] = useState('3');
+  const [customMinutes] = useState('30');
   const [aiItineraryData, setAiItineraryData] = useState<GeneratePersonalizedItineraryOutput | null>(null);
   
   const [isAutoDialogOpen, setIsAutoDialogOpen] = useState(false);
   const [autoMode, setAutoMode] = useState<'near' | 'theme' | 'balanced'>('near');
   const [autoTheme, setAutoTheme] = useState<string>(CATEGORIES[0].value);
 
-  const [orsKey, setOrsKey] = useState<string>('');
-  const [showKeyDialog, setShowKeyDialog] = useState(false);
-  const [tempKey, setTempKey] = useState('');
-
   const [isNavDrawerOpen, setIsNavDrawerOpen] = useState(false);
-
   const [searchSuggestions, setSearchSuggestions] = useState<HeritageSite[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const db = useFirestore();
 
   useEffect(() => {
-    const savedKey = localStorage.getItem('ors_api_key');
-    if (savedKey && savedKey !== 'null' && savedKey !== 'undefined') {
-      setOrsKey(savedKey);
-    } else {
-      setShowKeyDialog(true);
-    }
-
     const siteIdFromUrl = searchParams.get('siteId');
     if (siteIdFromUrl) {
       const site = HERITAGE_SITES.find(s => s.id === siteIdFromUrl);
@@ -170,15 +155,6 @@ function ExploreRouteContent() {
       }
     }
   }, [searchParams]);
-
-  const handleSaveKey = () => {
-    if (tempKey.trim()) {
-      localStorage.setItem('ors_api_key', tempKey.trim());
-      setOrsKey(tempKey.trim());
-      setShowKeyDialog(false);
-      toast({ title: "Engine Ready", description: "Precision routing is now active." });
-    }
-  };
 
   const detectLocation = useCallback(async () => {
     setLoading(true);
@@ -246,7 +222,6 @@ function ExploreRouteContent() {
 
   useEffect(() => {
     const fetchRoute = async () => {
-      // Silent failure wrapper to prevent unhandled rejections from crashing the UI
       try {
         if (isNavigating) {
           if (!userLocation || !itinerarySites[activeStopIndex] || !orsKey) return;
@@ -257,7 +232,6 @@ function ExploreRouteContent() {
             setTotalDist(data.distance);
             setTotalTime(data.duration);
           }
-          // CRITICAL: Return early so it doesn't fall through to multi-route calculation
           return;
         }
 
@@ -295,15 +269,6 @@ function ExploreRouteContent() {
         itinerary: aiItineraryData.itinerary.filter(item => item.siteId !== id)
       });
     }
-  };
-
-  const reorderSite = (index: number, direction: 'up' | 'down') => {
-    const newIds = [...itineraryIds];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= newIds.length) return;
-    
-    [newIds[index], newIds[targetIndex]] = [newIds[targetIndex], newIds[index]];
-    setItineraryIds(newIds);
   };
 
   const centerOnSite = (site: HeritageSite) => {
@@ -506,7 +471,7 @@ function ExploreRouteContent() {
                 <div className="p-2 space-y-1">
                   {searchSuggestions.length > 0 ? searchSuggestions.map(site => (
                     <button key={site.id} onClick={() => handleSelectSuggestion(site)} className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-primary/5 transition-colors text-left">
-                      <div className="h-10 w-10 rounded-lg overflow-hidden bg-slate-100 shrink-0"><img src={site.imageUrl} className="h-full w-full object-cover" /></div>
+                      <div className="h-10 w-10 rounded-lg overflow-hidden bg-slate-100 shrink-0"><img src={site.imageUrl} className="h-full w-full object-cover" alt={site.name} /></div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-black text-slate-900 truncate">{site.name}</p>
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{site.city} • {site.category.split(' & ')[0]}</p>
@@ -735,17 +700,6 @@ function ExploreRouteContent() {
               {isGeneratingPlanner ? <><Loader2 className="animate-spin mr-2" size={16} /> Planning...</> : "Generate My Trip"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showKeyDialog} onOpenChange={setShowKeyDialog}>
-        <DialogContent className="max-w-xs rounded-[2.5rem] p-8 border-none shadow-3xl bg-white z-[9999]">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-headline font-black text-slate-900">Routing Key</DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">Enter your OpenRouteService API key.</DialogDescription>
-          </DialogHeader>
-          <Input placeholder="API Key" value={tempKey} onChange={(e) => setTempKey(e.target.value)} className="h-14 rounded-xl bg-slate-50 border-none px-4 text-xs" />
-          <DialogFooter className="mt-6"><Button className="w-full h-14 rounded-2xl bg-primary text-white font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/20" onClick={handleSaveKey}>Initialize Navigation</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
