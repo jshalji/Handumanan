@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Refined AI Chatbot flow for the Handumanan system.
@@ -35,6 +34,7 @@ const HeritageChatInputSchema = z.object({
 const HeritageChatOutputSchema = z.object({
   text: z.string(),
   suggestedAction: z.enum(['none', 'show_map', 'open_itinerary']).default('none'),
+  suggestedSiteIds: z.array(z.string()).optional().describe('IDs of heritage sites relevant to the conversation to be displayed as cards.'),
 });
 
 export type HeritageChatInput = z.infer<typeof HeritageChatInputSchema>;
@@ -84,11 +84,12 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const { text } = await ai.generate({
+      const { output } = await ai.generate({
         prompt: lastMessage,
         history: input.history.slice(0, -1),
         tools: [searchSitesTool],
         model: 'googleai/gemini-2.5-flash',
+        output: { schema: HeritageChatOutputSchema },
         system: `You are the "Handumanan Guide", an expert virtual tour guide for Metro Cebu.
         
         CONTEXT:
@@ -101,7 +102,8 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
         1. RECOGNIZE USER DATA: If the user asks about their saved sites or trips, use the User Context provided.
         2. ANSWER ROUTE QUERIES: If asked about the next stop, distance, or time, use the provided Route Info.
         3. PROVIDE LANDMARK INFO: Use searchSites to get the overview and significance of sites.
-        4. STAY CONCISE: Keep responses to 2-4 sentences max. Use simple, natural language.
+        4. SITE CARDS: If you mention specific heritage sites, include their EXACT IDs in the "suggestedSiteIds" array so the UI can show interactive cards.
+        5. STAY CONCISE: Keep responses to 2-4 sentences max. Use simple, natural language.
         
         STYLE:
         - Friendly, helpful, and Cebuano-proud.
@@ -111,10 +113,9 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
         }
       });
 
-      return {
-        text: text || "I'm sorry, I couldn't find details on that right now. Try asking about your next stop or a specific museum.",
-        suggestedAction: 'none'
-      };
+      if (!output) throw new Error('No output from AI');
+
+      return output;
     } catch (error: any) {
       lastError = error;
       if (attempt < maxAttempts - 1) {
