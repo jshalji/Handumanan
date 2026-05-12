@@ -57,6 +57,9 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -127,7 +130,6 @@ function ExploreRouteContent() {
         if (!combined.find(s => s.id === dbSite.id)) {
           combined.push({
             ...dbSite,
-            // Ensure compatibility with static site coordinate structure
             coordinates: dbSite.coordinates || { lat: dbSite.latitude, lng: dbSite.longitude }
           } as any);
         }
@@ -177,7 +179,7 @@ function ExploreRouteContent() {
         }
       }
     }
-  }, [savedItin]);
+  }, [savedItin, toast]);
 
   useEffect(() => {
     const siteIdFromUrl = searchParams.get('siteId');
@@ -191,7 +193,7 @@ function ExploreRouteContent() {
         }
       }
     }
-  }, [searchParams, allSites]);
+  }, [searchParams, allSites, itineraryIds]);
 
   const detectLocation = useCallback(async () => {
     setLoading(true);
@@ -596,10 +598,14 @@ function ExploreRouteContent() {
       {/* NAV DRAWER */}
       <Sheet open={isNavDrawerOpen} onOpenChange={setIsNavDrawerOpen}>
         <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0 border-none shadow-2xl bg-white flex flex-col z-[1100]">
-           <div className="p-8 bg-primary text-white shrink-0">
-              <h2 className="text-white font-headline text-3xl font-black flex items-center gap-3"><LandmarkIcon size={32} /> Handumanan</h2>
-              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest mt-2">Cebu Heritage System</p>
-           </div>
+           <SheetHeader className="p-8 bg-primary text-white shrink-0 text-left space-y-0">
+              <SheetTitle className="text-white font-headline text-3xl font-black flex items-center gap-3">
+                <LandmarkIcon size={32} /> Handumanan
+              </SheetTitle>
+              <SheetDescription className="text-white/70 text-[10px] font-bold uppercase tracking-widest mt-2">
+                Cebu Heritage System
+              </SheetDescription>
+           </SheetHeader>
            <div className="flex-1 overflow-y-auto p-6 space-y-2">
              {[
                { label: 'Home', href: '/', icon: Home },
