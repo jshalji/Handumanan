@@ -40,7 +40,7 @@ import {
   ArrowRight,
   History
 } from 'lucide-react';
-import { useFirestore, useUser, useAuth } from '@/firebase';
+import { useFirestore, useUser, useAuth, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -85,6 +85,7 @@ function ExploreRouteContent() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const searchParams = useSearchParams();
+  const db = useFirestore();
   
   const orsKey = process.env.NEXT_PUBLIC_ORS_API_KEY || '';
 
@@ -109,15 +110,11 @@ function ExploreRouteContent() {
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   
-  // NEW GENERATION STATES
   const [isGeneratingPlanner, setIsGeneratingPlanner] = useState(false);
   const [aiItineraryData, setAiItineraryData] = useState<GeneratePersonalizedItineraryOutput | null>(null);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
 
   const [isNavDrawerOpen, setIsNavDrawerOpen] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-
-  const db = useFirestore();
 
   // LOCAL STORAGE SYNC
   useEffect(() => {
@@ -135,6 +132,33 @@ function ExploreRouteContent() {
     localStorage.setItem('handumanan_draft_itinerary', JSON.stringify(ids));
     setItineraryIds(ids);
   };
+
+  // LOAD SAVED TRIP FROM URL PARAM
+  const itineraryIdParam = searchParams.get('itineraryId');
+  const savedItinRef = useMemoFirebase(() => 
+    (db && user && itineraryIdParam) ? doc(db, 'users', user.uid, 'itineraries', itineraryIdParam) : null,
+    [db, user, itineraryIdParam]
+  );
+  const { data: savedItin } = useDoc(savedItinRef);
+
+  useEffect(() => {
+    if (savedItin) {
+      if (savedItin.itineraryIds) {
+        saveToLocal(savedItin.itineraryIds);
+        toast({ title: "Trip Loaded", description: savedItin.summary });
+      } else if (savedItin.itineraryData) {
+        // Handle data saved from the legacy itinerary page
+        try {
+          const parsed = JSON.parse(savedItin.itineraryData);
+          const ids = parsed.itinerary.map((stop: any) => stop.siteId);
+          saveToLocal(ids);
+          toast({ title: "Trip Loaded", description: savedItin.summary });
+        } catch (e) {
+          console.error("Failed to parse legacy itinerary data", e);
+        }
+      }
+    }
+  }, [savedItin]);
 
   useEffect(() => {
     const siteIdFromUrl = searchParams.get('siteId');
@@ -254,7 +278,6 @@ function ExploreRouteContent() {
     }
   };
 
-  // BASIC GENERATE PLANNER (LOCAL ONLY)
   const handleAutoGenerateFromLocal = async () => {
     if (itineraryIds.length === 0) {
       toast({ title: "No Data Found", description: "Please add sites to your itinerary first.", variant: "destructive" });
@@ -271,7 +294,6 @@ function ExploreRouteContent() {
 
       setAiItineraryData(output);
       
-      // Update local order based on AI logic
       const orderedIds = output.itinerary.map(item => item.siteId);
       if (orderedIds.length > 0) {
         saveToLocal(orderedIds);
@@ -490,7 +512,7 @@ function ExploreRouteContent() {
               <div className="p-2 bg-white/20 rounded-xl"><Sparkles size={20} /></div>
               <DialogTitle className="text-2xl font-headline font-black">AI Trip Scout</DialogTitle>
             </div>
-            <DialogDescription className="text-white/70 text-[10px] font-bold uppercase tracking-widest">Organized based on your local selections.</DialogDescription>
+            <DialogDescription className="text-white/70 text-[10px] font-bold uppercase tracking-widest">Organized based on your selections.</DialogDescription>
           </div>
           
           <ScrollArea className="max-h-[50vh] p-8">
@@ -527,7 +549,7 @@ function ExploreRouteContent() {
 
           <DialogFooter className="p-6 bg-slate-50 border-t flex flex-col gap-2 sm:flex-col">
             <Button onClick={handleSavePlanner} className="w-full h-12 rounded-2xl bg-primary text-white font-black uppercase tracking-widest shadow-xl">
-              <SaveIcon size={18} className="mr-2" /> Save to Profile
+              <SaveIcon size={18} className="mr-2" /> Save Trip
             </Button>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={handleAutoGenerateFromLocal} disabled={isGeneratingPlanner} className="rounded-2xl text-[10px] font-black uppercase tracking-widest h-12">
@@ -535,7 +557,7 @@ function ExploreRouteContent() {
                 Regenerate
               </Button>
               <Button variant="ghost" onClick={() => setIsResultModalOpen(false)} className="rounded-2xl text-[10px] font-black uppercase tracking-widest h-12">
-                Keep Draft
+                Close
               </Button>
             </div>
           </DialogFooter>

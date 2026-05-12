@@ -143,8 +143,8 @@ export default function ProfilePage() {
                             <CardDescription className="italic">"{itin.summary}"</CardDescription>
                           </div>
                           <Button asChild variant="ghost" size="sm" className="text-primary font-bold">
-                            <Link href="/itinerary">
-                              View Again <ArrowRight size={14} className="ml-1" />
+                            <Link href={`/discover?itineraryId=${itin.id}`}>
+                              View <ArrowRight size={14} className="ml-1" />
                             </Link>
                           </Button>
                         </CardHeader>
@@ -157,7 +157,7 @@ export default function ProfilePage() {
                     <h3 className="text-xl font-bold">No Saved Trips</h3>
                     <p className="max-w-xs mx-auto mt-2">Use our AI Planner to map out your next heritage journey.</p>
                     <Button asChild className="mt-6 rounded-full" variant="outline">
-                      <Link href="/itinerary">Try AI Planner</Link>
+                      <Link href="/discover">Try AI Planner</Link>
                     </Button>
                   </div>
                 )}
