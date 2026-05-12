@@ -28,7 +28,7 @@ export async function getRouteMulti(
 ): Promise<RouteData | null> {
   if (!points || points.length < 2) return null;
   if (!apiKey || apiKey.trim() === '') {
-    console.error("OpenRouteService API Key is missing.");
+    console.warn("OpenRouteService API Key is missing. Routing will not be active.");
     return null;
   }
 
@@ -53,7 +53,7 @@ export async function getRouteMulti(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`OSR Error (${response.status}):`, errorText);
+      console.error(`OSR API Error (${response.status}):`, errorText);
       return null;
     }
 
@@ -90,7 +90,7 @@ export async function getRouteMulti(
     
     return null;
   } catch (error) {
-    console.error("Network error during OSR fetch:", error);
+    console.error("Network error during OSR routing fetch:", error);
     return null;
   }
 }
