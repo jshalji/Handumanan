@@ -33,8 +33,31 @@ export async function getRouteMulti(
   profile: 'driving-car' | 'foot-walking' = 'driving-car'
 ): Promise<RouteData | null> {
   // Defensive checks for input data
-  if (!points || points.length < 2 || !apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
+  if (!points || points.length < 2) {
     return null;
+  }
+
+  // FALLBACK: If no API key is provided, return a direct line (Great Circle path)
+  // This ensures the prototype always shows a route even without an ORS account configured.
+  if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
+    const directCoords = points.map(p => [Number(p.lat), Number(p.lng)] as [number, number]);
+    let totalDist = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      totalDist += calculateDistance(points[i].lat, points[i].lng, points[i+1].lat, points[i+1].lng);
+    }
+    
+    return {
+      coordinates: directCoords,
+      distance: totalDist,
+      duration: (totalDist / 30) * 60, // Estimate 30km/h average speed in Cebu traffic
+      steps: [
+        { 
+          instruction: "Follow the direct path to your destination.", 
+          distance: totalDist, 
+          duration: (totalDist / 30) * 60 
+        }
+      ]
+    };
   }
 
   try {
@@ -55,15 +78,12 @@ export async function getRouteMulti(
         instructions: true,
         units: 'km'
       })
-    }).catch(err => {
-      // Catch network-level errors (DNS, CORS, offline) to prevent bubbling TypeErrors
-      console.warn("ORS Fetch Network Error:", err.message);
-      return null;
     });
 
     if (!response || !response.ok) {
-      if (response) console.warn(`OpenRouteService returned ${response.status}.`);
-      return null;
+      console.warn(`OpenRouteService returned ${response.status}. Falling back to direct path.`);
+      // Recursive fallback call with empty string to trigger direct line logic
+      return getRouteMulti(points, '');
     }
 
     const data = await response.json();
@@ -94,11 +114,10 @@ export async function getRouteMulti(
       };
     }
     
-    return null;
+    return getRouteMulti(points, ''); // Fallback on no features
   } catch (error) {
-    // Top-level catch for any parsing or unexpected logic errors
-    console.error("Critical routing service error:", error);
-    return null;
+    console.error("Critical routing service error. Falling back to direct path.", error);
+    return getRouteMulti(points, '');
   }
 }
 

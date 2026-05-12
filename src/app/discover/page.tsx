@@ -217,7 +217,7 @@ function ExploreRouteContent() {
     const fetchRoute = async () => {
       try {
         if (isNavigating) {
-          if (!userLocation || !itinerarySites[activeStopIndex] || !orsKey) return;
+          if (!userLocation || !itinerarySites[activeStopIndex]) return;
           const data = await getRoute(userLocation, itinerarySites[activeStopIndex].coordinates, orsKey);
           if (data) {
             setRouteCoords(data.coordinates);
@@ -228,7 +228,7 @@ function ExploreRouteContent() {
           return;
         }
 
-        if (itineraryIds.length < 2 || !orsKey) {
+        if (itineraryIds.length < 2) {
           setRouteCoords([]); setTotalDist(0); setTotalTime(0);
           return;
         }
