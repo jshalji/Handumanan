@@ -1,7 +1,5 @@
 'use client';
 
-import { calculateDistance } from './location-utils';
-
 /**
  * Service to interact with OpenRouteService API for generating routing data.
  * Optimized for road-accurate navigation in Metro Cebu.
@@ -21,29 +19,21 @@ export interface RouteData {
 }
 
 /**
- * Fetches an accurate road-based route using OpenRouteService POST API for multiple waypoints.
- * @param points - Array of {lat, lng} coordinates in order
- * @param apiKey - OpenRouteService API Key
- * @param profile - 'driving-car' or 'foot-walking'
+ * Fetches an accurate road-based route using OpenRouteService POST API.
  */
 export async function getRouteMulti(
   points: { lat: number; lng: number }[],
   apiKey: string,
   profile: 'driving-car' | 'foot-walking' = 'driving-car'
 ): Promise<RouteData | null> {
-  // Defensive checks for input data
-  if (!points || points.length < 2) {
-    return null;
-  }
-
-  // Integration Check: OSR requires a valid API Key
-  if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
-    console.error("OpenRouteService API Key is missing. Ensure NEXT_PUBLIC_ORS_API_KEY is set in your environment.");
+  if (!points || points.length < 2) return null;
+  if (!apiKey || apiKey.trim() === '') {
+    console.error("OpenRouteService API Key is missing.");
     return null;
   }
 
   try {
-    // ROUTING API REQUIREMENT: [longitude, latitude]
+    // OSR format: [longitude, latitude]
     const coordinates = points.map(p => [Number(p.lng), Number(p.lat)]);
     const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
     
@@ -63,7 +53,7 @@ export async function getRouteMulti(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`OpenRouteService failed (Status: ${response.status}). Details:`, errorText);
+      console.error(`OSR Error (${response.status}):`, errorText);
       return null;
     }
 
@@ -71,14 +61,13 @@ export async function getRouteMulti(
 
     if (data.features && data.features.length > 0) {
       const feature = data.features[0];
-      // LEAFLET REQUIREMENT: [latitude, longitude]
+      // Leaflet format: [latitude, longitude]
       const coords = feature.geometry.coordinates.map((c: number[]) => [Number(c[1]), Number(c[0])] as [number, number]);
-      const properties = feature.properties;
-      const summary = properties.summary;
+      const { distance, duration } = feature.properties.summary;
       
       const allSteps: RouteStep[] = [];
-      if (properties.segments) {
-        properties.segments.forEach((segment: any) => {
+      if (feature.properties.segments) {
+        feature.properties.segments.forEach((segment: any) => {
           if (segment.steps) {
             segment.steps.forEach((step: any) => {
               allSteps.push({
@@ -93,8 +82,8 @@ export async function getRouteMulti(
 
       return {
         coordinates: coords,
-        distance: summary.distance,
-        duration: summary.duration / 60,
+        distance,
+        duration: duration / 60,
         steps: allSteps
       };
     }
@@ -107,7 +96,7 @@ export async function getRouteMulti(
 }
 
 /**
- * Single route fetcher
+ * Single route fetcher for two points.
  */
 export async function getRoute(
   start: { lat: number; lng: number } | null, 
