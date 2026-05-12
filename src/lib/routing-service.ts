@@ -22,7 +22,6 @@ export interface RouteData {
 
 /**
  * Fetches an accurate road-based route using OpenRouteService POST API for multiple waypoints.
- * IMPORTANT: Routing API expects [longitude, latitude] format.
  * @param points - Array of {lat, lng} coordinates in order
  * @param apiKey - OpenRouteService API Key
  * @param profile - 'driving-car' or 'foot-walking'
@@ -64,7 +63,6 @@ export async function getRouteMulti(
     const coordinates = points.map(p => [Number(p.lng), Number(p.lat)]);
     const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
     
-    // Robust fetch with internal error handling
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -77,13 +75,10 @@ export async function getRouteMulti(
         instructions: true,
         units: 'km'
       })
-    }).catch(err => {
-      console.warn("Network error during OSR fetch:", err);
-      return null;
     });
 
-    if (!response || !response.ok) {
-      console.warn(`OpenRouteService failed (Status: ${response?.status}). Falling back to direct path.`);
+    if (!response.ok) {
+      console.warn(`OpenRouteService failed (Status: ${response.status}). Falling back to direct path.`);
       return getRouteMulti(points, ''); // Trigger direct line fallback
     }
 
@@ -117,7 +112,7 @@ export async function getRouteMulti(
     
     return getRouteMulti(points, ''); 
   } catch (error) {
-    console.error("Critical routing service error. Falling back to direct path.", error);
+    console.warn("Network error during OSR fetch. Falling back to direct path.", error);
     return getRouteMulti(points, '');
   }
 }

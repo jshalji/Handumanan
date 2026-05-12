@@ -40,9 +40,9 @@ import {
   ArrowRight,
   History
 } from 'lucide-react';
-import { useFirestore, useUser, useAuth, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirestore, useUser, useAuth, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -116,6 +116,26 @@ function ExploreRouteContent() {
 
   const [isNavDrawerOpen, setIsNavDrawerOpen] = useState(false);
 
+  // LOAD DYNAMIC SITES FROM FIRESTORE
+  const sitesQuery = useMemoFirebase(() => db ? query(collection(db, 'heritageSites'), orderBy('name')) : null, [db]);
+  const { data: dbSites } = useCollection(sitesQuery);
+
+  const allSites = useMemo(() => {
+    const combined = [...HERITAGE_SITES];
+    if (dbSites) {
+      dbSites.forEach(dbSite => {
+        if (!combined.find(s => s.id === dbSite.id)) {
+          combined.push({
+            ...dbSite,
+            // Ensure compatibility with static site coordinate structure
+            coordinates: dbSite.coordinates || { lat: dbSite.latitude, lng: dbSite.longitude }
+          } as any);
+        }
+      });
+    }
+    return combined;
+  }, [dbSites]);
+
   // LOCAL STORAGE SYNC
   useEffect(() => {
     const saved = localStorage.getItem('handumanan_draft_itinerary');
@@ -147,7 +167,6 @@ function ExploreRouteContent() {
         saveToLocal(savedItin.itineraryIds);
         toast({ title: "Trip Loaded", description: savedItin.summary });
       } else if (savedItin.itineraryData) {
-        // Handle data saved from the legacy itinerary page
         try {
           const parsed = JSON.parse(savedItin.itineraryData);
           const ids = parsed.itinerary.map((stop: any) => stop.siteId);
@@ -163,15 +182,16 @@ function ExploreRouteContent() {
   useEffect(() => {
     const siteIdFromUrl = searchParams.get('siteId');
     if (siteIdFromUrl) {
-      const site = HERITAGE_SITES.find(s => s.id === siteIdFromUrl);
+      const site = allSites.find(s => s.id === siteIdFromUrl);
       if (site) {
-        setFocusedLocation({ lat: site.coordinates.lat, lng: site.coordinates.lng });
+        const coords = site.coordinates || { lat: (site as any).latitude, lng: (site as any).longitude };
+        setFocusedLocation({ lat: coords.lat, lng: coords.lng });
         if (!itineraryIds.includes(siteIdFromUrl)) {
           saveToLocal([...itineraryIds, siteIdFromUrl]);
         }
       }
     }
-  }, [searchParams]);
+  }, [searchParams, allSites]);
 
   const detectLocation = useCallback(async () => {
     setLoading(true);
@@ -189,14 +209,17 @@ function ExploreRouteContent() {
   }, [toast]);
 
   const filteredAndSortedSites = useMemo(() => {
-    let result = HERITAGE_SITES;
+    let result = allSites;
     if (selectedCity) result = result.filter(s => s.city === selectedCity);
     if (selectedCategory) result = result.filter(s => s.category === selectedCategory);
     
-    let mapped = result.map(site => ({
-      ...site,
-      distance: userLocation ? calculateDistance(userLocation.lat, userLocation.lng, site.coordinates.lat, site.coordinates.lng) : 0
-    }));
+    let mapped = result.map(site => {
+      const coords = site.coordinates || { lat: (site as any).latitude, lng: (site as any).longitude };
+      return {
+        ...site,
+        distance: userLocation ? calculateDistance(userLocation.lat, userLocation.lng, coords.lat, coords.lng) : 0
+      };
+    });
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -207,18 +230,20 @@ function ExploreRouteContent() {
       );
     }
     return mapped;
-  }, [selectedCity, selectedCategory, userLocation, searchQuery]);
+  }, [selectedCity, selectedCategory, userLocation, searchQuery, allSites]);
 
   const itinerarySites = useMemo(() => {
-    return itineraryIds.map(id => HERITAGE_SITES.find(s => s.id === id)).filter(Boolean) as HeritageSite[];
-  }, [itineraryIds]);
+    return itineraryIds.map(id => allSites.find(s => s.id === id)).filter(Boolean) as any[];
+  }, [itineraryIds, allSites]);
 
   useEffect(() => {
     const fetchRoute = async () => {
       try {
         if (isNavigating) {
           if (!userLocation || !itinerarySites[activeStopIndex]) return;
-          const data = await getRoute(userLocation, itinerarySites[activeStopIndex].coordinates, orsKey);
+          const stop = itinerarySites[activeStopIndex];
+          const stopCoords = stop.coordinates || { lat: stop.latitude, lng: stop.longitude };
+          const data = await getRoute(userLocation, stopCoords, orsKey);
           if (data) {
             setRouteCoords(data.coordinates);
             setNavigationSteps(data.steps);
@@ -232,14 +257,16 @@ function ExploreRouteContent() {
           setRouteCoords([]); setTotalDist(0); setTotalTime(0);
           return;
         }
-        const data = await getRouteMulti(itinerarySites.map(s => s.coordinates), orsKey);
+        
+        const pathCoords = itinerarySites.map(s => s.coordinates || { lat: s.latitude, lng: s.longitude });
+        const data = await getRouteMulti(pathCoords, orsKey);
         if (data) {
           setRouteCoords(data.coordinates);
           setTotalDist(data.distance);
           setTotalTime(data.duration);
         }
       } catch (err) {
-        console.warn("Routing error suppressed", err);
+        console.warn("Routing fetch suppressed:", err);
       }
     };
     fetchRoute();
@@ -286,9 +313,8 @@ function ExploreRouteContent() {
 
     setIsGeneratingPlanner(true);
     try {
-      const selectedSites = itineraryIds.map(id => HERITAGE_SITES.find(s => s.id === id)).filter(Boolean);
       const output = await generatePersonalizedItinerary({
-        selectedSitesJson: JSON.stringify(selectedSites.map(s => ({ id: s!.id, name: s!.name }))),
+        selectedSitesJson: JSON.stringify(itinerarySites.map(s => ({ id: s.id, name: s.name }))),
         availableTimeHours: 4
       });
 
@@ -453,17 +479,20 @@ function ExploreRouteContent() {
                 <div className="space-y-2">
                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Nearby Landmarks</p>
                   <div className="space-y-2">
-                     {filteredAndSortedSites.slice(0, 15).map(site => (
-                       <div key={site.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-[1.25rem] border border-slate-100">
-                          <div className="flex-1 truncate mr-3 cursor-pointer" onClick={() => setFocusedLocation({ lat: site.coordinates.lat, lng: site.coordinates.lng })}>
-                             <p className="text-[11px] font-bold text-slate-900 truncate">{site.name}</p>
-                             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{site.city}</p>
-                          </div>
-                          <Button onClick={() => toggleSite(site.id)} size="icon" variant={itineraryIds.includes(site.id) ? "secondary" : "default"} className={cn("h-9 w-9 rounded-xl", itineraryIds.includes(site.id) ? "bg-slate-200 text-slate-500" : "bg-primary text-white shadow-xl shadow-primary/20")}>
-                             {itineraryIds.includes(site.id) ? <X size={16} /> : <Plus size={16} />}
-                          </Button>
-                       </div>
-                     ))}
+                     {filteredAndSortedSites.slice(0, 15).map(site => {
+                       const coords = site.coordinates || { lat: (site as any).latitude, lng: (site as any).longitude };
+                       return (
+                         <div key={site.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-[1.25rem] border border-slate-100">
+                            <div className="flex-1 truncate mr-3 cursor-pointer" onClick={() => setFocusedLocation({ lat: coords.lat, lng: coords.lng })}>
+                               <p className="text-[11px] font-bold text-slate-900 truncate">{site.name}</p>
+                               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{site.city}</p>
+                            </div>
+                            <Button onClick={() => toggleSite(site.id)} size="icon" variant={itineraryIds.includes(site.id) ? "secondary" : "default"} className={cn("h-9 w-9 rounded-xl", itineraryIds.includes(site.id) ? "bg-slate-200 text-slate-500" : "bg-primary text-white shadow-xl shadow-primary/20")}>
+                               {itineraryIds.includes(site.id) ? <X size={16} /> : <Plus size={16} />}
+                            </Button>
+                         </div>
+                       );
+                     })}
                   </div>
                 </div>
               </TabsContent>

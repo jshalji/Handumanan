@@ -13,8 +13,6 @@ import { doc } from 'firebase/firestore';
 /**
  * FIXED ICONS:
  * Explicit iconAnchor [12, 41] ensures the pin tip is the reference point.
- * This prevents markers from "moving" or drifting during zoom events.
- * Leaflet standard marker icon size is 25x41px.
  */
 const DefaultIcon = L.icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -53,7 +51,7 @@ interface HeritageMapProps {
   userLocation: { lat: number; lng: number } | null;
   sites: any[];
   itinerary: any[];
-  routeCoordinates?: [number, number][];
+  routeCoords?: [number, number][];
   totalTime?: number;
   totalDist?: number;
   onAddSite: (id: string) => void;
@@ -62,10 +60,6 @@ interface HeritageMapProps {
   recenterKey?: number;
 }
 
-/**
- * Coordinate Validation:
- * Prevents pins from appearing in the ocean (0,0) or outside valid bounds.
- */
 const isValidCoordinate = (lat: any, lng: any) => {
   const latitude = parseFloat(lat);
   const longitude = parseFloat(lng);
@@ -79,29 +73,27 @@ const isValidCoordinate = (lat: any, lng: any) => {
 };
 
 const getDistanceInMeters = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-  const R = 6371000; // Radius of the Earth in meters
+  const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
-
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos((lat1 * Math.PI) / 180) *
       Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLng / 2) *
       Math.sin(dLng / 2);
-
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
 
 function MapController({ 
-  routeCoordinates,
+  routeCoords,
   focusedLocation,
   isNavigating,
   userLocation,
   recenterKey
 }: { 
-  routeCoordinates?: [number, number][],
+  routeCoords?: [number, number][],
   focusedLocation?: { lat: number; lng: number } | null,
   isNavigating?: boolean,
   userLocation: { lat: number; lng: number } | null,
@@ -129,11 +121,11 @@ function MapController({
   }, [focusedLocation, isNavigating, map]);
 
   useEffect(() => {
-    if (!isNavigating && !focusedLocation && routeCoordinates && routeCoordinates.length > 1) {
-      const bounds = L.polyline(routeCoordinates).getBounds();
+    if (!isNavigating && !focusedLocation && routeCoords && routeCoords.length > 1) {
+      const bounds = L.polyline(routeCoords).getBounds();
       map.fitBounds(bounds, { padding: [100, 100], animate: true });
     }
-  }, [routeCoordinates, isNavigating, focusedLocation, map]);
+  }, [routeCoords, isNavigating, focusedLocation, map]);
 
   return null;
 }
@@ -142,7 +134,7 @@ export default function HeritageMap({
   userLocation, 
   sites, 
   itinerary, 
-  routeCoordinates,
+  routeCoords,
   totalTime,
   totalDist,
   onAddSite,
@@ -205,7 +197,7 @@ export default function HeritageMap({
         />
         
         <MapController 
-          routeCoordinates={routeCoordinates} 
+          routeCoords={routeCoords} 
           focusedLocation={focusedLocation} 
           isNavigating={isNavigating}
           userLocation={userLocation}
@@ -280,13 +272,14 @@ export default function HeritageMap({
           );
         })}
 
-        {routeCoordinates && routeCoordinates.length > 1 && (
+        {routeCoords && routeCoords.length > 1 && (
           <Polyline 
-            positions={routeCoordinates} 
+            positions={routeCoords} 
             color="#10b981" 
-            weight={6} 
-            opacity={0.8}
+            weight={8} 
+            opacity={0.9}
             lineCap="round"
+            lineJoin="round"
           >
             {totalTime && totalDist && (
               <Tooltip sticky direction="top" className="route-tooltip">
