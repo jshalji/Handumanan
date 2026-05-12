@@ -24,9 +24,22 @@ export interface RouteData {
 export async function getRouteMulti(
   points: { lat: number; lng: number }[],
   apiKey: string,
-  profile: 'driving-car' | 'foot-walking' = 'driving-car'
+  profile: string = 'driving-car'
 ): Promise<RouteData | null> {
   if (!points || points.length < 2) return null;
+  
+  // Validate coordinates to avoid NaN or invalid data issues
+  const validPoints = points.filter(p => 
+    p && 
+    typeof p.lat === 'number' && !isNaN(p.lat) && 
+    typeof p.lng === 'number' && !isNaN(p.lng)
+  );
+  
+  if (validPoints.length < 2) {
+    console.warn("Insufficient valid coordinates for routing calculation.");
+    return null;
+  }
+
   if (!apiKey || apiKey.trim() === '') {
     console.warn("OpenRouteService API Key is missing. Routing will not be active.");
     return null;
@@ -34,7 +47,7 @@ export async function getRouteMulti(
 
   try {
     // OSR format: [longitude, latitude]
-    const coordinates = points.map(p => [Number(p.lng), Number(p.lat)]);
+    const coordinates = validPoints.map(p => [Number(p.lng), Number(p.lat)]);
     const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
     
     const response = await fetch(url, {
@@ -89,8 +102,13 @@ export async function getRouteMulti(
     }
     
     return null;
-  } catch (error) {
-    console.error("Network error during OSR routing fetch:", error);
+  } catch (error: any) {
+    // Log specific network errors for easier debugging
+    if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+      console.error("OSR Network Error: The request was blocked or the API is unreachable. Check your connection and API key permissions.");
+    } else {
+      console.error("OSR Routing Error:", error);
+    }
     return null;
   }
 }
@@ -102,7 +120,7 @@ export async function getRoute(
   start: { lat: number; lng: number } | null, 
   end: { lat: number; lng: number } | null,
   apiKey: string,
-  profile: 'driving-car' | 'foot-walking' = 'driving-car'
+  profile: string = 'driving-car'
 ): Promise<RouteData | null> {
   if (!start || !end) return null;
   return getRouteMulti([start, end], apiKey, profile);
