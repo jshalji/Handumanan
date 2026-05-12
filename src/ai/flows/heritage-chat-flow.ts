@@ -54,7 +54,7 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
 
   try {
     const { output } = await ai.generate({
-      model: 'googleai/gemini-2.5-flash',
+      model: 'googleai/gemini-2.0-flash',
       prompt: lastMessage,
       history: input.history.slice(0, -1),
       tools: [searchSitesTool],

@@ -32,7 +32,7 @@ export async function generatePersonalizedItinerary(
 ): Promise<GeneratePersonalizedItineraryOutput> {
   try {
     const { output } = await ai.generate({
-      model: 'googleai/gemini-2.5-flash',
+      model: 'googleai/gemini-2.0-flash',
       input: { schema: GeneratePersonalizedItineraryInputSchema, data: input },
       output: { schema: GeneratePersonalizedItineraryOutputSchema },
       system: `You are the "Strict Heritage Planner". 

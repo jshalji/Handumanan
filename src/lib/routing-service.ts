@@ -38,7 +38,6 @@ export async function getRouteMulti(
   }
 
   // FALLBACK: If no API key is provided, return a direct line (Great Circle path)
-  // This ensures the prototype always shows a route even without an ORS account configured.
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
     const directCoords = points.map(p => [Number(p.lat), Number(p.lng)] as [number, number]);
     let totalDist = 0;
@@ -49,7 +48,7 @@ export async function getRouteMulti(
     return {
       coordinates: directCoords,
       distance: totalDist,
-      duration: (totalDist / 30) * 60, // Estimate 30km/h average speed in Cebu traffic
+      duration: (totalDist / 30) * 60, // Estimate 30km/h average speed
       steps: [
         { 
           instruction: "Follow the direct path to your destination.", 
@@ -63,9 +62,9 @@ export async function getRouteMulti(
   try {
     // ROUTING API REQUIREMENT: [longitude, latitude]
     const coordinates = points.map(p => [Number(p.lng), Number(p.lat)]);
-    
     const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
     
+    // Robust fetch with internal error handling
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -78,12 +77,14 @@ export async function getRouteMulti(
         instructions: true,
         units: 'km'
       })
+    }).catch(err => {
+      console.warn("Network error during OSR fetch:", err);
+      return null;
     });
 
     if (!response || !response.ok) {
-      console.warn(`OpenRouteService returned ${response.status}. Falling back to direct path.`);
-      // Recursive fallback call with empty string to trigger direct line logic
-      return getRouteMulti(points, '');
+      console.warn(`OpenRouteService failed (Status: ${response?.status}). Falling back to direct path.`);
+      return getRouteMulti(points, ''); // Trigger direct line fallback
     }
 
     const data = await response.json();
@@ -114,7 +115,7 @@ export async function getRouteMulti(
       };
     }
     
-    return getRouteMulti(points, ''); // Fallback on no features
+    return getRouteMulti(points, ''); 
   } catch (error) {
     console.error("Critical routing service error. Falling back to direct path.", error);
     return getRouteMulti(points, '');
@@ -122,7 +123,7 @@ export async function getRouteMulti(
 }
 
 /**
- * Legacy single route fetcher
+ * Single route fetcher
  */
 export async function getRoute(
   start: { lat: number; lng: number } | null, 
