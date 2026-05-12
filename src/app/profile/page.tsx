@@ -135,15 +135,15 @@ export default function ProfilePage() {
                     {savedItineraries.map((itin: any) => (
                       <Card key={itin.id} className="border-none shadow-sm hover:shadow-md transition-shadow">
                         <CardHeader className="flex flex-row items-center justify-between">
-                          <div>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                              <Calendar size={18} className="text-primary" /> 
+                          <div className="min-w-0 flex-1 mr-4">
+                            <CardTitle className="text-lg flex items-center gap-2 truncate">
+                              <Calendar size={18} className="text-primary shrink-0" /> 
                               Saved Plan: {itin.createdAt?.toDate().toLocaleDateString()}
                             </CardTitle>
-                            <CardDescription className="italic">"{itin.summary}"</CardDescription>
+                            <CardDescription className="italic truncate">"{itin.summary}"</CardDescription>
                           </div>
                           <Button asChild variant="ghost" size="sm" className="text-primary font-bold">
-                            <Link href={`/discover?itineraryId=${itin.id}`}>
+                            <Link href={`/trip/${itin.id}`}>
                               View <ArrowRight size={14} className="ml-1" />
                             </Link>
                           </Button>
