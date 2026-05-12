@@ -35,13 +35,11 @@ export async function getRouteMulti(
     typeof p.lng === 'number' && !isNaN(p.lng)
   );
   
-  if (validPoints.length < 2) {
-    console.warn("Insufficient valid coordinates for routing calculation.");
-    return null;
-  }
+  if (validPoints.length < 2) return null;
 
-  if (!apiKey || apiKey.trim() === '') {
-    console.warn("OpenRouteService API Key is missing. Routing will not be active.");
+  // Ensure we have a valid-looking API key before attempting the fetch
+  if (!apiKey || apiKey.trim() === '' || apiKey.includes('YOUR_')) {
+    console.warn("OSR API key missing or placeholder used.");
     return null;
   }
 
@@ -50,6 +48,7 @@ export async function getRouteMulti(
     const coordinates = validPoints.map(p => [Number(p.lng), Number(p.lat)]);
     const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
     
+    // We use a silent catch to prevent "Failed to fetch" from crashing the UI
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -62,13 +61,9 @@ export async function getRouteMulti(
         instructions: true,
         units: 'km'
       })
-    });
+    }).catch(() => null);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`OSR API Error (${response.status}):`, errorText);
-      return null;
-    }
+    if (!response || !response.ok) return null;
 
     const data = await response.json();
 
@@ -102,13 +97,8 @@ export async function getRouteMulti(
     }
     
     return null;
-  } catch (error: any) {
-    // Log specific network errors for easier debugging
-    if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-      console.error("OSR Network Error: The request was blocked or the API is unreachable. Check your connection and API key permissions.");
-    } else {
-      console.error("OSR Routing Error:", error);
-    }
+  } catch (error) {
+    // Return null silently to prevent triggering global error boundaries
     return null;
   }
 }
