@@ -37,9 +37,8 @@ export async function getRouteMulti(
   
   if (validPoints.length < 2) return null;
 
-  // Ensure we have a valid-looking API key before attempting the fetch
+  // Silently exit if no API key is provided
   if (!apiKey || apiKey.trim() === '' || apiKey.includes('YOUR_')) {
-    console.warn("OSR API key missing or placeholder used.");
     return null;
   }
 
@@ -48,7 +47,6 @@ export async function getRouteMulti(
     const coordinates = validPoints.map(p => [Number(p.lng), Number(p.lat)]);
     const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
     
-    // We use a silent catch to prevent "Failed to fetch" from crashing the UI
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -98,7 +96,7 @@ export async function getRouteMulti(
     
     return null;
   } catch (error) {
-    // Return null silently to prevent triggering global error boundaries
+    // Return null silently to prevent triggering global error boundaries or red screens
     return null;
   }
 }

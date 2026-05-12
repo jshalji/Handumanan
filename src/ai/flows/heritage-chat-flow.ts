@@ -68,7 +68,18 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
     if (!output) throw new Error('No response from AI');
     return output;
   } catch (error: any) {
+    // Gracefully handle quota errors
+    if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
+      return {
+        text: "I am currently receiving many requests from fellow explorers. Please give me a moment to catch my breath and ask again in a few seconds! Maayong pag-abot!",
+        suggestedSiteIds: []
+      };
+    }
+    
     console.error("Chat Error:", error.message);
-    throw new Error(error.message);
+    return {
+      text: "I encountered a slight interruption in our connection. Could you please try asking that again?",
+      suggestedSiteIds: []
+    };
   }
 }

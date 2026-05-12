@@ -48,11 +48,18 @@ export async function generatePersonalizedItinerary(
     });
 
     if (!output) {
-      throw new Error('AI failed to generate a response. Please check your API configuration.');
+      throw new Error('AI failed to generate a response.');
     }
 
     return output;
   } catch (error: any) {
+    if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
+       return {
+         itinerary: [],
+         summary: "Our AI Planner is currently at capacity due to high traffic. Please wait a few seconds and try generating your route again. Thank you for your patience!"
+       };
+    }
+    
     console.error("AI Planner Error:", error.message);
     throw new Error(`Itinerary optimization failed: ${error.message || 'Check your API configuration and quota.'}`);
   }
