@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
@@ -55,6 +54,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+} from "@/components/ui/sheet";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useIsMobile } from '@/hooks/use-mobile';
 import Link from 'next/link';
@@ -305,7 +308,7 @@ function ExploreRouteContent() {
           userLocation={userLocation} 
           sites={filteredAndSortedSites} 
           itinerary={itinerarySites} 
-          routeCoordinates={routeCoords} 
+          routeCoords={routeCoords} 
           totalTime={totalTime} 
           totalDist={totalDist} 
           onAddSite={toggleSite}
@@ -540,8 +543,8 @@ function ExploreRouteContent() {
       </Dialog>
 
       {/* NAV DRAWER */}
-      <Dialog open={isNavDrawerOpen} onOpenChange={setIsNavDrawerOpen}>
-        <DialogContent className="fixed top-0 left-0 bottom-0 h-full w-[280px] sm:w-[320px] p-0 border-none shadow-2xl bg-white flex flex-col z-[1100]">
+      <Sheet open={isNavDrawerOpen} onOpenChange={setIsNavDrawerOpen}>
+        <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0 border-none shadow-2xl bg-white flex flex-col z-[1100]">
            <div className="p-8 bg-primary text-white shrink-0">
               <h2 className="text-white font-headline text-3xl font-black flex items-center gap-3"><LandmarkIcon size={32} /> Handumanan</h2>
               <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest mt-2">Cebu Heritage System</p>
@@ -571,8 +574,8 @@ function ExploreRouteContent() {
                </Button>
              )}
            </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
