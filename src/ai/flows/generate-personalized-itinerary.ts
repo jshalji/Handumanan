@@ -1,7 +1,6 @@
-
 'use server';
 /**
- * @fileOverview A simplified AI agent for organizing user-selected heritage sites.
+ * @fileOverview A strict AI agent for organizing user-selected heritage sites.
  *
  * - generatePersonalizedItinerary - Organizes a specific list of sites into a logical route.
  */
@@ -33,18 +32,19 @@ export async function generatePersonalizedItinerary(
 ): Promise<GeneratePersonalizedItineraryOutput> {
   try {
     const { output } = await ai.generate({
-      model: 'googleai/gemini-1.5-flash',
+      model: 'googleai/gemini-2.5-flash',
       input: { schema: GeneratePersonalizedItineraryInputSchema, data: input },
       output: { schema: GeneratePersonalizedItineraryOutputSchema },
-      system: `You are a "Basic Itinerary Organizer". 
+      system: `You are the "Strict Heritage Planner". 
       
-      STRICT RULES:
-      1. ONLY use the sites provided in the input JSON. DO NOT suggest new sites.
-      2. If no sites are provided, return an empty itinerary list.
-      3. Organize the provided sites into a geographically logical order for a tour.
+      CRITICAL RULES:
+      1. ONLY use the sites provided in the input JSON string. DO NOT suggest new sites.
+      2. If the input list is empty, return an empty itinerary list.
+      3. Organize the sites provided into a geographically logical order for a Cebu tour.
       4. Provide realistic visit durations (30-60 mins).
-      5. Output MUST be valid JSON matching the schema.`,
-      prompt: `Organize these selected heritage sites into a logical ${input.availableTimeHours}-hour tour: ${input.selectedSitesJson}`,
+      5. Output MUST be valid JSON matching the provided schema.`,
+      prompt: `Organize these selected heritage sites into a logical ${input.availableTimeHours}-hour tour. 
+      Input Data: ${input.selectedSitesJson}`,
     });
 
     if (!output) {
@@ -54,6 +54,6 @@ export async function generatePersonalizedItinerary(
     return output;
   } catch (error: any) {
     console.error("AI Planner Error:", error.message);
-    throw new Error(`Planner Error: ${error.message || 'Check your API configuration and quota.'}`);
+    throw new Error(`Itinerary optimization failed: ${error.message || 'Check your API configuration and quota.'}`);
   }
 }
