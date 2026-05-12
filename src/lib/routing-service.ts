@@ -36,26 +36,10 @@ export async function getRouteMulti(
     return null;
   }
 
-  // FALLBACK: If no API key is provided, return a direct line (Great Circle path)
+  // Integration Check: OSR requires a valid API Key
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
-    const directCoords = points.map(p => [Number(p.lat), Number(p.lng)] as [number, number]);
-    let totalDist = 0;
-    for (let i = 0; i < points.length - 1; i++) {
-      totalDist += calculateDistance(points[i].lat, points[i].lng, points[i+1].lat, points[i+1].lng);
-    }
-    
-    return {
-      coordinates: directCoords,
-      distance: totalDist,
-      duration: (totalDist / 30) * 60, // Estimate 30km/h average speed
-      steps: [
-        { 
-          instruction: "Follow the direct path to your destination.", 
-          distance: totalDist, 
-          duration: (totalDist / 30) * 60 
-        }
-      ]
-    };
+    console.error("OpenRouteService API Key is missing. Ensure NEXT_PUBLIC_ORS_API_KEY is set in your environment.");
+    return null;
   }
 
   try {
@@ -78,8 +62,9 @@ export async function getRouteMulti(
     });
 
     if (!response.ok) {
-      console.warn(`OpenRouteService failed (Status: ${response.status}). Falling back to direct path.`);
-      return getRouteMulti(points, ''); // Trigger direct line fallback
+      const errorText = await response.text();
+      console.error(`OpenRouteService failed (Status: ${response.status}). Details:`, errorText);
+      return null;
     }
 
     const data = await response.json();
@@ -92,15 +77,19 @@ export async function getRouteMulti(
       const summary = properties.summary;
       
       const allSteps: RouteStep[] = [];
-      properties.segments.forEach((segment: any) => {
-        segment.steps.forEach((step: any) => {
-          allSteps.push({
-            instruction: step.instruction,
-            distance: step.distance,
-            duration: step.duration / 60
-          });
+      if (properties.segments) {
+        properties.segments.forEach((segment: any) => {
+          if (segment.steps) {
+            segment.steps.forEach((step: any) => {
+              allSteps.push({
+                instruction: step.instruction,
+                distance: step.distance,
+                duration: step.duration / 60
+              });
+            });
+          }
         });
-      });
+      }
 
       return {
         coordinates: coords,
@@ -110,10 +99,10 @@ export async function getRouteMulti(
       };
     }
     
-    return getRouteMulti(points, ''); 
+    return null;
   } catch (error) {
-    console.warn("Network error during OSR fetch. Falling back to direct path.", error);
-    return getRouteMulti(points, '');
+    console.error("Network error during OSR fetch:", error);
+    return null;
   }
 }
 
