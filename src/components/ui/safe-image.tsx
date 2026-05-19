@@ -27,14 +27,16 @@ export function SafeImage({
 }: SafeImageProps) {
   const [currentSrc, setCurrentSrc] = useState(src || fallbackSrc);
   const [isFallback, setIsFallback] = useState(!src);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     setCurrentSrc(src || fallbackSrc);
     setIsFallback(!src);
+    setHasLoaded(false);
   }, [fallbackSrc, src]);
 
   useEffect(() => {
-    if (!src || currentSrc === fallbackSrc || fallbackDelayMs <= 0) return;
+    if (!src || currentSrc === fallbackSrc || fallbackDelayMs <= 0 || hasLoaded) return;
 
     const timeout = window.setTimeout(() => {
       setCurrentSrc(fallbackSrc);
@@ -42,7 +44,7 @@ export function SafeImage({
     }, fallbackDelayMs);
 
     return () => window.clearTimeout(timeout);
-  }, [currentSrc, fallbackDelayMs, fallbackSrc, src]);
+  }, [currentSrc, fallbackDelayMs, fallbackSrc, hasLoaded, src]);
 
   return (
     <img
@@ -64,6 +66,7 @@ export function SafeImage({
         onError?.(event);
       }}
       onLoad={(event) => {
+        setHasLoaded(true);
         if (currentSrc === fallbackSrc) {
           setIsFallback(true);
         }
