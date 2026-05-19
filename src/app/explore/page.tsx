@@ -39,27 +39,16 @@ const cityBackgrounds: Record<string, { image: string; position: string; header:
   },
 };
 
-const cityFallbackImages: Record<string, string> = {
-  'Cebu City': '/site-directory-cebu-city-hd.avif',
-  'Mandaue City': '/site-directory-mandaue-city-hd.jpg',
-  'Talisay City': '/metrocebu-bg.jpg',
-  'Lapu-Lapu City': '/site-directory-lapu-lapu-city-hd.webp',
-};
-
 function SiteCard({ site }: { site: HeritageSite }) {
-  const fallbackImage = cityFallbackImages[site.city] || '/metrocebu-bg.jpg';
-
   return (
     <Card className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl">
       <Link href={`/site/${site.id}`} className="relative block h-56 w-full shrink-0 overflow-hidden bg-slate-100">
         <SafeImage
           src={site.imageUrl || "https://picsum.photos/seed/placeholder/800/600"}
-          fallbackSrc={fallbackImage}
           alt={site.name}
           fill
           loading="lazy"
           className="object-cover transition-transform duration-700 group-hover:scale-105"
-          fallbackClassName="object-cover"
         />
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
         <Badge variant="secondary" className="absolute left-4 top-4 border-none bg-white/95 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-primary shadow-sm backdrop-blur-md">

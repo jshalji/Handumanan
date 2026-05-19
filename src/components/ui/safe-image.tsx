@@ -18,7 +18,7 @@ export function SafeImage({
   className,
   fallbackClassName = 'object-contain bg-primary/5 p-8',
   fill,
-  fallbackDelayMs = 7000,
+  fallbackDelayMs = 0,
   loading = 'lazy',
   decoding = 'async',
   onError,
