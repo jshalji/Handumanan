@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Compass, MapPin, ArrowRight, Search, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { SafeImage } from '@/components/ui/safe-image';
+import { getSiteImageFallback } from '@/lib/site-images';
 
 export default function Home() {
   const featuredSites = HERITAGE_SITES.filter(s => s.isMustVisit).slice(0, 3);
@@ -73,6 +74,8 @@ export default function Home() {
                     src={site.imageUrl}
                     alt={site.name}
                     fill
+                    fallbackSrc={getSiteImageFallback(site)}
+                    fallbackClassName="object-cover"
                     className="object-cover group-hover:scale-110 transition-transform duration-700"
                   />
                   <div className="absolute top-6 right-6 bg-white/95 backdrop-blur px-4 py-1.5 rounded-full text-xs font-black text-primary shadow-xl">

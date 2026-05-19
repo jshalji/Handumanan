@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { SafeImage } from '@/components/ui/safe-image';
+import { getSiteImageFallback } from '@/lib/site-images';
 
 function mergeSiteRecord(baseSite: HeritageSite | undefined, overrideSite: any): HeritageSite | null {
   if (!baseSite && !overrideSite) return null;
@@ -78,6 +79,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
 
   // Combine main image and gallery images
   const allImages = site ? [site.imageUrl, ...(site.galleryImages || [])].filter(Boolean) : ["https://picsum.photos/seed/placeholder/800/600"];
+  const imageFallback = getSiteImageFallback(site);
 
   const goToImage = (direction: 'previous' | 'next') => {
     setActiveImageIndex(current => {
@@ -272,6 +274,8 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                     alt={`${site.name} photo ${activeImageIndex + 1}`}
                     fill 
                     loading="eager"
+                    fallbackSrc={imageFallback}
+                    fallbackClassName="object-cover"
                     className="object-cover transition-all duration-500 group-hover:scale-105"
                   />
                   <button
@@ -333,7 +337,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                           )}
                           aria-label={`Show ${site.name} photo ${idx + 1}`}
                         >
-                          <SafeImage src={img} alt={`${site.name} gallery photo ${idx + 1}`} fill className="object-cover transition-transform group-hover/thumb:scale-110" />
+                          <SafeImage src={img} alt={`${site.name} gallery photo ${idx + 1}`} fill fallbackSrc={imageFallback} fallbackClassName="object-cover" className="object-cover transition-transform group-hover/thumb:scale-110" />
                           <span className="absolute bottom-1 left-1 rounded-full bg-slate-950/70 px-2 py-0.5 text-[8px] font-black text-white">
                             {idx + 1}
                           </span>
@@ -567,6 +571,8 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
             alt=""
             fill
             loading="eager"
+            fallbackSrc={imageFallback}
+            fallbackClassName="object-cover"
             className="scale-125 object-cover blur-3xl saturate-110"
             aria-hidden="true"
           />
@@ -597,6 +603,8 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                 alt=""
                 fill
                 loading="eager"
+                fallbackSrc={imageFallback}
+                fallbackClassName="object-cover"
                 className="scale-110 object-cover blur-2xl"
                 aria-hidden="true"
               />
@@ -605,6 +613,8 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                 alt={`${site.name} expanded photo ${activeImageIndex + 1}`}
                 fill
                 loading="eager"
+                fallbackSrc={imageFallback}
+                fallbackClassName="object-contain"
                 className="object-contain drop-shadow-2xl"
               />
             </div>
@@ -650,7 +660,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                       )}
                       aria-label={`Open photo ${idx + 1}`}
                     >
-                      <SafeImage src={img} alt={`${site.name} thumbnail ${idx + 1}`} fill className="object-cover" />
+                      <SafeImage src={img} alt={`${site.name} thumbnail ${idx + 1}`} fill fallbackSrc={imageFallback} fallbackClassName="object-cover" className="object-cover" />
                     </button>
                   ))}
                 </div>

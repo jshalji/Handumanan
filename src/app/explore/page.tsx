@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SafeImage } from '@/components/ui/safe-image';
+import { getSiteImageFallback } from '@/lib/site-images';
 import { Search, MapPin, X, ExternalLink, Star, Archive, Layers, MapPinned, ChevronDown } from 'lucide-react';
 
 const cityBackgrounds: Record<string, { image: string; position: string; header: string }> = {
@@ -48,6 +49,8 @@ function SiteCard({ site }: { site: HeritageSite }) {
           alt={site.name}
           fill
           loading="lazy"
+          fallbackSrc={getSiteImageFallback(site)}
+          fallbackClassName="object-cover"
           className="object-cover transition-transform duration-700 group-hover:scale-105"
         />
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />

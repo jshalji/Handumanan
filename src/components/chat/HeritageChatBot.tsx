@@ -16,6 +16,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { HERITAGE_SITES } from '@/lib/heritage-data';
 import { getCurrentLocation } from '@/lib/location-utils';
 import { SafeImage } from '@/components/ui/safe-image';
+import { getSiteImageFallback } from '@/lib/site-images';
 
 interface Message {
   role: 'user' | 'model';
@@ -99,6 +100,78 @@ function isNearbyLocationRequest(text: string) {
     /\b(near me|nearby|nearest|closest|close to me|around me|my location|current location|next stop)\b/.test(query) ||
     /\b(near|close)\b.+\b(me|my|current|location)\b/.test(query)
   );
+}
+
+function normalizeChatText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function getClientFallbackResponse(text: string, sites: any[]): { text: string; suggestedSiteIds: string[] } {
+  const query = normalizeChatText(text);
+  const activeSites = sites.filter(site => site?.isActive !== false && site?.status !== 'Inactive');
+  const mustVisitSites = activeSites
+    .filter(site => site?.isMustVisit)
+    .sort((a, b) => Number(b.rating ?? 0) - Number(a.rating ?? 0))
+    .slice(0, 3);
+
+  if (/^(hi|hello|hey|good day|good morning|good afternoon|good evening|maayong adlaw)$/.test(query)) {
+    return {
+      text: "Hello! Maayong adlaw. I can still help you explore Handumanan's Metro Cebu heritage directory, routes, and must-visit sites.",
+      suggestedSiteIds: mustVisitSites.map(site => site.id),
+    };
+  }
+
+  const city = ['cebu city', 'mandaue city', 'talisay city', 'lapu-lapu city']
+    .find(cityName => query.includes(cityName));
+  const cityLabel = city
+    ? city.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ').replace('Lapu-lapu', 'Lapu-Lapu')
+    : null;
+  const categoryKeywords = [
+    { keyword: 'church', category: 'Churches & Religious Heritage Sites' },
+    { keyword: 'museum', category: 'Museums & Cultural Institutions' },
+    { keyword: 'ancestral', category: 'Ancestral Houses & Heritage Residences' },
+    { keyword: 'landmark', category: 'Historical Landmarks & Monuments' },
+    { keyword: 'monument', category: 'Historical Landmarks & Monuments' },
+    { keyword: 'plaza', category: 'Plazas, Parks & Public Spaces' },
+    { keyword: 'park', category: 'Plazas, Parks & Public Spaces' },
+    { keyword: 'government', category: 'Government & Historic Buildings' },
+    { keyword: 'temple', category: 'Cultural & Religious (Non-Catholic Sites)' },
+  ];
+  const category = categoryKeywords.find(item => query.includes(item.keyword))?.category;
+
+  const matches = activeSites
+    .filter(site => !cityLabel || site.city === cityLabel)
+    .filter(site => !category || site.category === category)
+    .filter(site => {
+      if (cityLabel || category || /\b(top|best|must|recommend|site|sites|place|places|directory|list|show)\b/.test(query)) return true;
+      const searchable = normalizeChatText(`${site.name} ${site.city} ${site.category} ${site.description} ${site.tags?.join(' ') || ''}`);
+      return query.split(' ').some(term => term.length > 2 && searchable.includes(term));
+    })
+    .sort((a, b) => {
+      if (Boolean(a.isMustVisit) !== Boolean(b.isMustVisit)) return a.isMustVisit ? -1 : 1;
+      return Number(b.rating ?? 0) - Number(a.rating ?? 0);
+    })
+    .slice(0, 5);
+
+  if (isTripPlanningRequest(text)) {
+    const routeSites = (matches.length >= 2 ? matches : mustVisitSites).slice(0, 4);
+    return {
+      text: `I prepared a simple heritage route using available directory data: ${routeSites.map(site => site.name).join(', ')}. Opening these on the map can help you review the stops.`,
+      suggestedSiteIds: routeSites.map(site => site.id),
+    };
+  }
+
+  if (matches.length > 0) {
+    return {
+      text: `Here are relevant Handumanan sites: ${matches.map(site => `${site.name} (${site.city})`).join(', ')}. You can open each card to view details and map directions.`,
+      suggestedSiteIds: matches.map(site => site.id),
+    };
+  }
+
+  return {
+    text: "I can help with Handumanan topics like Metro Cebu heritage sites, routes, cities, categories, and must-visit places. Try asking: recommend heritage sites in Cebu City.",
+    suggestedSiteIds: mustVisitSites.map(site => site.id),
+  };
 }
 
 export function HeritageChatBot() {
@@ -244,7 +317,18 @@ export function HeritageChatBot() {
       }
     } catch (error) {
       console.error(error);
-      setMessages(prev => [...prev, { role: 'model', text: 'I encountered an error. Please try again later.' }]);
+      const fallbackResponse = getClientFallbackResponse(text, directorySites);
+      setMessages(prev => [...prev, {
+        role: 'model',
+        text: fallbackResponse.text,
+        siteIds: fallbackResponse.suggestedSiteIds,
+      }]);
+
+      if (isTripPlanningRequest(text) && fallbackResponse.suggestedSiteIds.length > 1) {
+        localStorage.setItem('handumanan_draft_itinerary', JSON.stringify(fallbackResponse.suggestedSiteIds));
+        setIsOpen(false);
+        router.push('/discover?trip=chat');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -333,7 +417,8 @@ export function HeritageChatBot() {
                                 src={site.imageUrl || '/logo.png'}
                                 alt={site.name || 'Handumanan heritage site'}
                                 className="h-full w-full object-cover"
-                                fallbackClassName="object-contain bg-primary/5 p-8"
+                                fallbackSrc={getSiteImageFallback(site)}
+                                fallbackClassName="object-cover"
                                 onLoad={() => scrollToLatestMessage('smooth')}
                               />
                               <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-[8px] font-black text-primary uppercase shadow-sm">

@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { SafeImage } from '@/components/ui/safe-image';
+import { getSiteImageFallback } from '@/lib/site-images';
 
 const CATEGORY_ICON_CONFIG: Record<string, { label: string; color: string; svg: string }> = {
   'Churches & Religious Heritage Sites': {
@@ -317,7 +318,7 @@ export default function HeritageMap({
                 <div className="w-64 max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl bg-white shadow-xl">
                   {site.imageUrl && (
                     <div className="relative h-32 w-full">
-                      <SafeImage src={site.imageUrl} alt={site.name} className="h-full w-full object-cover" />
+                      <SafeImage src={site.imageUrl} alt={site.name} fallbackSrc={getSiteImageFallback(site)} fallbackClassName="object-cover" className="h-full w-full object-cover" />
                     </div>
                   )}
                   <div className="p-4 space-y-3">
