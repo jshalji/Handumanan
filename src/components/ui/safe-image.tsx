@@ -8,6 +8,7 @@ type SafeImageProps = Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
   fallbackSrc?: string;
   fill?: boolean;
   fallbackClassName?: string;
+  fallbackDelayMs?: number;
 };
 
 export function SafeImage({
@@ -17,9 +18,11 @@ export function SafeImage({
   className,
   fallbackClassName = 'object-contain bg-primary/5 p-8',
   fill,
+  fallbackDelayMs = 7000,
   loading = 'lazy',
   decoding = 'async',
   onError,
+  onLoad,
   ...props
 }: SafeImageProps) {
   const [currentSrc, setCurrentSrc] = useState(src || fallbackSrc);
@@ -29,6 +32,17 @@ export function SafeImage({
     setCurrentSrc(src || fallbackSrc);
     setIsFallback(!src);
   }, [fallbackSrc, src]);
+
+  useEffect(() => {
+    if (!src || currentSrc === fallbackSrc || fallbackDelayMs <= 0) return;
+
+    const timeout = window.setTimeout(() => {
+      setCurrentSrc(fallbackSrc);
+      setIsFallback(true);
+    }, fallbackDelayMs);
+
+    return () => window.clearTimeout(timeout);
+  }, [currentSrc, fallbackDelayMs, fallbackSrc, src]);
 
   return (
     <img
@@ -48,6 +62,12 @@ export function SafeImage({
           setIsFallback(true);
         }
         onError?.(event);
+      }}
+      onLoad={(event) => {
+        if (currentSrc === fallbackSrc) {
+          setIsFallback(true);
+        }
+        onLoad?.(event);
       }}
       {...props}
     />

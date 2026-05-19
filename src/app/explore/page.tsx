@@ -28,7 +28,7 @@ const cityBackgrounds: Record<string, { image: string; position: string; header:
     header: 'linear-gradient(135deg, rgba(255,255,255,0.96) 0%, rgba(219,234,254,0.9) 100%)',
   },
   'Talisay City': {
-    image: 'https://files.cdn-files-a.com/uploads/3254295/normal_64ad9624c684b.jpg',
+    image: '/metrocebu-bg.jpg',
     position: 'center',
     header: 'linear-gradient(135deg, rgba(255,255,255,0.96) 0%, rgba(236,252,203,0.9) 100%)',
   },
@@ -39,16 +39,27 @@ const cityBackgrounds: Record<string, { image: string; position: string; header:
   },
 };
 
+const cityFallbackImages: Record<string, string> = {
+  'Cebu City': '/site-directory-cebu-city-hd.avif',
+  'Mandaue City': '/site-directory-mandaue-city-hd.jpg',
+  'Talisay City': '/metrocebu-bg.jpg',
+  'Lapu-Lapu City': '/site-directory-lapu-lapu-city-hd.webp',
+};
+
 function SiteCard({ site }: { site: HeritageSite }) {
+  const fallbackImage = cityFallbackImages[site.city] || '/metrocebu-bg.jpg';
+
   return (
     <Card className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl">
       <Link href={`/site/${site.id}`} className="relative block h-56 w-full shrink-0 overflow-hidden bg-slate-100">
         <SafeImage
           src={site.imageUrl || "https://picsum.photos/seed/placeholder/800/600"}
+          fallbackSrc={fallbackImage}
           alt={site.name}
           fill
           loading="lazy"
           className="object-cover transition-transform duration-700 group-hover:scale-105"
+          fallbackClassName="object-cover"
         />
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
         <Badge variant="secondary" className="absolute left-4 top-4 border-none bg-white/95 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-primary shadow-sm backdrop-blur-md">

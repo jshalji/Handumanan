@@ -311,7 +311,10 @@ function ExploreRouteContent() {
       return loc;
     } catch (err: any) {
       if (options.showError !== false) {
-        toast({ title: "Location Error", description: "Location permission is required.", variant: "destructive" });
+        const message = err?.code === 1
+          ? "Location permission was blocked. Enable location for this site in your browser settings."
+          : "Your phone could not share its location. You can still generate a trip without Near Me mode.";
+        toast({ title: "Location Unavailable", description: message, variant: "destructive" });
       }
       return null;
     } finally {
@@ -727,22 +730,25 @@ function ExploreRouteContent() {
     try {
       const requestedHours = Math.min(12, Math.max(1, Number(customTripDuration) || tripDurationHours));
       const plannerLocation = await detectLocation({ showError: generationMode === 'near' });
+      const effectiveGenerationMode = generationMode === 'near' && !plannerLocation ? 'balanced' : generationMode;
       if (generationMode === 'near' && !plannerLocation) {
-        toast({ title: "Location Required", description: "Allow location access to generate a trip near you.", variant: "destructive" });
-        return;
+        toast({
+          title: "Balanced Trip Generated Instead",
+          description: "Location was unavailable, so Handumanan will suggest a route without using your current position."
+        });
       }
       const selectedPlannerCategory = selectedCategory || plannerCategory;
       const maxStops = requestedHours <= 1 ? 2 : requestedHours <= 2 ? 3 : requestedHours <= 4 ? 4 : requestedHours <= 6 ? 5 : 6;
       const isUsingUserPreference = !!(selectedCity || selectedCategory || searchQuery.trim());
-      const candidateSites = generationMode === 'themed'
+      const candidateSites = effectiveGenerationMode === 'themed'
         ? allSites.filter(site => site.category === selectedPlannerCategory && (!selectedCity || site.city === selectedCity))
-        : generationMode === 'balanced'
+        : effectiveGenerationMode === 'balanced'
           ? allSites
           : isUsingUserPreference
           ? filteredAndSortedSites
           : allSites;
       const activeCandidateSites = candidateSites.filter(site => site.isActive !== false);
-      const starterSites = generationMode === 'balanced'
+      const starterSites = effectiveGenerationMode === 'balanced'
         ? selectBalancedSites(activeCandidateSites, maxStops, plannerLocation)
         : sortSitesByDistanceAndQuality(activeCandidateSites, plannerLocation).slice(0, maxStops);
       const sitesToPlan = itinerarySites.length > 0 ? itinerarySites : starterSites;
@@ -1197,6 +1203,11 @@ function ExploreRouteContent() {
                   </span>
                 </button>
               ))}
+              {generationMode === 'near' && (
+                <p className="rounded-2xl bg-slate-50 px-4 py-3 text-[10px] font-bold leading-relaxed text-slate-500">
+                  Near Me requires phone location access. If location is blocked, the system will still generate a balanced trip.
+                </p>
+              )}
             </div>
 
             {generationMode === 'themed' && (
