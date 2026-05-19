@@ -2,11 +2,11 @@
 
 import Image from 'next/image';
 
-import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, Suspense, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DEPRECATED_HERITAGE_SITE_IDS, HeritageSite, HERITAGE_SITES } from '@/lib/heritage-data';
-import { calculateDistance, getCurrentLocation } from '@/lib/location-utils';
+import { calculateDistance, getCurrentLocation, watchCurrentLocation } from '@/lib/location-utils';
 import { getRouteMulti, RouteStep, getRoute } from '@/lib/routing-service';
 import { generatePersonalizedItinerary, type GeneratePersonalizedItineraryOutput } from '@/ai/flows/generate-personalized-itinerary';
 import { Button } from '@/components/ui/button';
@@ -110,6 +110,9 @@ function ExploreRouteContent() {
   const [activeStopIndex, setActiveStopIndex] = useState(0);
   const [navigationSteps, setNavigationSteps] = useState<RouteStep[]>([]);
   const [hasArrived, setHasArrived] = useState(false);
+  const [isLiveTracking, setIsLiveTracking] = useState(false);
+  const liveTrackingToastShownRef = useRef(false);
+  const lastLiveRouteRefreshRef = useRef<{ time: number; lat: number; lng: number } | null>(null);
 
   const [isPanelExpanded, setIsPanelExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState('discover');
@@ -322,6 +325,39 @@ function ExploreRouteContent() {
     }
   }, [toast]);
 
+  useEffect(() => {
+    if (!isNavigating) {
+      setIsLiveTracking(false);
+      liveTrackingToastShownRef.current = false;
+      return;
+    }
+
+    const stopWatching = watchCurrentLocation({
+      onUpdate: (location) => {
+        setUserLocation({ lat: location.lat, lng: location.lng });
+        setIsLiveTracking(true);
+      },
+      onError: (error) => {
+        setIsLiveTracking(false);
+        if (!liveTrackingToastShownRef.current) {
+          liveTrackingToastShownRef.current = true;
+          toast({
+            title: "Live Location Paused",
+            description: error.code === 1
+              ? "Location permission was blocked. Enable it to move the marker while navigating."
+              : "Your phone could not update live location. The last known location is still shown.",
+            variant: "destructive"
+          });
+        }
+      }
+    });
+
+    return () => {
+      stopWatching();
+      setIsLiveTracking(false);
+    };
+  }, [isNavigating, toast]);
+
   const saveOptimizedToLocal = useCallback((ids: string[], origin = userLocation) => {
     const orderedIds = optimizeItineraryIds(ids, origin);
     saveToLocal(orderedIds);
@@ -496,6 +532,17 @@ function ExploreRouteContent() {
             clearRouteDataIfCurrent();
             return;
           }
+
+          const lastRefresh = lastLiveRouteRefreshRef.current;
+          const now = Date.now();
+          if (lastRefresh) {
+            const movedKm = calculateDistance(lastRefresh.lat, lastRefresh.lng, userLocation.lat, userLocation.lng);
+            if (now - lastRefresh.time < 10000 && movedKm < 0.03) {
+              return;
+            }
+          }
+
+          lastLiveRouteRefreshRef.current = { time: now, lat: userLocation.lat, lng: userLocation.lng };
           const stop = itinerarySites[activeStopIndex];
           const stopCoords = stop.coordinates || { lat: stop.latitude, lng: stop.longitude };
           const data = await getRoute(userLocation, stopCoords, orsKey);
@@ -604,6 +651,7 @@ function ExploreRouteContent() {
     }
     const nextStop = allSites.find(site => site.id === optimizedIds[0]);
     setIsNavigating(true);
+    lastLiveRouteRefreshRef.current = null;
     setActiveStopIndex(0);
     setHasArrived(false);
     setIsPanelExpanded(false);
@@ -612,11 +660,13 @@ function ExploreRouteContent() {
 
   const handleNextStop = () => {
     if (activeStopIndex < itinerarySites.length - 1) {
+      lastLiveRouteRefreshRef.current = null;
       setActiveStopIndex(prev => prev + 1);
       setHasArrived(false);
     } else {
       setIsNavigating(false);
       setHasArrived(false);
+      lastLiveRouteRefreshRef.current = null;
       toast({ title: "Journey Complete", description: "All stops reached!" });
     }
   };
@@ -1010,7 +1060,14 @@ function ExploreRouteContent() {
                <Button variant="ghost" size="icon" onClick={() => {
                  setIsNavigating(false);
                  setHasArrived(false);
+                 lastLiveRouteRefreshRef.current = null;
                }}><X size={18} /></Button>
+            </div>
+            <div className={cn(
+              "mb-4 rounded-2xl px-4 py-3 text-[9px] font-black uppercase tracking-widest",
+              isLiveTracking ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
+            )}>
+              {isLiveTracking ? "Live tracking active" : "Waiting for live GPS"}
             </div>
             {hasArrived ? (
               <div className="flex flex-col gap-3">

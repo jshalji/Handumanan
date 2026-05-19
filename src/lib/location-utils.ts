@@ -44,3 +44,40 @@ export function getCurrentLocation(): Promise<{ lat: number; lng: number }> {
     );
   });
 }
+
+export type LocationPoint = {
+  lat: number;
+  lng: number;
+  accuracy?: number;
+};
+
+export type LocationWatchHandlers = {
+  onUpdate: (location: LocationPoint) => void;
+  onError?: (error: GeolocationPositionError) => void;
+};
+
+export function watchCurrentLocation({ onUpdate, onError }: LocationWatchHandlers): () => void {
+  if (!navigator.geolocation) {
+    return () => {};
+  }
+
+  const watchId = navigator.geolocation.watchPosition(
+    (position) => {
+      onUpdate({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+      });
+    },
+    (error) => {
+      onError?.(error);
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 3000,
+      timeout: 15000,
+    }
+  );
+
+  return () => navigator.geolocation.clearWatch(watchId);
+}
