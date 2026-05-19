@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { Navbar } from '@/components/layout/Navbar';
@@ -8,18 +8,33 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
-import { query, collection, orderBy } from 'firebase/firestore';
-import { User as UserIcon, Heart, Calendar, LogOut, Loader2, ArrowRight, Landmark } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
+import { query, collection, orderBy, doc, deleteDoc } from 'firebase/firestore';
+import { User as UserIcon, Heart, Calendar, LogOut, Loader2, ArrowRight, Trash2 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { useAuth } from '@/firebase';
 import Image from 'next/image';
 import Link from 'next/link';
+import { SafeImage } from '@/components/ui/safe-image';
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const auth = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
+  const [deletingItineraryId, setDeletingItineraryId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -54,6 +69,29 @@ export default function ProfilePage() {
     router.push('/');
   };
 
+  const handleDeleteItinerary = async (itineraryId: string) => {
+    if (!db || !user) return;
+
+    setDeletingItineraryId(itineraryId);
+
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'itineraries', itineraryId));
+      toast({
+        title: 'Trip Deleted',
+        description: 'The saved trip was removed from your profile.',
+      });
+    } catch (error) {
+      console.error('Failed to delete itinerary:', error);
+      toast({
+        title: 'Delete Failed',
+        description: 'Please try deleting the trip again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingItineraryId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Navbar />
@@ -64,12 +102,12 @@ export default function ProfilePage() {
             <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border-4 border-white/10 shadow-xl">
               <UserIcon size={48} />
             </div>
-            <div className="text-center md:text-left">
-              <h1 className="font-headline text-4xl font-bold mb-1">
+            <div className="min-w-0 text-center md:text-left">
+              <h1 className="font-headline text-3xl sm:text-4xl font-bold mb-1 break-words">
                 {user.displayName || user.email?.split('@')[0]}
               </h1>
-              <div className="opacity-80 flex items-center justify-center md:justify-start gap-2">
-                {user.email} <Badge className="bg-white/20 text-white border-none">Explorer</Badge>
+              <div className="opacity-80 flex flex-wrap items-center justify-center md:justify-start gap-2">
+                <span className="break-all">{user.email}</span> <Badge className="bg-white/20 text-white border-none">Explorer</Badge>
               </div>
             </div>
             <div className="md:ml-auto">
@@ -93,7 +131,7 @@ export default function ProfilePage() {
               </TabsTrigger>
             </TabsList>
             
-            <div className="p-8 min-h-[400px]">
+            <div className="p-4 min-h-[400px] sm:p-8">
               <TabsContent value="favorites" className="mt-0">
                 {isFavLoading ? (
                   <div className="flex justify-center p-12"><Loader2 className="animate-spin text-primary" /></div>
@@ -103,7 +141,7 @@ export default function ProfilePage() {
                       <Card key={fav.id} className="overflow-hidden group hover:ring-2 hover:ring-primary/20 transition-all border-none shadow-md">
                         <Link href={`/site/${fav.siteId}`}>
                           <div className="relative h-40">
-                            <Image src={fav.imageUrl} alt={fav.siteName} fill className="object-cover group-hover:scale-105 transition-transform" />
+                            <SafeImage src={fav.imageUrl} alt={fav.siteName} fill className="object-cover group-hover:scale-105 transition-transform" />
                             <div className="absolute top-2 right-2">
                               <Badge className="bg-accent text-white"><Heart size={10} className="fill-white mr-1" /> Saved</Badge>
                             </div>
@@ -134,7 +172,7 @@ export default function ProfilePage() {
                   <div className="space-y-4">
                     {savedItineraries.map((itin: any) => (
                       <Card key={itin.id} className="border-none shadow-sm hover:shadow-md transition-shadow">
-                        <CardHeader className="flex flex-row items-center justify-between">
+                        <CardHeader className="flex flex-row items-start justify-between gap-4">
                           <div className="min-w-0 flex-1 mr-4">
                             <CardTitle className="text-lg flex items-center gap-2 truncate">
                               <Calendar size={18} className="text-primary shrink-0" /> 
@@ -142,11 +180,47 @@ export default function ProfilePage() {
                             </CardTitle>
                             <CardDescription className="italic truncate">"{itin.summary}"</CardDescription>
                           </div>
-                          <Button asChild variant="ghost" size="sm" className="text-primary font-bold">
-                            <Link href={`/trip/${itin.id}`}>
-                              View <ArrowRight size={14} className="ml-1" />
-                            </Link>
-                          </Button>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Button asChild variant="ghost" size="sm" className="text-primary font-bold">
+                              <Link href={`/trip/${itin.id}`}>
+                                View <ArrowRight size={14} className="ml-1" />
+                              </Link>
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9 rounded-full text-red-500 hover:bg-red-50 hover:text-red-600"
+                                  aria-label="Delete saved trip"
+                                  disabled={deletingItineraryId === itin.id}
+                                >
+                                  {deletingItineraryId === itin.id ? (
+                                    <Loader2 size={16} className="animate-spin" />
+                                  ) : (
+                                    <Trash2 size={16} />
+                                  )}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete saved trip?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently remove this saved plan from your profile.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteItinerary(itin.id)}
+                                    className="bg-red-600 text-white hover:bg-red-700"
+                                  >
+                                    Delete Trip
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </CardHeader>
                       </Card>
                     ))}

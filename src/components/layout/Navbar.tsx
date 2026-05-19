@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Landmark, MapPin, User as UserIcon, LogOut, Search, Menu, Settings, Shield, Home } from 'lucide-react';
+import Image from 'next/image';
+import { MapPin, User as UserIcon, LogOut, Search, Menu, Settings, Shield, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -47,11 +48,15 @@ export function Navbar() {
   return (
     <nav className="sticky top-0 z-[100] w-full border-b bg-white/80 backdrop-blur-md h-16 md:h-20">
       <div className="container mx-auto px-4 h-full flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 md:gap-3 group">
-          <div className="bg-primary p-1.5 md:p-2 rounded-lg md:rounded-xl text-primary-foreground group-hover:scale-110 transition-all shadow-lg shadow-primary/20">
-            <Landmark size={22} className="md:size-7" />
-          </div>
-          <div className="flex flex-col">
+        <Link href="/" className="flex min-w-0 items-center gap-2 md:gap-3 group">
+          <Image
+              src="/logo.png"
+              alt="Handumanan Logo"
+              width={44}
+              height={44}
+              className="w-9 h-9 md:w-11 md:h-11 rounded-lg md:rounded-xl group-hover:scale-110 transition-all shadow-lg shadow-primary/20 shrink-0"
+            />
+          <div className="flex min-w-0 flex-col">
             <span className="font-headline text-lg md:text-2xl font-black tracking-tighter text-primary leading-none">Handumanan</span>
             <span className="text-[6px] md:text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground">Metro Cebu Heritage</span>
           </div>
@@ -96,7 +101,7 @@ export function Navbar() {
                       </div>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-2xl border-none">
+                  <DropdownMenuContent align="end" sideOffset={10} collisionPadding={16} className="w-56 p-2 rounded-2xl shadow-2xl border-none">
                     <DropdownMenuLabel className="px-3 pb-2 font-black text-xs uppercase text-slate-400 tracking-widest">Account</DropdownMenuLabel>
                     <DropdownMenuSeparator className="bg-slate-50" />
                     <DropdownMenuItem asChild className="rounded-xl h-11 px-3">
@@ -134,7 +139,7 @@ export function Navbar() {
                 <Menu size={20} />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="bg-background w-[80%] border-none p-6">
+            <SheetContent side="right" className="bg-background w-[88vw] max-w-[340px] border-none p-6">
               <SheetHeader className="mb-6">
                 <SheetTitle className="font-headline text-2xl font-black text-primary text-left">Menu</SheetTitle>
               </SheetHeader>

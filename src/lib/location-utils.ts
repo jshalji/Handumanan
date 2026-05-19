@@ -35,6 +35,11 @@ export function getCurrentLocation(): Promise<{ lat: number; lng: number }> {
       },
       (error) => {
         reject(error);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 12000,
       }
     );
   });

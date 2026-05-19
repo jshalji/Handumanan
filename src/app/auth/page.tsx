@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Landmark, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AuthPage() {
@@ -74,8 +75,8 @@ export default function AuthPage() {
       <div className="container mx-auto px-4 py-20 flex justify-center">
         <Card className="w-full max-w-md shadow-2xl border-none">
           <CardHeader className="text-center">
-            <div className="mx-auto bg-primary w-12 h-12 rounded-xl flex items-center justify-center text-white mb-4">
-              <Landmark size={24} />
+            <div className="mx-auto w-14 h-14 rounded-xl overflow-hidden mb-4 shadow-lg shadow-primary/20">
+              <Image src="/logo.png" alt="Handumanan" width={56} height={56} className="w-full h-full object-cover" />
             </div>
             <CardTitle className="font-headline text-3xl">
               {isLogin ? 'Welcome Back' : 'Create Account'}

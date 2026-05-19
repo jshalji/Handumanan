@@ -3,14 +3,41 @@
  * @fileOverview Refined AI Chatbot flow for the Handumanan system.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai, hasGoogleAiApiKey } from '@/ai/genkit';
 import { z } from 'genkit';
-import { HERITAGE_SITES } from '@/lib/heritage-data';
+import { DEPRECATED_HERITAGE_SITE_IDS, HERITAGE_SITES } from '@/lib/heritage-data';
 
 const MessageSchema = z.object({
   role: z.enum(['user', 'model', 'system']),
   content: z.array(z.object({ text: z.string() })),
 });
+
+const DirectorySiteSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  overview: z.string().optional(),
+  significance: z.string().optional(),
+  category: z.string().optional(),
+  location: z.string().optional(),
+  city: z.string().optional(),
+  visitingHours: z.string().optional(),
+  imageUrl: z.string().optional(),
+  galleryImages: z.array(z.string()).optional(),
+  rating: z.number().optional(),
+  tags: z.array(z.string()).optional(),
+  coordinates: z.object({
+    lat: z.number(),
+    lng: z.number(),
+  }).optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  isMustVisit: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+  status: z.string().optional(),
+  demolitionStatus: z.string().optional(),
+  accessibilityStatus: z.string().optional(),
+}).passthrough();
 
 const HeritageChatInputSchema = z.object({
   history: z.array(MessageSchema),
@@ -21,6 +48,7 @@ const HeritageChatInputSchema = z.object({
   userId: z.string().optional(),
   favorites: z.array(z.string()).optional(),
   lastItinerary: z.string().optional(),
+  directorySites: z.array(DirectorySiteSchema).optional(),
 });
 
 const HeritageChatOutputSchema = z.object({
@@ -31,38 +59,949 @@ const HeritageChatOutputSchema = z.object({
 export type HeritageChatInput = z.infer<typeof HeritageChatInputSchema>;
 export type HeritageChatOutput = z.infer<typeof HeritageChatOutputSchema>;
 
+type HeritageSiteRecord = (typeof HERITAGE_SITES)[number];
+type DirectorySiteInput = z.infer<typeof DirectorySiteSchema>;
+type GeoPoint = { lat: number; lng: number };
+
+const DEFAULT_CATEGORY: HeritageSiteRecord['category'] = 'Historical Landmarks & Monuments';
+const DEFAULT_CITY: HeritageSiteRecord['city'] = 'Cebu City';
+
+const HERITAGE_CATEGORIES: HeritageSiteRecord['category'][] = [
+  'Churches & Religious Heritage Sites',
+  'Ancestral Houses & Heritage Residences',
+  'Museums & Cultural Institutions',
+  'Historical Landmarks & Monuments',
+  'Plazas, Parks & Public Spaces',
+  'Government & Historic Buildings',
+  'Cultural & Religious (Non-Catholic Sites)',
+];
+
+const HERITAGE_CITIES: HeritageSiteRecord['city'][] = [
+  'Cebu City',
+  'Lapu-Lapu City',
+  'Mandaue City',
+  'Talisay City',
+];
+
+function isHeritageCategory(value: unknown): value is HeritageSiteRecord['category'] {
+  return typeof value === 'string' && HERITAGE_CATEGORIES.includes(value as HeritageSiteRecord['category']);
+}
+
+function isHeritageCity(value: unknown): value is HeritageSiteRecord['city'] {
+  return typeof value === 'string' && HERITAGE_CITIES.includes(value as HeritageSiteRecord['city']);
+}
+
+function isValidGeoPoint(value: unknown): value is GeoPoint {
+  if (!value || typeof value !== 'object') return false;
+  const point = value as Partial<GeoPoint>;
+  return (
+    Number.isFinite(point.lat) &&
+    Number.isFinite(point.lng) &&
+    Number(point.lat) >= -90 &&
+    Number(point.lat) <= 90 &&
+    Number(point.lng) >= -180 &&
+    Number(point.lng) <= 180
+  );
+}
+
+function normalizeDirectorySite(site: DirectorySiteInput): HeritageSiteRecord | null {
+  if (!site.id || !site.name || DEPRECATED_HERITAGE_SITE_IDS.includes(site.id)) return null;
+
+  const coordinates = isValidGeoPoint(site.coordinates)
+    ? site.coordinates
+    : Number.isFinite(site.latitude) && Number.isFinite(site.longitude)
+      ? { lat: Number(site.latitude), lng: Number(site.longitude) }
+      : null;
+
+  if (!coordinates) return null;
+
+  return {
+    id: site.id,
+    name: site.name,
+    description: site.description || 'A listed Handumanan heritage site.',
+    overview: site.overview || site.description || 'This site is included in the Handumanan directory.',
+    significance: site.significance || 'Historical significance details are not yet available in the directory.',
+    category: isHeritageCategory(site.category) ? site.category : DEFAULT_CATEGORY,
+    location: site.location || 'Location details are not yet available.',
+    city: isHeritageCity(site.city) ? site.city : DEFAULT_CITY,
+    visitingHours: site.visitingHours || 'Visiting hours are not yet available.',
+    imageUrl: site.imageUrl || '/logo.png',
+    galleryImages: site.galleryImages,
+    rating: Number.isFinite(site.rating) ? Number(site.rating) : 4.5,
+    tags: Array.isArray(site.tags) ? site.tags.filter(Boolean) : [],
+    coordinates,
+    isMustVisit: Boolean(site.isMustVisit),
+    needsVerification: Boolean(site.needsVerification),
+    isActive: site.isActive !== false && site.status !== 'Inactive',
+    status: site.status === 'Inactive' ? 'Inactive' : 'Active',
+    demolitionStatus: site.demolitionStatus === 'Demolished' || site.demolitionStatus === 'Partially Demolished'
+      ? site.demolitionStatus
+      : 'Non-Demolished',
+    accessibilityStatus: site.accessibilityStatus || 'Accessibility details are not yet available.',
+  };
+}
+
+function getSiteCorpus(input?: HeritageChatInput): HeritageSiteRecord[] {
+  const sitesById = new Map<string, HeritageSiteRecord>();
+
+  HERITAGE_SITES.forEach(site => {
+    if (!DEPRECATED_HERITAGE_SITE_IDS.includes(site.id)) {
+      sitesById.set(site.id, site);
+    }
+  });
+
+  input?.directorySites?.forEach(site => {
+    const normalizedSite = normalizeDirectorySite(site);
+    if (normalizedSite) {
+      sitesById.set(normalizedSite.id, normalizedSite);
+    }
+  });
+
+  return Array.from(sitesById.values()).filter(site => site.isActive !== false);
+}
+
+function parseAvailableHours(query: string): number {
+  const match = query.match(/\b(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/);
+  return match ? Number(match[1]) : 4;
+}
+
+function isTripPlanningQuery(query: string): boolean {
+  const hasExplicitPlanningKeyword =
+    /\b(itinerary|route|trip|tour|tours|planner|planning)\b/.test(query) ||
+    (/\bplan\b/.test(query) && /\b(cebu|heritage|site|sites|place|places|route|trip|tour|museum|church|landmark|day|hour|hours)\b/.test(query));
+
+  return (
+    isTravelTimeQuery(query) ||
+    /\b(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/.test(query) ||
+    hasExplicitPlanningKeyword
+  );
+}
+
+function getStopCountForHours(hours: number): number {
+  if (hours <= 1) return 2;
+  if (hours <= 2) return 3;
+  if (hours <= 5) return 4;
+  return 6;
+}
+
+function getBalancedRouteSites(stopCount: number, sites: HeritageSiteRecord[]) {
+  const activeSites = sites.filter(site => site.isActive);
+  const selected = [];
+  const usedIds = new Set<string>();
+  const usedCities = new Set<string>();
+  const usedCategories = new Set<string>();
+
+  const sortedSites = [...activeSites].sort((a, b) => {
+    if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
+    return b.rating - a.rating;
+  });
+
+  for (const site of sortedSites) {
+    if (selected.length >= stopCount) break;
+    if (usedCities.has(site.city) || usedCategories.has(site.category)) continue;
+
+    selected.push(site);
+    usedIds.add(site.id);
+    usedCities.add(site.city);
+    usedCategories.add(site.category);
+  }
+
+  for (const site of sortedSites) {
+    if (selected.length >= stopCount) break;
+    if (usedIds.has(site.id)) continue;
+
+    selected.push(site);
+    usedIds.add(site.id);
+  }
+
+  return selected;
+}
+
+const CHAT_SEARCH_STOP_WORDS = new Set([
+  'what',
+  'whats',
+  'where',
+  'when',
+  'who',
+  'why',
+  'how',
+  'the',
+  'and',
+  'for',
+  'with',
+  'about',
+  'info',
+  'information',
+  'details',
+  'detail',
+  'tell',
+  'give',
+  'show',
+  'please',
+  'top',
+  'best',
+  'must',
+  'recommend',
+  'recommended',
+  'tourist',
+  'tourists',
+  'destination',
+  'destinations',
+  'attraction',
+  'attractions',
+  'spot',
+  'spots',
+  'visit',
+  'visits',
+  'place',
+  'places',
+  'site',
+  'sites',
+  'heritage',
+  'cebu',
+]);
+
+function normalizeSearchText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function isSimpleGreetingQuery(query: string) {
+  return /^(hi|hello|hey|maayong adlaw|good day|good morning|good afternoon|good evening)$/.test(normalizeSearchText(query));
+}
+
+function isWellbeingQuery(query: string) {
+  return /^(how are you|how are you doing|how s it going|are you okay|kumusta|kamusta)$/.test(normalizeSearchText(query));
+}
+
+function isThanksQuery(query: string) {
+  return /^(thanks|thank you|thank you so much|salamat|ty)$/.test(normalizeSearchText(query));
+}
+
+function isHelpQuery(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  return (
+    normalizedQuery === 'help' ||
+    normalizedQuery === 'who are you' ||
+    normalizedQuery === 'what are you' ||
+    normalizedQuery === 'what can you do' ||
+    normalizedQuery === 'what can i ask you'
+  );
+}
+
+function isFriendlyChatQuery(query: string) {
+  return isSimpleGreetingQuery(query) || isWellbeingQuery(query) || isThanksQuery(query) || isHelpQuery(query);
+}
+
+const CITY_ALIASES: Record<string, string> = {
+  'cebu city': 'Cebu City',
+  'mandaue': 'Mandaue City',
+  'mandaue city': 'Mandaue City',
+  'talisay': 'Talisay City',
+  'talisay city': 'Talisay City',
+  'lapu lapu': 'Lapu-Lapu City',
+  'lapu lapu city': 'Lapu-Lapu City',
+  'lapulapu': 'Lapu-Lapu City',
+};
+
+const CATEGORY_ALIASES: Record<string, (typeof HERITAGE_SITES)[number]['category']> = {
+  church: 'Churches & Religious Heritage Sites',
+  churches: 'Churches & Religious Heritage Sites',
+  catholic: 'Churches & Religious Heritage Sites',
+  shrine: 'Churches & Religious Heritage Sites',
+  museum: 'Museums & Cultural Institutions',
+  museums: 'Museums & Cultural Institutions',
+  cultural: 'Museums & Cultural Institutions',
+  ancestral: 'Ancestral Houses & Heritage Residences',
+  house: 'Ancestral Houses & Heritage Residences',
+  houses: 'Ancestral Houses & Heritage Residences',
+  residence: 'Ancestral Houses & Heritage Residences',
+  residences: 'Ancestral Houses & Heritage Residences',
+  landmark: 'Historical Landmarks & Monuments',
+  landmarks: 'Historical Landmarks & Monuments',
+  monument: 'Historical Landmarks & Monuments',
+  monuments: 'Historical Landmarks & Monuments',
+  historical: 'Historical Landmarks & Monuments',
+  plaza: 'Plazas, Parks & Public Spaces',
+  plazas: 'Plazas, Parks & Public Spaces',
+  park: 'Plazas, Parks & Public Spaces',
+  parks: 'Plazas, Parks & Public Spaces',
+  public: 'Plazas, Parks & Public Spaces',
+  government: 'Government & Historic Buildings',
+  building: 'Government & Historic Buildings',
+  buildings: 'Government & Historic Buildings',
+  temple: 'Cultural & Religious (Non-Catholic Sites)',
+  taoist: 'Cultural & Religious (Non-Catholic Sites)',
+  'non catholic': 'Cultural & Religious (Non-Catholic Sites)',
+};
+
+function getSearchTerms(query: string) {
+  return normalizeSearchText(query)
+    .split(' ')
+    .filter(word => word.length > 2 && !CHAT_SEARCH_STOP_WORDS.has(word));
+}
+
+function getCityFromQuery(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  return Object.entries(CITY_ALIASES).find(([alias]) => normalizedQuery.includes(alias))?.[1];
+}
+
+function getCategoryFromQuery(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  return Object.entries(CATEGORY_ALIASES).find(([alias]) => normalizedQuery.includes(alias))?.[1];
+}
+
+function isDirectoryListQuery(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  return (
+    /\b(all|any|list|show|which|where|find|directory|locations|places|sites)\b/.test(normalizedQuery) ||
+    Boolean(getCityFromQuery(query)) ||
+    Boolean(getCategoryFromQuery(query))
+  );
+}
+
+function getDirectoryMatches(query: string, limit = 8, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+  const city = getCityFromQuery(query);
+  const category = getCategoryFromQuery(query);
+  const terms = getSearchTerms(query);
+  const normalizedQuery = normalizeSearchText(query);
+
+  let matches = sites.filter(site => site.isActive);
+  if (city) matches = matches.filter(site => site.city === city);
+  if (category) matches = matches.filter(site => site.category === category);
+
+  if (!city && !category && terms.length > 0) {
+    const searchMatches = findMatchingSites(query, limit, sites);
+    if (searchMatches.length > 0) {
+      matches = searchMatches;
+    } else if (!/\b(all|directory|locations|places|sites)\b/.test(normalizedQuery)) {
+      matches = [];
+    }
+  }
+
+  return matches
+    .sort((a, b) => {
+      if (a.city !== b.city) return a.city.localeCompare(b.city);
+      if (a.category !== b.category) return a.category.localeCompare(b.category);
+      if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
+      return b.rating - a.rating;
+    })
+    .slice(0, limit);
+}
+
+function formatSiteList(sites: HeritageSiteRecord[], totalCount?: number) {
+  const names = sites.map(site => `${site.name} (${site.city})`).join(', ');
+  const count = totalCount ?? sites.length;
+  const suffix = count > sites.length ? ` Showing ${sites.length}; refine by city or category for more.` : '';
+  return `I found ${count} matching site${count === 1 ? '' : 's'}: ${names}.${suffix}`;
+}
+
+function isTravelTimeQuery(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  const hasRouteEndpoints =
+    /\bfrom\b.+\bto\b/.test(normalizedQuery) ||
+    /\bbetween\b.+\band\b/.test(normalizedQuery);
+  const asksForTravelTime =
+    /\b(how long|how many hours|how many minutes|travel time|trip time|drive time|driving time|eta|duration|distance|far)\b/.test(normalizedQuery) ||
+    /\b(take|takes)\b.+\b(go|get|travel|drive)\b/.test(normalizedQuery) ||
+    /\b(go|get|travel|drive)\b.+\bfrom\b/.test(normalizedQuery);
+
+  return hasRouteEndpoints && asksForTravelTime;
+}
+
+function isNearbyLocationQuery(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+
+  return (
+    /\b(near me|nearby|nearest|closest|close to me|around me|my location|current location|next stop)\b/.test(normalizedQuery) ||
+    /\b(near|close)\b.+\b(me|my|current|location)\b/.test(normalizedQuery)
+  );
+}
+
+function cleanRouteEndpoint(value: string) {
+  return normalizeSearchText(value)
+    .replace(/\b(how many hours|how many minutes|how long|does it take|will it take|would it take|travel time|trip time|drive time|driving time|eta|duration|distance|far|go|get|travel|drive|going|route|the|a|an|please)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getRouteEndpointQueries(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  const fromToMatch = normalizedQuery.match(/\bfrom\s+(.+?)\s+to\s+(.+)$/);
+  if (fromToMatch) {
+    return [cleanRouteEndpoint(fromToMatch[1]), cleanRouteEndpoint(fromToMatch[2])];
+  }
+
+  const betweenMatch = normalizedQuery.match(/\bbetween\s+(.+?)\s+and\s+(.+)$/);
+  if (betweenMatch) {
+    return [cleanRouteEndpoint(betweenMatch[1]), cleanRouteEndpoint(betweenMatch[2])];
+  }
+
+  return [];
+}
+
+function findBestSiteForRouteEndpoint(query: string, excludedIds = new Set<string>(), sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+  if (!query) return null;
+
+  const match = sites
+    .filter(site => site.isActive && !excludedIds.has(site.id))
+    .map(site => ({ site, score: scoreSiteMatch(site, query) }))
+    .filter(result => result.score >= 20)
+    .sort((a, b) => b.score - a.score || b.site.rating - a.site.rating)[0];
+
+  return match?.site ?? null;
+}
+
+function getTravelEndpointSites(query: string, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+  const endpointQueries = getRouteEndpointQueries(query);
+  const selectedSites: HeritageSiteRecord[] = [];
+  const usedIds = new Set<string>();
+
+  for (const endpointQuery of endpointQueries) {
+    const site = findBestSiteForRouteEndpoint(endpointQuery, usedIds, sites);
+    if (site) {
+      selectedSites.push(site);
+      usedIds.add(site.id);
+    }
+  }
+
+  if (selectedSites.length >= 2) return selectedSites.slice(0, 2);
+
+  for (const site of findMatchingSites(query, 4, sites)) {
+    if (usedIds.has(site.id)) continue;
+    selectedSites.push(site);
+    usedIds.add(site.id);
+    if (selectedSites.length >= 2) break;
+  }
+
+  return selectedSites.slice(0, 2);
+}
+
+function calculateStraightLineDistanceKm(start: GeoPoint, end: GeoPoint) {
+  const earthRadiusKm = 6371;
+  const dLat = ((end.lat - start.lat) * Math.PI) / 180;
+  const dLng = ((end.lng - start.lng) * Math.PI) / 180;
+  const startLat = (start.lat * Math.PI) / 180;
+  const endLat = (end.lat * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(startLat) * Math.cos(endLat) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function estimateRoadRoute(start: HeritageSiteRecord['coordinates'], end: HeritageSiteRecord['coordinates']) {
+  const estimatedRoadDistanceKm = calculateStraightLineDistanceKm(start, end) * 1.35;
+  const estimatedMinutes = Math.max(6, (estimatedRoadDistanceKm / 22) * 60);
+
+  return {
+    distanceKm: estimatedRoadDistanceKm,
+    durationMinutes: estimatedMinutes,
+    source: 'coordinate estimate' as const,
+  };
+}
+
+async function getRoadRouteEstimate(start: HeritageSiteRecord['coordinates'], end: HeritageSiteRecord['coordinates']) {
+  const fallback = estimateRoadRoute(start, end);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+  try {
+    const coordsString = `${start.lng},${start.lat};${end.lng},${end.lat}`;
+    const response = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=false`,
+      { signal: controller.signal }
+    );
+
+    if (!response.ok) return fallback;
+
+    const data = await response.json();
+    const route = data?.routes?.[0];
+    if (!route || typeof route.distance !== 'number' || typeof route.duration !== 'number') {
+      return fallback;
+    }
+
+    return {
+      distanceKm: route.distance / 1000,
+      durationMinutes: route.duration / 60,
+      source: 'road route' as const,
+    };
+  } catch {
+    return fallback;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function formatDistance(distanceKm: number) {
+  return `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km`;
+}
+
+function formatDuration(minutes: number) {
+  const roundedMinutes = Math.max(1, Math.round(minutes / 5) * 5);
+  const hours = Math.floor(roundedMinutes / 60);
+  const remainingMinutes = roundedMinutes % 60;
+
+  if (hours <= 0) return `${roundedMinutes} minutes`;
+  if (remainingMinutes === 0) return `${hours} hour${hours === 1 ? '' : 's'}`;
+  return `${hours} hour${hours === 1 ? '' : 's'} ${remainingMinutes} minutes`;
+}
+
+function getTrafficTimeRange(minutes: number) {
+  const lowerMinutes = Math.max(5, Math.round((minutes * 0.9) / 5) * 5);
+  const upperMinutes = Math.max(lowerMinutes + 5, Math.round((minutes * 1.25) / 5) * 5);
+  return `${formatDuration(lowerMinutes)} to ${formatDuration(upperMinutes)}`;
+}
+
+function getNearbySites(userLocation: GeoPoint, query: string, limit = 5, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+  const city = getCityFromQuery(query);
+  const category = getCategoryFromQuery(query);
+
+  return sites
+    .filter(site => site.isActive)
+    .filter(site => !city || site.city === city)
+    .filter(site => !category || site.category === category)
+    .map(site => ({
+      site,
+      distanceKm: calculateStraightLineDistanceKm(userLocation, site.coordinates),
+    }))
+    .sort((a, b) => a.distanceKm - b.distanceKm || b.site.rating - a.site.rating)
+    .slice(0, limit);
+}
+
+function formatNearbySiteList(sitesWithDistance: ReturnType<typeof getNearbySites>) {
+  return sitesWithDistance
+    .map(({ site, distanceKm }) => `${site.name} (${formatDistance(distanceKm)} away)`)
+    .join(', ');
+}
+
+const HANDUMANAN_FOCUS_WORDS = [
+  'handumanan',
+  'heritage',
+  'cebu',
+  'historical',
+  'history',
+  'landmark',
+  'landmarks',
+  'monument',
+  'monuments',
+  'museum',
+  'museums',
+  'church',
+  'churches',
+  'cathedral',
+  'basilica',
+  'cross',
+  'shrine',
+  'plaza',
+  'park',
+  'route',
+  'itinerary',
+  'tour',
+  'trip',
+  'site',
+  'sites',
+  'directory',
+  'mactan',
+  'magellan',
+  'lapu',
+  'colon',
+  'parian',
+  'spanish',
+  'catholic',
+  'ancestral',
+];
+
+function isComplexHeritageQuery(query: string) {
+  return /\b(compare|comparison|difference|different|similar|similarities|versus|vs|why|explain|relationship|connect|connected|theme|themes|timeline|story|stories|recommend.*because|which.*better)\b/.test(normalizeSearchText(query));
+}
+
+function asksOutsideMetroCebu(normalizedQuery: string) {
+  const scopeMatch = normalizedQuery.match(/\bin\s+([a-z\s-]+)$/);
+  if (!scopeMatch) return false;
+
+  const scope = scopeMatch[1].trim();
+  const isMetroCebuScope = /\b(cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapulapu|lapu-lapu|mactan|parian|colon)\b/.test(scope);
+  const isPlaceSeekingQuery = /\b(tourist|destination|destinations|attraction|attractions|museum|museums|church|churches|site|sites|place|places|landmark|landmarks|heritage)\b/.test(normalizedQuery);
+
+  return isPlaceSeekingQuery && !isMetroCebuScope;
+}
+
+function isRecommendationQuery(normalizedQuery: string) {
+  return (
+    /\b(top|best|must|recommend|recommended|suggest|suggested)\b/.test(normalizedQuery) &&
+    /\b(tourist|destination|destinations|attraction|attractions|place|places|site|sites|landmark|landmarks|spot|spots|visit|visits)\b/.test(normalizedQuery)
+  );
+}
+
+function scoreSiteMatch(site: HeritageSiteRecord, query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  const normalizedName = normalizeSearchText(site.name);
+  const searchableText = normalizeSearchText([
+    site.name,
+    site.description,
+    site.overview,
+    site.significance,
+    site.city,
+    site.category,
+    site.location,
+    site.visitingHours,
+    ...site.tags,
+  ].join(' '));
+  const terms = getSearchTerms(query);
+
+  let score = 0;
+  if (normalizedQuery.includes(normalizedName)) score += 100;
+  if (normalizedName.includes(normalizedQuery)) score += 80;
+
+  for (const term of terms) {
+    if (normalizedName.includes(term)) score += 25;
+    else if (site.tags.some(tag => normalizeSearchText(tag).includes(term))) score += 15;
+    else if (searchableText.includes(term)) score += 5;
+  }
+
+  return score;
+}
+
+function findMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+  return sites
+    .filter(site => site.isActive)
+    .map(site => ({ site, score: scoreSiteMatch(site, query) }))
+    .filter(result => result.score > 0)
+    .sort((a, b) => b.score - a.score || b.site.rating - a.site.rating)
+    .slice(0, limit)
+    .map(result => result.site);
+}
+
+function hasHandumananFocusKeyword(normalizedQuery: string) {
+  const terms = new Set(normalizedQuery.split(' ').filter(Boolean));
+  const focusTerms = HANDUMANAN_FOCUS_WORDS.filter(word => !word.includes(' '));
+  const focusPhrases = HANDUMANAN_FOCUS_WORDS.filter(word => word.includes(' '));
+
+  return (
+    focusTerms.some(word => terms.has(word)) ||
+    focusPhrases.some(phrase => normalizedQuery.includes(phrase))
+  );
+}
+
+function isHandumananFocusedQuery(query: string, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+  const normalizedQuery = normalizeSearchText(query);
+  if (asksOutsideMetroCebu(normalizedQuery)) return false;
+
+  return (
+    findMatchingSites(query, 1, sites).length > 0 ||
+    Boolean(getCityFromQuery(query)) ||
+    Boolean(getCategoryFromQuery(query)) ||
+    isNearbyLocationQuery(query) ||
+    isTripPlanningQuery(normalizedQuery) ||
+    hasHandumananFocusKeyword(normalizedQuery) ||
+    isRecommendationQuery(normalizedQuery) ||
+    /\b(favorite|favorites|top site|top sites|best site|best sites|must visit|must see|recommend.*site|next stop|nearby site|nearby sites)\b/.test(normalizedQuery)
+  );
+}
+
+function getFocusedRedirectResponse(): HeritageChatOutput {
+  return {
+    text: "I can help with Handumanan and Metro Cebu heritage topics, like site history, categories, routes, and places in the directory. For other topics, I should stay focused here.",
+    suggestedSiteIds: [],
+  };
+}
+
+async function getTravelTimeChatResponse(query: string, sites: HeritageSiteRecord[]): Promise<HeritageChatOutput> {
+  const endpointSites = getTravelEndpointSites(query, sites);
+
+  if (endpointSites.length < 2) {
+    return {
+      text: "I can calculate travel time between two Handumanan sites. Try asking like: How long from Casa Gorordo Museum to Talisay Landing Site?",
+      suggestedSiteIds: endpointSites.map(site => site.id),
+    };
+  }
+
+  const [startSite, endSite] = endpointSites;
+  const routeEstimate = await getRoadRouteEstimate(startSite.coordinates, endSite.coordinates);
+  const timeRange = getTrafficTimeRange(routeEstimate.durationMinutes);
+  const sourceNote = routeEstimate.source === 'road route'
+    ? 'based on a road-route estimate'
+    : 'using a coordinate-based estimate because live routing was unavailable';
+
+  return {
+    text: `From ${startSite.name} to ${endSite.name}, the route is about ${formatDistance(routeEstimate.distanceKm)} and usually takes around ${timeRange} by car, depending on traffic; this is ${sourceNote}. I added both stops to the itinerary map so the route can open there.`,
+    suggestedSiteIds: [startSite.id, endSite.id],
+  };
+}
+
+function getNearbyChatResponse(input: HeritageChatInput, query: string, sites: HeritageSiteRecord[]): HeritageChatOutput {
+  if (!input.userLocation) {
+    return {
+      text: "I can recommend sites near you, but I need your GPS location first. Please allow location access in your browser, then ask for nearby sites again.",
+      suggestedSiteIds: [],
+    };
+  }
+
+  const nearbySites = getNearbySites(input.userLocation, query, 5, sites);
+  if (nearbySites.length === 0) {
+    return {
+      text: "I could not find active Handumanan sites near that filter. Try asking for nearby sites without a category or city filter.",
+      suggestedSiteIds: [],
+    };
+  }
+
+  const category = getCategoryFromQuery(query);
+  const city = getCityFromQuery(query);
+  const filterNote = category || city ? ` matching ${[category, city].filter(Boolean).join(' in ')}` : '';
+
+  return {
+    text: `Using your current GPS location, the nearest Handumanan sites${filterNote} are: ${formatNearbySiteList(nearbySites)}.`,
+    suggestedSiteIds: nearbySites.map(({ site }) => site.id),
+  };
+}
+
+async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageChatOutput> {
+  const lastMessage = input.history[input.history.length - 1]?.content[0]?.text ?? '';
+  const query = lastMessage.toLowerCase();
+  const sites = getSiteCorpus(input);
+  const activeSites = sites.filter(site => site.isActive);
+  const mustVisitSites = activeSites
+    .filter(site => site.isMustVisit)
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 3);
+
+  const matchingSites = findMatchingSites(lastMessage, 3, sites);
+  const directoryMatches = getDirectoryMatches(lastMessage, 8, sites);
+
+  if (isSimpleGreetingQuery(lastMessage)) {
+    return {
+      text: "Hello! Maayong adlaw. I am your Handumanan Guide, ready to help with Metro Cebu heritage sites, routes, and stories.",
+      suggestedSiteIds: [],
+    };
+  }
+
+  if (isWellbeingQuery(lastMessage)) {
+    return {
+      text: "I am doing well, thank you for asking. I am here and ready to help you explore Cebu's heritage, one landmark at a time.",
+      suggestedSiteIds: [],
+    };
+  }
+
+  if (isThanksQuery(lastMessage)) {
+    return {
+      text: "You are very welcome. Ask me anytime about a site, city, category, or heritage route in Handumanan.",
+      suggestedSiteIds: [],
+    };
+  }
+
+  if (isHelpQuery(lastMessage)) {
+    return {
+      text: `I am the Handumanan Guide. I can search ${activeSites.length} active directory sites, explain their history, compare places, suggest nearby stops, and build routes when you explicitly ask for a trip plan.`,
+      suggestedSiteIds: [],
+    };
+  }
+
+  if (!isHandumananFocusedQuery(lastMessage, sites)) {
+    return getFocusedRedirectResponse();
+  }
+
+  if (isTravelTimeQuery(lastMessage)) {
+    return getTravelTimeChatResponse(lastMessage, sites);
+  }
+
+  if (isNearbyLocationQuery(lastMessage)) {
+    return getNearbyChatResponse(input, lastMessage, sites);
+  }
+
+  if (isDirectoryListQuery(query) && directoryMatches.length > 0) {
+    const city = getCityFromQuery(lastMessage);
+    const category = getCategoryFromQuery(lastMessage);
+    const filteredTotal = sites.filter(site => {
+      return site.isActive && (!city || site.city === city) && (!category || site.category === category);
+    }).length;
+    const isGenericDirectoryQuery = /\b(all|directory|locations|places|sites)\b/.test(normalizeSearchText(lastMessage));
+
+    return {
+      text: formatSiteList(directoryMatches, city || category || isGenericDirectoryQuery ? filteredTotal : directoryMatches.length),
+      suggestedSiteIds: directoryMatches.map(site => site.id),
+    };
+  }
+
+  if (matchingSites.length > 0 && (matchingSites.length === 1 || scoreSiteMatch(matchingSites[0], lastMessage) >= 50)) {
+    const site = matchingSites[0];
+
+    if (query.includes('category') || query.includes('type') || query.includes('classified')) {
+      return {
+        text: `${site.name} is listed under ${site.category}.`,
+        suggestedSiteIds: [site.id],
+      };
+    }
+
+    return {
+      text: `${site.name} is in ${site.city}, under ${site.category}. ${site.description} ${site.significance} Visiting hours: ${site.visitingHours}.`,
+      suggestedSiteIds: [site.id],
+    };
+  }
+
+  if (isTripPlanningQuery(query)) {
+    const hours = parseAvailableHours(query);
+    const routeSites = getBalancedRouteSites(getStopCountForHours(hours), sites);
+
+    return {
+      text: `I generated a ${hours}-hour heritage route with ${routeSites.length} stops: ${routeSites.map(site => site.name).join(', ')}. Opening it on the map now so you can see the route.`,
+      suggestedSiteIds: routeSites.map(site => site.id),
+    };
+  }
+
+  if (/\b(hi|hello|hey|maayong|good\s*(day|morning|afternoon|evening))\b/.test(query)) {
+    return {
+      text: "Maayong adlaw! I can help you find Metro Cebu heritage sites, plan stops, or explain the stories behind landmarks like Magellan's Cross, Casa Gorordo, and Mactan Shrine.",
+      suggestedSiteIds: mustVisitSites.map(site => site.id),
+    };
+  }
+
+  if (query.includes('favorite')) {
+    const favoriteNames = input.favorites?.filter(Boolean) ?? [];
+    if (favoriteNames.length > 0) {
+      return {
+        text: `Your saved favorites include ${favoriteNames.slice(0, 3).join(', ')}. I can help you turn them into a short heritage route.`,
+        suggestedSiteIds: matchingSites.map(site => site.id),
+      };
+    }
+
+    return {
+      text: "You do not have saved favorites yet. Start with a few must-visits, then tap the heart on any site you want to keep.",
+      suggestedSiteIds: mustVisitSites.map(site => site.id),
+    };
+  }
+
+  if (query.includes('top') || query.includes('best') || query.includes('must') || query.includes('recommend')) {
+    return {
+      text: `For top Handumanan destinations, start with ${mustVisitSites.map(site => `${site.name} in ${site.city}`).join(', ')}. These are highly rated must-visit entries in the directory and give a strong first look at Metro Cebu's religious, civic, and resistance history.`,
+      suggestedSiteIds: mustVisitSites.map(site => site.id),
+    };
+  }
+
+  if (query.includes('next') || query.includes('stop')) {
+    return {
+      text: "For a smooth next stop, choose nearby sites in the same heritage cluster. In Cebu City, Magellan's Cross, Basilica Minore del Santo Nino, and Cebu Cathedral work well together.",
+      suggestedSiteIds: ['cebu-cross', 'cebu-basilica', 'cebu-cathedral'],
+    };
+  }
+
+  const suggestedSites = matchingSites.length > 0 ? matchingSites : mustVisitSites;
+
+  return {
+    text: `I found a few Cebu heritage matches: ${suggestedSites.map(site => site.name).join(', ')}. Open a card to view details or map directions.`,
+    suggestedSiteIds: suggestedSites.map(site => site.id),
+  };
+}
+
+function shouldAnswerLocally(input: HeritageChatInput): boolean {
+  const lastMessage = input.history[input.history.length - 1]?.content[0]?.text ?? '';
+  const normalizedMessage = lastMessage.toLowerCase();
+  const sites = getSiteCorpus(input);
+
+  if (isFriendlyChatQuery(lastMessage) || !isHandumananFocusedQuery(lastMessage, sites)) {
+    return true;
+  }
+
+  if (hasGoogleAiApiKey && isComplexHeritageQuery(lastMessage)) {
+    return false;
+  }
+
+  return (
+    findMatchingSites(lastMessage, 1, sites).length > 0 ||
+    normalizedMessage.includes('favorite') ||
+    isRecommendationQuery(normalizeSearchText(lastMessage)) ||
+    /\b(top site|top sites|best site|best sites|must visit|must see|recommend.*site|recommend.*sites)\b/.test(normalizedMessage) ||
+    normalizedMessage.includes('next') ||
+    normalizedMessage.includes('stop') ||
+    isNearbyLocationQuery(lastMessage) ||
+    isDirectoryListQuery(lastMessage) ||
+    isTripPlanningQuery(lastMessage)
+  );
+}
+
 const searchSitesTool = ai.defineTool(
   {
     name: 'searchSites',
-    description: 'Searches for real heritage sites in Metro Cebu.',
+    description: 'Searches the full Handumanan heritage directory by name, city, category, location, tags, overview, and significance.',
     inputSchema: z.object({
-      query: z.string(),
+      query: z.string().describe('Natural language search query from the user.'),
+      city: z.string().optional().describe('Optional city filter, such as Cebu City, Mandaue City, Talisay City, or Lapu-Lapu City.'),
+      category: z.string().optional().describe('Optional category filter, such as Museums & Cultural Institutions.'),
+      limit: z.number().optional().describe('Maximum number of sites to return.'),
     }),
     outputSchema: z.array(z.any()),
   },
   async (input) => {
-    const q = input.query.toLowerCase();
-    return HERITAGE_SITES.filter(site => 
-      site.name.toLowerCase().includes(q) || 
-      site.description.toLowerCase().includes(q)
-    ).slice(0, 3);
+    const normalizedCity = input.city ? getCityFromQuery(input.city) || input.city : undefined;
+    const normalizedCategory = input.category ? getCategoryFromQuery(input.category) || input.category : undefined;
+    const limit = Math.min(Math.max(input.limit ?? 8, 1), 10);
+
+    let matches = input.query.trim()
+      ? findMatchingSites(input.query, limit)
+      : HERITAGE_SITES.filter(site => site.isActive);
+
+    if (normalizedCity) matches = matches.filter(site => site.city === normalizedCity);
+    if (normalizedCategory) matches = matches.filter(site => site.category === normalizedCategory);
+
+    return matches.slice(0, limit).map(site => ({
+      id: site.id,
+      name: site.name,
+      description: site.description,
+      overview: site.overview,
+      significance: site.significance,
+      category: site.category,
+      city: site.city,
+      location: site.location,
+      visitingHours: site.visitingHours,
+      tags: site.tags,
+      rating: site.rating,
+      isMustVisit: site.isMustVisit,
+    }));
   }
 );
 
+function buildDirectoryBrief(sites: HeritageSiteRecord[]) {
+  return sites
+    .filter(site => site.isActive)
+    .sort((a, b) => {
+      if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
+      if (a.city !== b.city) return a.city.localeCompare(b.city);
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, 45)
+    .map(site => {
+      const tags = site.tags.length > 0 ? `; tags: ${site.tags.slice(0, 4).join(', ')}` : '';
+      return `- ${site.id}: ${site.name} (${site.city}; ${site.category}; hours: ${site.visitingHours}${tags})`;
+    })
+    .join('\n');
+}
+
 export async function chatWithHeritageBot(input: HeritageChatInput): Promise<HeritageChatOutput> {
   const lastMessage = input.history[input.history.length - 1].content[0].text;
+  const sites = getSiteCorpus(input);
+
+  if (!hasGoogleAiApiKey || shouldAnswerLocally(input)) {
+    return getLocalChatResponse(input);
+  }
 
   try {
     const { output } = await ai.generate({
       model: 'googleai/gemini-2.5-flash',
       prompt: lastMessage,
-      history: input.history.slice(0, -1),
+      messages: input.history.slice(0, -1),
       tools: [searchSitesTool],
       output: { schema: HeritageChatOutputSchema },
       system: `You are the "Handumanan Guide", an expert virtual tour guide for Metro Cebu.
-      Help users find heritage sites and understand their history.
-      If you mention specific sites, include their EXACT IDs in "suggestedSiteIds".
-      Stay concise: 2-3 sentences max. Friendly and Cebuano-proud style.`,
+      You are embedded inside the Handumanan app, so behave like a site-specific ChatGPT plus directory search, not a general web chatbot.
+      Source of truth: the Handumanan directory, the user favorites/last itinerary supplied in context, and user GPS only when provided.
+      Do not claim to browse Google or the open web. Do not invent places, schedules, facts, prices, or routes outside the directory.
+      Use searchSites or the directory brief whenever the user asks about a site, city, category, route theme, historical topic, or comparison.
+      If a place or topic is outside the directory, say it is not currently listed in Handumanan and offer a relevant directory search instead.
+      Only create or describe an itinerary when the user explicitly asks for a route, trip, tour, plan, travel time, or stop sequence. Recommendation questions should return suggestions, not auto-routes.
+      If you mention specific sites, include their EXACT IDs in "suggestedSiteIds"; otherwise return an empty array.
+      Stay concise: 2-4 helpful sentences, warm and Cebuano-proud.
+
+      Active Handumanan directory snapshot:
+      ${buildDirectoryBrief(sites)}`,
     });
 
     if (!output) throw new Error('No response from AI');
@@ -70,16 +1009,10 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
   } catch (error: any) {
     // Gracefully handle quota errors
     if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
-      return {
-        text: "I am currently receiving many requests from fellow explorers. Please give me a moment to catch my breath and ask again in a few seconds! Maayong pag-abot!",
-        suggestedSiteIds: []
-      };
+      return getLocalChatResponse(input);
     }
     
     console.error("Chat Error:", error.message);
-    return {
-      text: "I encountered a slight interruption in our connection. Could you please try asking that again?",
-      suggestedSiteIds: []
-    };
+    return getLocalChatResponse(input);
   }
 }

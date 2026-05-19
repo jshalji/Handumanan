@@ -47,9 +47,30 @@ service cloud.firestore {
       return resource != null && isOwner(ownerId);
     }
 
-    /** @description Checks if the user has administrative privileges via the roles_admin collection. */
+    /** @description Checks if the user has administrative privileges via the user profile role field. */
+    function hasAdminProfile() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    /** @description Checks if the user has administrative privileges via the roles_admin collection or profile role. */
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid))
+        || hasAdminProfile()
+      );
+    }
+
+    /** @description Prevents regular users from assigning themselves an admin role. */
+    function hasSafeSelfAssignedRole() {
+      return !request.resource.data.keys().hasAny(['role'])
+        || request.resource.data.role in ['explorer', 'user'];
+    }
+
+    /** @description Prevents regular users from changing their own role field. */
+    function doesNotChangeRole() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
     }
 
     // --- Collection Rules ---
@@ -62,11 +83,11 @@ service cloud.firestore {
      * @principle Restricts access to a user's own data tree.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false; // User listing is disallowed for privacy
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if false; // Profile deletion handled by admin or specific logic
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && hasSafeSelfAssignedRole();
+      allow update: if (isExistingOwner(userId) && doesNotChangeRole()) || isAdmin();
+      allow delete: if isAdmin();
 
       /**
        * @description User's favorited heritage sites.

@@ -1,19 +1,21 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, Send, Sparkles, MapPin, Landmark, Minimize2, Loader2, Navigation, Compass, ExternalLink } from 'lucide-react';
+import { MessageCircle, Send, Sparkles, MapPin, Heart, Minimize2, Loader2, Navigation, Compass, ExternalLink } from 'lucide-react';
 import { chatWithHeritageBot } from '@/ai/flows/heritage-chat-flow';
+import type { HeritageChatInput } from '@/ai/flows/heritage-chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { usePathname, useRouter } from 'next/navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { HERITAGE_SITES } from '@/lib/heritage-data';
-import Image from 'next/image';
+import { getCurrentLocation } from '@/lib/location-utils';
+import { SafeImage } from '@/components/ui/safe-image';
 
 interface Message {
   role: 'user' | 'model';
@@ -21,11 +23,83 @@ interface Message {
   siteIds?: string[];
 }
 
+type ChatDirectorySite = NonNullable<HeritageChatInput['directorySites']>[number];
+
 const QUICK_REPLIES = [
-  { label: 'My Favorites', icon: Landmark },
+  { label: 'My Favorites', icon: Heart },
   { label: 'Top Sites', icon: Sparkles },
   { label: 'Next Stop?', icon: MapPin },
 ];
+
+function compactSiteForChat(site: any): ChatDirectorySite | null {
+  const coordinates = site?.coordinates;
+  const lat = Number(coordinates?.lat ?? coordinates?.latitude ?? site?.latitude);
+  const lng = Number(coordinates?.lng ?? coordinates?.longitude ?? site?.longitude);
+  const id = String(site?.id || '').trim();
+  const name = String(site?.name || '').trim();
+
+  if (!id || !name || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return null;
+  }
+
+  const payload: ChatDirectorySite = {
+    id,
+    name,
+    description: site?.description ? String(site.description) : undefined,
+    overview: site?.overview ? String(site.overview) : undefined,
+    significance: site?.significance ? String(site.significance) : undefined,
+    category: site?.category ? String(site.category) : undefined,
+    location: site?.location ? String(site.location) : undefined,
+    city: site?.city ? String(site.city) : undefined,
+    visitingHours: site?.visitingHours ? String(site.visitingHours) : undefined,
+    imageUrl: site?.imageUrl ? String(site.imageUrl) : undefined,
+    rating: Number.isFinite(Number(site?.rating)) ? Number(site.rating) : undefined,
+    tags: Array.isArray(site?.tags) ? site.tags.map(String).filter(Boolean) : undefined,
+    coordinates: { lat, lng },
+    latitude: lat,
+    longitude: lng,
+    isMustVisit: Boolean(site?.isMustVisit),
+    isActive: site?.isActive !== false,
+    status: site?.status ? String(site.status) : undefined,
+    demolitionStatus: site?.demolitionStatus ? String(site.demolitionStatus) : undefined,
+    accessibilityStatus: site?.accessibilityStatus ? String(site.accessibilityStatus) : undefined,
+  };
+
+  const compactPayload = payload as Record<string, unknown>;
+  Object.keys(payload).forEach(key => {
+    if (compactPayload[key] === undefined || compactPayload[key] === '') delete compactPayload[key];
+  });
+
+  return payload;
+}
+
+function isTripPlanningRequest(text: string) {
+  const query = text.toLowerCase();
+  const hasTravelEndpoints =
+    /\bfrom\b.+\bto\b/.test(query) ||
+    /\bbetween\b.+\band\b/.test(query);
+  const asksForTravelTime =
+    /\b(how long|how many hours|how many minutes|travel time|trip time|drive time|driving time|eta|duration|distance|far)\b/.test(query) ||
+    /\b(take|takes)\b.+\b(go|get|travel|drive)\b/.test(query);
+  const hasExplicitPlanningKeyword =
+    /\b(itinerary|route|trip|tour|tours|planner|planning)\b/.test(query) ||
+    (/\bplan\b/.test(query) && /\b(cebu|heritage|site|sites|place|places|route|trip|tour|museum|church|landmark|day|hour|hours)\b/.test(query));
+
+  return (
+    /\b(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/.test(query) ||
+    (hasTravelEndpoints && asksForTravelTime) ||
+    hasExplicitPlanningKeyword
+  );
+}
+
+function isNearbyLocationRequest(text: string) {
+  const query = text.toLowerCase();
+
+  return (
+    /\b(near me|nearby|nearest|closest|close to me|around me|my location|current location|next stop)\b/.test(query) ||
+    /\b(near|close)\b.+\b(me|my|current|location)\b/.test(query)
+  );
+}
 
 export function HeritageChatBot() {
   const [mounted, setMounted] = useState(false);
@@ -35,7 +109,8 @@ export function HeritageChatBot() {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [chatLocation, setChatLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { user } = useUser();
   const db = useFirestore();
@@ -56,15 +131,70 @@ export function HeritageChatBot() {
   }, [db, user]);
   const { data: itineraries } = useCollection(itinerariesQuery);
 
+  const sitesQuery = useMemoFirebase(() => (
+    db ? query(collection(db, 'heritageSites'), orderBy('name')) : null
+  ), [db]);
+  const { data: dbSites } = useCollection(sitesQuery);
+
+  const directorySites = useMemo(() => {
+    const sitesById = new Map(HERITAGE_SITES.map(site => [site.id, site as any]));
+
+    dbSites?.forEach((site: any) => {
+      if (!site?.id) return;
+      if (site.isActive === false || site.status === 'Inactive') {
+        sitesById.delete(site.id);
+        return;
+      }
+      const existingSite = sitesById.get(site.id) || {};
+      const coordinates = site.coordinates || (
+        site.latitude !== undefined && site.longitude !== undefined
+          ? { lat: site.latitude, lng: site.longitude }
+          : existingSite.coordinates
+      );
+      sitesById.set(site.id, {
+        ...existingSite,
+        ...site,
+        coordinates,
+        tags: Array.isArray(site.tags) ? site.tags : (Array.isArray(existingSite.tags) ? existingSite.tags : []),
+      });
+    });
+
+    return Array.from(sitesById.values());
+  }, [dbSites]);
+
+  const directorySitesForChat = useMemo(() => (
+    (dbSites || [])
+      .filter((site: any) => site?.id)
+      .map(compactSiteForChat)
+      .filter((site): site is ChatDirectorySite => Boolean(site))
+  ), [dbSites]);
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  const scrollToLatestMessage = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior,
+      block: 'end',
+    });
+  }, []);
+
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, isLoading]);
+    if (!isOpen) return;
+
+    const frameId = requestAnimationFrame(() => {
+      scrollToLatestMessage(messages.length <= 1 ? 'auto' : 'smooth');
+    });
+    const timeoutId = window.setTimeout(() => {
+      scrollToLatestMessage('smooth');
+    }, 150);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [messages, isLoading, isOpen, scrollToLatestMessage]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -75,6 +205,16 @@ export function HeritageChatBot() {
     setIsLoading(true);
 
     try {
+      let locationForRequest = chatLocation;
+      if (isNearbyLocationRequest(text) && !locationForRequest) {
+        try {
+          locationForRequest = await getCurrentLocation();
+          setChatLocation(locationForRequest);
+        } catch (locationError) {
+          console.warn('Chat location unavailable:', locationError);
+        }
+      }
+
       const history = newMessages.map(m => ({
         role: m.role as 'user' | 'model',
         content: [{ text: m.text }]
@@ -86,13 +226,22 @@ export function HeritageChatBot() {
         userId: user?.uid,
         favorites: favorites?.map(f => f.siteName),
         lastItinerary: itineraries?.[0]?.summary,
+        userLocation: locationForRequest ?? undefined,
+        directorySites: directorySitesForChat,
       });
+      const suggestedSiteIds = response.suggestedSiteIds?.filter(Boolean) ?? [];
 
       setMessages(prev => [...prev, { 
         role: 'model', 
         text: response.text,
-        siteIds: response.suggestedSiteIds 
+        siteIds: suggestedSiteIds
       }]);
+
+      if (isTripPlanningRequest(text) && suggestedSiteIds.length > 1) {
+        localStorage.setItem('handumanan_draft_itinerary', JSON.stringify(suggestedSiteIds));
+        setIsOpen(false);
+        router.push('/discover?trip=chat');
+      }
     } catch (error) {
       console.error(error);
       setMessages(prev => [...prev, { role: 'model', text: 'I encountered an error. Please try again later.' }]);
@@ -117,8 +266,10 @@ export function HeritageChatBot() {
         className={cn(
           "fixed h-12 w-12 md:h-14 md:w-14 rounded-2xl shadow-3xl z-40 transition-all duration-300 bg-primary hover:bg-primary/90 text-white p-0",
           isOpen ? "scale-0 opacity-0" : "scale-100 opacity-100",
-          "right-6",
-          isDiscoverPage ? (isMobile ? "bottom-20" : "bottom-6") : "bottom-6"
+          "right-4 md:right-6",
+          isDiscoverPage
+            ? (isMobile ? "bottom-[calc(env(safe-area-inset-bottom)+5rem)]" : "bottom-6")
+            : "bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] md:bottom-6"
         )}
       >
         <MessageCircle size={28} />
@@ -126,9 +277,11 @@ export function HeritageChatBot() {
 
       <Card 
         className={cn(
-          "fixed right-4 md:right-8 w-[calc(100vw-32px)] md:w-[380px] h-[550px] md:h-[620px] max-h-[85vh] z-50 transition-all duration-500 flex flex-col rounded-[2.5rem] shadow-3xl border-none overflow-hidden bg-white/95 backdrop-blur-3xl ring-1 ring-black/5",
+          "fixed left-3 right-3 md:left-auto md:right-8 w-auto md:w-[380px] h-[550px] md:h-[620px] max-h-[calc(100dvh-1.5rem)] md:max-h-[85vh] z-50 transition-all duration-500 flex flex-col rounded-[2rem] md:rounded-[2.5rem] shadow-3xl border-none overflow-hidden bg-white/95 backdrop-blur-3xl ring-1 ring-black/5",
           isOpen ? "translate-y-0 opacity-100 scale-100" : "translate-y-10 opacity-0 scale-95 pointer-events-none",
-          isDiscoverPage ? (isMobile ? "bottom-20" : "bottom-8") : "bottom-8"
+          isDiscoverPage
+            ? (isMobile ? "bottom-[calc(env(safe-area-inset-bottom)+5rem)]" : "bottom-8")
+            : "bottom-[calc(env(safe-area-inset-bottom)+1rem)] md:bottom-8"
         )}
       >
         <CardHeader className="bg-primary text-white p-5 md:p-6 flex flex-row items-center justify-between shrink-0">
@@ -149,7 +302,7 @@ export function HeritageChatBot() {
         </CardHeader>
 
         <CardContent className="flex-1 overflow-hidden p-0 flex flex-col bg-slate-50/10">
-          <ScrollArea className="flex-1 p-4 md:p-5" ref={scrollRef}>
+          <ScrollArea className="flex-1 p-4 md:p-5">
             <div className="space-y-6 pb-6">
               {messages.map((msg, i) => (
                 <div 
@@ -171,19 +324,25 @@ export function HeritageChatBot() {
                   {msg.siteIds && msg.siteIds.length > 0 && (
                     <div className="w-full flex flex-col gap-3 mt-1">
                       {msg.siteIds.map(siteId => {
-                        const site = HERITAGE_SITES.find(s => s.id === siteId);
+                        const site = directorySites.find((s: any) => s.id === siteId);
                         if (!site) return null;
                         return (
                           <Card key={siteId} className="w-full rounded-[1.5rem] overflow-hidden border-none shadow-md bg-white ring-1 ring-black/5">
                             <div className="relative h-32 w-full">
-                              <Image src={site.imageUrl} alt={site.name} fill className="object-cover" />
+                              <SafeImage
+                                src={site.imageUrl || '/logo.png'}
+                                alt={site.name || 'Handumanan heritage site'}
+                                className="h-full w-full object-cover"
+                                fallbackClassName="object-contain bg-primary/5 p-8"
+                                onLoad={() => scrollToLatestMessage('smooth')}
+                              />
                               <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full text-[8px] font-black text-primary uppercase shadow-sm">
-                                {site.city}
+                                {site.city || 'Handumanan'}
                               </div>
                             </div>
                             <div className="p-3 space-y-2">
                               <div>
-                                <h4 className="font-black text-xs text-slate-900 leading-tight">{site.name}</h4>
+                                <h4 className="font-black text-xs text-slate-900 leading-tight">{site.name || 'Heritage Site'}</h4>
                                 <p className="text-[10px] text-slate-500 line-clamp-2 mt-1 leading-relaxed">{site.description}</p>
                               </div>
                               <div className="flex gap-2">
@@ -219,6 +378,7 @@ export function HeritageChatBot() {
                   <span className="text-[10px] font-black uppercase tracking-widest ml-1">Guide is thinking...</span>
                 </div>
               )}
+              <div ref={messagesEndRef} aria-hidden="true" />
             </div>
           </ScrollArea>
 

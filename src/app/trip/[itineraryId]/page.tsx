@@ -1,10 +1,11 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use, useState, useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, doc, orderBy, query } from 'firebase/firestore';
 import { Navbar } from '@/components/layout/Navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +19,6 @@ import {
   History, 
   Navigation, 
   Loader2, 
-  Landmark,
   Route
 } from 'lucide-react';
 
@@ -35,13 +35,42 @@ export default function TripDetailPage({ params }: { params: Promise<{ itinerary
   
   const { data: trip, isLoading: isTripLoading } = useDoc(itineraryRef);
 
+  const sitesQuery = useMemoFirebase(() => db ? query(collection(db, 'heritageSites'), orderBy('name')) : null, [db]);
+  const { data: dbSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
+
+  const directorySites = useMemo(() => {
+    const sitesById = new Map(HERITAGE_SITES.map(site => [site.id, site as any]));
+
+    dbSites?.forEach((site: any) => {
+      if (!site?.id) return;
+      if (site.isActive === false || site.status === 'Inactive') {
+        sitesById.delete(site.id);
+        return;
+      }
+      const existingSite = sitesById.get(site.id) || {};
+      const coordinates = site.coordinates || (
+        site.latitude !== undefined && site.longitude !== undefined
+          ? { lat: site.latitude, lng: site.longitude }
+          : existingSite.coordinates
+      );
+      sitesById.set(site.id, {
+        ...existingSite,
+        ...site,
+        coordinates,
+        tags: Array.isArray(site.tags) ? site.tags : (Array.isArray(existingSite.tags) ? existingSite.tags : []),
+      });
+    });
+
+    return Array.from(sitesById.values());
+  }, [dbSites]);
+
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/auth');
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || isTripLoading) {
+  if (isUserLoading || isTripLoading || isSitesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <Loader2 className="animate-spin text-primary" size={48} />
@@ -52,7 +81,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ itinerary
   if (!trip) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-        <Landmark size={64} className="text-slate-200 mb-6" />
+        <Image src="/logo.png" alt="Handumanan" width={80} height={80} className="w-20 h-20 rounded-2xl opacity-30 mb-6" />
         <h2 className="text-2xl font-headline font-bold mb-4 text-slate-900">Trip not found</h2>
         <Button asChild className="rounded-2xl"><Link href="/profile">Back to Profile</Link></Button>
       </div>
@@ -64,12 +93,12 @@ export default function TripDetailPage({ params }: { params: Promise<{ itinerary
   let aiSteps: any[] = [];
 
   if (trip.itineraryIds) {
-    displaySites = trip.itineraryIds.map((id: string) => HERITAGE_SITES.find(s => s.id === id)).filter(Boolean);
+    displaySites = trip.itineraryIds.map((id: string) => directorySites.find(s => s.id === id)).filter(Boolean);
   } else if (trip.itineraryData) {
     try {
       const parsed = JSON.parse(trip.itineraryData);
       aiSteps = parsed.itinerary || [];
-      displaySites = aiSteps.map((step: any) => HERITAGE_SITES.find(s => s.id === step.siteId)).filter(Boolean);
+      displaySites = aiSteps.map((step: any) => directorySites.find(s => s.id === step.siteId)).filter(Boolean);
     } catch (e) {
       console.error("Failed to parse itinerary data", e);
     }
@@ -102,7 +131,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ itinerary
         </header>
 
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Planned Stops ({displaySites.length})</h2>
             <Button asChild variant="outline" size="sm" className="rounded-xl h-10 border-2 font-bold text-xs">
               <Link href={`/discover?itineraryId=${itineraryId}`}>
@@ -129,7 +158,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ itinerary
                       </CardTitle>
                     </div>
                   </CardHeader>
-                  <CardContent className="p-6 pt-4 ml-12 md:ml-18">
+                  <CardContent className="p-6 pt-4 ml-12 md:ml-[4.5rem]">
                     <div className="flex flex-col gap-4">
                       {aiStep?.description ? (
                         <p className="text-slate-600 text-sm leading-relaxed italic">

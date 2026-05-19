@@ -6,20 +6,21 @@ import { Navbar } from '@/components/layout/Navbar';
 import { HERITAGE_SITES } from '@/lib/heritage-data';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Compass, MapPin, ArrowRight, Landmark, Sparkles } from 'lucide-react';
+import { Compass, MapPin, ArrowRight, Search, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { SafeImage } from '@/components/ui/safe-image';
 
 export default function Home() {
   const featuredSites = HERITAGE_SITES.filter(s => s.isMustVisit).slice(0, 3);
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex min-h-screen w-full flex-col overflow-x-clip">
       <Navbar />
-      
+
       {/* Hero Section */}
-      <section className="relative h-[85vh] flex items-center justify-center overflow-hidden">
+      <section className="relative flex min-h-[calc(100dvh-4rem)] w-full items-center justify-center overflow-hidden py-16 md:min-h-[calc(100dvh-5rem)]">
         <Image
-          src="https://picsum.photos/seed/magellan/1920/1080"
+          src="/metrocebu-bg.jpg"
           alt="Metro Cebu Heritage"
           fill
           className="object-cover brightness-[0.4]"
@@ -30,21 +31,21 @@ export default function Home() {
           <Badge className="bg-accent/20 text-accent mb-6 border-accent/30 px-4 py-1.5 backdrop-blur-md">
             <Sparkles size={14} className="mr-2 inline" /> Intelligent Heritage Explorer
           </Badge>
-          <h1 className="font-headline text-6xl md:text-8xl font-bold mb-6 animate-in fade-in slide-in-from-bottom-6 duration-1000">
+          <h1 className="mx-auto mb-6 max-w-full break-words font-headline text-4xl font-bold leading-none sm:text-6xl md:text-8xl animate-in fade-in slide-in-from-bottom-6 duration-1000">
             Handumanan
           </h1>
-          <p className="text-xl md:text-2xl mb-10 max-w-2xl mx-auto opacity-90 font-body leading-relaxed">
+          <p className="mx-auto mb-10 max-w-[22rem] text-base leading-relaxed opacity-90 font-body sm:max-w-2xl sm:text-xl md:text-2xl">
             Rediscover the historical landmarks and cultural treasures of Metro Cebu with AI-powered trip planning and live navigation.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-            <Button size="lg" asChild className="bg-primary hover:bg-primary/90 rounded-full px-10 h-16 text-lg shadow-2xl shadow-primary/40">
+          <div className="flex w-full flex-col sm:w-auto sm:flex-row items-center justify-center gap-4 sm:gap-6">
+            <Button size="lg" asChild className="w-full max-w-xs sm:w-auto bg-primary hover:bg-primary/90 rounded-full px-8 sm:px-10 h-14 sm:h-16 text-base sm:text-lg shadow-2xl shadow-primary/40">
               <Link href="/discover">
                 <Compass className="mr-2 h-6 w-6" /> Explore & Route
               </Link>
             </Button>
-            <Button size="lg" variant="outline" asChild className="bg-white/10 backdrop-blur-lg border-white/20 text-white hover:bg-white/20 rounded-full px-10 h-16 text-lg">
+            <Button size="lg" variant="outline" asChild className="w-full max-w-xs sm:w-auto bg-white/10 backdrop-blur-lg border-white/20 text-white hover:bg-white/20 rounded-full px-8 sm:px-10 h-14 sm:h-16 text-base sm:text-lg">
               <Link href="/explore">
-                <Landmark className="mr-2 h-6 w-6" /> Search Directory
+                <Search className="mr-2 h-6 w-6" /> Search Directory
               </Link>
             </Button>
           </div>
@@ -52,11 +53,11 @@ export default function Home() {
       </section>
 
       {/* Featured Sites */}
-      <section className="py-24 bg-background">
+      <section className="py-16 md:py-24 bg-background">
         <div className="container mx-auto px-4">
-          <div className="flex items-end justify-between mb-16">
+          <div className="flex items-end justify-between mb-10 md:mb-16">
             <div className="max-w-xl">
-              <h2 className="font-headline text-5xl font-bold text-primary mb-4">Heritage Treasures</h2>
+              <h2 className="font-headline text-4xl md:text-5xl font-bold text-primary mb-4">Heritage Treasures</h2>
               <p className="text-muted-foreground text-lg">Start your journey with these handpicked historical landmarks across Cebu, Mandaue, Talisay, and Lapu-Lapu.</p>
             </div>
             <Link href="/explore" className="text-primary font-bold flex items-center gap-2 hover:underline hidden md:flex text-lg">
@@ -64,11 +65,11 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10">
             {featuredSites.map((site) => (
               <Card key={site.id} className="group overflow-hidden border-none shadow-2xl hover:shadow-primary/10 transition-all duration-500 flex flex-col h-full bg-white rounded-3xl">
                 <div className="relative h-72 overflow-hidden">
-                  <Image
+                  <SafeImage
                     src={site.imageUrl}
                     alt={site.name}
                     fill
@@ -106,14 +107,14 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-primary text-primary-foreground py-16 mt-auto">
         <div className="container mx-auto px-4 text-center">
-          <div className="flex items-center justify-center gap-3 mb-8">
-            <Landmark size={40} className="text-accent" />
-            <span className="font-headline text-4xl font-bold tracking-tighter">Handumanan</span>
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
+            <Image src="/logo.png" alt="Handumanan" width={48} height={48} className="w-12 h-12 rounded-xl shadow-lg" />
+            <span className="font-headline text-3xl sm:text-4xl font-bold tracking-tighter">Handumanan</span>
           </div>
           <p className="max-w-xl mx-auto opacity-80 mb-10 text-lg leading-relaxed font-body">
             A Web-Based Cultural Heritage Site Information System for Metro Cebu. BSIT Capstone Project 2026.
           </p>
-          <div className="flex justify-center gap-10 mb-10 text-sm uppercase tracking-widest font-black">
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-4 mb-10 text-sm uppercase tracking-widest font-black">
             <Link href="/discover" className="hover:text-accent transition-colors">Explore & Route</Link>
             <Link href="/explore" className="hover:text-accent transition-colors">Directory</Link>
           </div>

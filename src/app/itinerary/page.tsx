@@ -95,7 +95,7 @@ export default function ItineraryPage() {
       <div className="container mx-auto px-4 py-12">
         <header className="max-w-3xl mx-auto text-center mb-12">
           <Badge className="bg-primary/10 text-primary mb-4 border-none px-4 py-1">AI Travel Assistant</Badge>
-          <h1 className="font-headline text-5xl font-bold text-primary mb-4">Plan Your Journey</h1>
+          <h1 className="font-headline text-4xl sm:text-5xl font-bold text-primary mb-4">Plan Your Journey</h1>
           <p className="text-muted-foreground text-lg">
             A simple and realistic heritage tour based on your interests and available time.
           </p>
@@ -180,7 +180,7 @@ export default function ItineraryPage() {
           {/* Results Area */}
           <div className="lg:col-span-2">
             {!result && !loading && (
-              <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-muted/30 rounded-3xl border-2 border-dashed border-slate-200">
+              <div className="h-full flex flex-col items-center justify-center text-center p-6 sm:p-12 bg-muted/30 rounded-3xl border-2 border-dashed border-slate-200">
                 <Calendar size={64} className="text-muted-foreground mb-6 opacity-20" />
                 <h3 className="font-headline text-2xl font-bold mb-2">No Plan Generated</h3>
                 <p className="text-muted-foreground max-w-sm">
@@ -238,7 +238,7 @@ export default function ItineraryPage() {
                         </div>
                       </div>
                       <Card className="flex-1 shadow-sm border-none bg-white rounded-3xl hover:shadow-md transition-all overflow-hidden">
-                        <CardHeader className="py-5 px-6 flex flex-row items-center justify-between space-y-0 bg-slate-50/50">
+                        <CardHeader className="py-5 px-6 flex flex-col items-start justify-between gap-3 space-y-0 bg-slate-50/50 sm:flex-row sm:items-center">
                           <CardTitle className="font-headline text-xl font-bold text-slate-900">{item.siteName}</CardTitle>
                           <Badge variant="secondary" className="bg-primary/10 text-primary font-bold px-3">
                             {item.estimatedVisitDurationMinutes} min visit

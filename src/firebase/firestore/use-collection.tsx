@@ -85,6 +85,14 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (error: FirestoreError) => {
+        setData(null)
+        setIsLoading(false)
+
+        if (error.code !== 'permission-denied') {
+          setError(error)
+          return
+        }
+
         // This logic extracts the path from either a ref or a query
         const path: string =
           memoizedTargetRefOrQuery.type === 'collection'
@@ -97,8 +105,6 @@ export function useCollection<T = any>(
         })
 
         setError(contextualError)
-        setData(null)
-        setIsLoading(false)
 
         // trigger global error propagation
         errorEmitter.emit('permission-error', contextualError);

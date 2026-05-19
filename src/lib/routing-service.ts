@@ -19,7 +19,7 @@ export interface RouteData {
 }
 
 /**
- * Fetches an accurate road-based route using OpenRouteService POST API.
+ * Fetches an accurate road-based route using OpenRouteService or OSRM (fallback).
  */
 export async function getRouteMulti(
   points: { lat: number; lng: number }[],
@@ -37,13 +37,49 @@ export async function getRouteMulti(
   
   if (validPoints.length < 2) return null;
 
-  // Silently exit if no API key is provided
+  // If no API key, use OSRM Public Demo Server
   if (!apiKey || apiKey.trim() === '' || apiKey.includes('YOUR_')) {
-    return null;
+    try {
+      const coordsString = validPoints.map(p => `${p.lng},${p.lat}`).join(';');
+      const url = `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=geojson&steps=true`;
+
+      const response = await fetch(url).catch(() => null);
+      if (!response || !response.ok) return null;
+
+      const data = await response.json();
+      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        // Leaflet format: [latitude, longitude]
+        const coords = route.geometry.coordinates.map((c: number[]) => [Number(c[1]), Number(c[0])] as [number, number]);
+
+        const allSteps: RouteStep[] = [];
+        route.legs.forEach((leg: any) => {
+          if (leg.steps) {
+            leg.steps.forEach((step: any) => {
+              allSteps.push({
+                instruction: step.maneuver.instruction || 'Continue',
+                distance: step.distance / 1000, // OSRM gives meters
+                duration: step.duration / 60
+              });
+            });
+          }
+        });
+
+        return {
+          coordinates: coords,
+          distance: route.distance / 1000, // OSRM gives meters
+          duration: route.duration / 60,
+          steps: allSteps
+        };
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
   }
 
   try {
-    // OSR format: [longitude, latitude]
+    // ORS format: [longitude, latitude]
     const coordinates = validPoints.map(p => [Number(p.lng), Number(p.lat)]);
     const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
     
@@ -96,7 +132,6 @@ export async function getRouteMulti(
     
     return null;
   } catch (error) {
-    // Return null silently to prevent triggering global error boundaries or red screens
     return null;
   }
 }
