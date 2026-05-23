@@ -6,6 +6,7 @@
 import { ai, hasGoogleAiApiKey } from '@/ai/genkit';
 import { z } from 'genkit';
 import { DEPRECATED_HERITAGE_SITE_IDS, HERITAGE_SITES } from '@/lib/heritage-data';
+import { isSiteOpenForVisit } from '@/lib/site-availability';
 
 const MessageSchema = z.object({
   role: z.enum(['user', 'model', 'system']),
@@ -157,7 +158,7 @@ function getSiteCorpus(input?: HeritageChatInput): HeritageSiteRecord[] {
     }
   });
 
-  return Array.from(sitesById.values()).filter(site => site.isActive !== false);
+  return Array.from(sitesById.values()).filter(site => site.isActive !== false && site.status !== 'Inactive');
 }
 
 function parseAvailableHours(query: string): number {
@@ -185,7 +186,7 @@ function getStopCountForHours(hours: number): number {
 }
 
 function getBalancedRouteSites(stopCount: number, sites: HeritageSiteRecord[]) {
-  const activeSites = sites.filter(site => site.isActive);
+  const activeSites = sites.filter(site => isSiteOpenForVisit(site));
   const selected = [];
   const usedIds = new Set<string>();
   const usedCities = new Set<string>();
@@ -288,6 +289,14 @@ function isHelpQuery(query: string) {
   );
 }
 
+function isSystemQuestion(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  return (
+    /\b(what is handumanan|about handumanan|how does handumanan work|how to use|how do i use|features|feature|system|app|application|website|platform)\b/.test(normalizedQuery) ||
+    /\b(ai|chatbot|planner|itinerary|route|routing|navigation|live location|location tracking|privacy|data|firebase|google maps|maps|source of truth|verified|verification|closed site|open site)\b/.test(normalizedQuery)
+  );
+}
+
 function isFriendlyChatQuery(query: string) {
   return isSimpleGreetingQuery(query) || isWellbeingQuery(query) || isThanksQuery(query) || isHelpQuery(query);
 }
@@ -300,6 +309,7 @@ const CITY_ALIASES: Record<string, string> = {
   'talisay city': 'Talisay City',
   'lapu lapu': 'Lapu-Lapu City',
   'lapu lapu city': 'Lapu-Lapu City',
+  'lapu city': 'Lapu-Lapu City',
   'lapulapu': 'Lapu-Lapu City',
 };
 
@@ -345,6 +355,13 @@ function getCityFromQuery(query: string) {
   return Object.entries(CITY_ALIASES).find(([alias]) => normalizedQuery.includes(alias))?.[1];
 }
 
+function getCityFromEndpoint(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  return Object.entries(CITY_ALIASES)
+    .sort((a, b) => b[0].length - a[0].length)
+    .find(([alias]) => normalizedQuery === alias || normalizedQuery.includes(alias))?.[1];
+}
+
 function getCategoryFromQuery(query: string) {
   const normalizedQuery = normalizeSearchText(query);
   return Object.entries(CATEGORY_ALIASES).find(([alias]) => normalizedQuery.includes(alias))?.[1];
@@ -365,7 +382,7 @@ function getDirectoryMatches(query: string, limit = 8, sites: HeritageSiteRecord
   const terms = getSearchTerms(query);
   const normalizedQuery = normalizeSearchText(query);
 
-  let matches = sites.filter(site => site.isActive);
+  let matches = sites.filter(site => isSiteOpenForVisit(site));
   if (city) matches = matches.filter(site => site.city === city);
   if (category) matches = matches.filter(site => site.category === category);
 
@@ -395,6 +412,48 @@ function formatSiteList(sites: HeritageSiteRecord[], totalCount?: number) {
   return `I found ${count} matching site${count === 1 ? '' : 's'}: ${names}.${suffix}`;
 }
 
+function isOpenSitesQuery(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  return (
+    /\b(open|available|visit today|right now|currently open|open today)\b/.test(normalizedQuery) &&
+    /\b(heritage|site|sites|place|places|directory|destinations)\b/.test(normalizedQuery)
+  );
+}
+
+function getOpenSitesResponse(query: string, sites: HeritageSiteRecord[], limit = 8): HeritageChatOutput {
+  const city = getCityFromQuery(query);
+  const category = getCategoryFromQuery(query);
+  const scopedSites = sites
+    .filter(site => !city || site.city === city)
+    .filter(site => !category || site.category === category);
+  const openSites = scopedSites
+    .filter(site => isSiteOpenForVisit(site))
+    .sort((a, b) => {
+      if (a.city !== b.city) return a.city.localeCompare(b.city);
+      if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
+      return b.rating - a.rating;
+    });
+  const closedCount = Math.max(0, scopedSites.length - openSites.length);
+  const shownSites = openSites.slice(0, limit);
+  const scopeText = [category, city].filter(Boolean).join(' in ');
+  const names = shownSites.map(site => `${site.name} (${site.city})`).join(', ');
+  const moreText = openSites.length > shownSites.length
+    ? ` Showing ${shownSites.length} examples; refine by city or category to narrow the list.`
+    : '';
+
+  if (openSites.length === 0) {
+    return {
+      text: `I could not find currently open heritage sites${scopeText ? ` for ${scopeText}` : ''} based on the directory's listed status and visiting hours. Try another city or category.`,
+      suggestedSiteIds: [],
+    };
+  }
+
+  return {
+    text: `Based on the directory's listed status and visiting hours, ${openSites.length} heritage site${openSites.length === 1 ? ' is' : 's are'} currently open or available${scopeText ? ` for ${scopeText}` : ''}, while ${closedCount} ${closedCount === 1 ? 'site is' : 'sites are'} closed, outside visiting hours, or unavailable. Open sites include: ${names}.${moreText}`,
+    suggestedSiteIds: shownSites.map(site => site.id),
+  };
+}
+
 function isTravelTimeQuery(query: string) {
   const normalizedQuery = normalizeSearchText(query);
   const hasRouteEndpoints =
@@ -405,7 +464,7 @@ function isTravelTimeQuery(query: string) {
     /\b(take|takes)\b.+\b(go|get|travel|drive)\b/.test(normalizedQuery) ||
     /\b(go|get|travel|drive)\b.+\bfrom\b/.test(normalizedQuery);
 
-  return hasRouteEndpoints && asksForTravelTime;
+  return (hasRouteEndpoints && asksForTravelTime) || hasRecognizedRouteEndpointPair(query);
 }
 
 function isNearbyLocationQuery(query: string) {
@@ -436,19 +495,43 @@ function getRouteEndpointQueries(query: string) {
     return [cleanRouteEndpoint(betweenMatch[1]), cleanRouteEndpoint(betweenMatch[2])];
   }
 
+  const directToMatch = normalizedQuery.match(/^(.+?)\s+to\s+(.+)$/);
+  if (directToMatch) {
+    return [cleanRouteEndpoint(directToMatch[1]), cleanRouteEndpoint(directToMatch[2])];
+  }
+
   return [];
+}
+
+function hasRecognizedRouteEndpointPair(query: string, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+  const endpoints = getRouteEndpointQueries(query);
+  if (endpoints.length < 2) return false;
+
+  return endpoints.every(endpoint => (
+    Boolean(getCityFromEndpoint(endpoint)) ||
+    Boolean(findBestSiteForRouteEndpoint(endpoint, new Set(), sites))
+  ));
 }
 
 function findBestSiteForRouteEndpoint(query: string, excludedIds = new Set<string>(), sites: HeritageSiteRecord[] = HERITAGE_SITES) {
   if (!query) return null;
 
   const match = sites
-    .filter(site => site.isActive && !excludedIds.has(site.id))
+    .filter(site => isSiteOpenForVisit(site) && !excludedIds.has(site.id))
     .map(site => ({ site, score: scoreSiteMatch(site, query) }))
     .filter(result => result.score >= 20)
     .sort((a, b) => b.score - a.score || b.site.rating - a.site.rating)[0];
 
   return match?.site ?? null;
+}
+
+function findRepresentativeSiteForCity(city: string, excludedIds = new Set<string>(), sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+  return sites
+    .filter(site => isSiteOpenForVisit(site) && site.city === city && !excludedIds.has(site.id))
+    .sort((a, b) => {
+      if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
+      return b.rating - a.rating || a.name.localeCompare(b.name);
+    })[0] ?? null;
 }
 
 function getTravelEndpointSites(query: string, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
@@ -457,7 +540,11 @@ function getTravelEndpointSites(query: string, sites: HeritageSiteRecord[] = HER
   const usedIds = new Set<string>();
 
   for (const endpointQuery of endpointQueries) {
-    const site = findBestSiteForRouteEndpoint(endpointQuery, usedIds, sites);
+    const city = getCityFromEndpoint(endpointQuery);
+    const site = city
+      ? findRepresentativeSiteForCity(city, usedIds, sites)
+      : findBestSiteForRouteEndpoint(endpointQuery, usedIds, sites);
+
     if (site) {
       selectedSites.push(site);
       usedIds.add(site.id);
@@ -557,7 +644,7 @@ function getNearbySites(userLocation: GeoPoint, query: string, limit = 5, sites:
   const category = getCategoryFromQuery(query);
 
   return sites
-    .filter(site => site.isActive)
+    .filter(site => isSiteOpenForVisit(site))
     .filter(site => !city || site.city === city)
     .filter(site => !category || site.category === category)
     .map(site => ({
@@ -601,6 +688,21 @@ const HANDUMANAN_FOCUS_WORDS = [
   'site',
   'sites',
   'directory',
+  'app',
+  'system',
+  'chatbot',
+  'planner',
+  'firebase',
+  'privacy',
+  'location',
+  'navigation',
+  'maps',
+  'active',
+  'verified',
+  'available',
+  'count',
+  'counts',
+  'entries',
   'mactan',
   'magellan',
   'lapu',
@@ -664,7 +766,7 @@ function scoreSiteMatch(site: HeritageSiteRecord, query: string) {
 
 function findMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
   return sites
-    .filter(site => site.isActive)
+    .filter(site => isSiteOpenForVisit(site))
     .map(site => ({ site, score: scoreSiteMatch(site, query) }))
     .filter(result => result.score > 0)
     .sort((a, b) => b.score - a.score || b.site.rating - a.site.rating)
@@ -691,6 +793,7 @@ function isHandumananFocusedQuery(query: string, sites: HeritageSiteRecord[] = H
     findMatchingSites(query, 1, sites).length > 0 ||
     Boolean(getCityFromQuery(query)) ||
     Boolean(getCategoryFromQuery(query)) ||
+    isSystemQuestion(query) ||
     isNearbyLocationQuery(query) ||
     isTripPlanningQuery(normalizedQuery) ||
     hasHandumananFocusKeyword(normalizedQuery) ||
@@ -701,8 +804,121 @@ function isHandumananFocusedQuery(query: string, sites: HeritageSiteRecord[] = H
 
 function getFocusedRedirectResponse(): HeritageChatOutput {
   return {
-    text: "I can help with Handumanan and Metro Cebu heritage topics, like site history, categories, routes, and places in the directory. For other topics, I should stay focused here.",
+    text: "I cannot answer that reliably because it is outside Handumanan's scope. I can help with Metro Cebu heritage sites, site history, categories, visiting hours, routes, nearby places, and how this app works.",
     suggestedSiteIds: [],
+  };
+}
+
+function getSystemQuestionResponse(query: string, sites: HeritageSiteRecord[]): HeritageChatOutput {
+  const normalizedQuery = normalizeSearchText(query);
+  const totalSiteCount = sites.length;
+  const openSiteCount = sites.filter(site => isSiteOpenForVisit(site)).length;
+  const closedSiteCount = Math.max(0, totalSiteCount - openSiteCount);
+
+  if (/\b(why only|why just|only)\b.*\b(\d+\s*)?(site|sites|places|directory|entries)\b/.test(normalizedQuery)) {
+    return {
+      text: `The Handumanan directory currently has ${totalSiteCount} active heritage site record${totalSiteCount === 1 ? '' : 's'}. Based on today's availability check, ${openSiteCount} ${openSiteCount === 1 ? 'site is' : 'sites are'} currently open or available, while ${closedSiteCount} ${closedSiteCount === 1 ? 'site is' : 'sites are'} closed, outside visiting hours, or unavailable. So when I recommend places, I prioritize the ${openSiteCount} available sites to avoid sending users to a closed location.`,
+      suggestedSiteIds: [],
+    };
+  }
+
+  if (/\b(what is handumanan|about handumanan|system|app|application|website|platform)\b/.test(normalizedQuery)) {
+    return {
+      text: `Handumanan is a Metro Cebu heritage guide that helps users discover verified heritage sites, view site details, ask heritage questions, plan itineraries, and open routes on the map. Its current directory has ${totalSiteCount} active heritage site records, with ${openSiteCount} available right now based on listed status and visiting hours.`,
+      suggestedSiteIds: [],
+    };
+  }
+
+  if (/\b(how to use|how do i use|features|feature)\b/.test(normalizedQuery)) {
+    return {
+      text: "You can search or filter heritage sites by city/category, open a site card for details, add sites to an itinerary, auto-generate a trip, and start navigation from your current location. You can also ask me about site history, visiting hours, nearby places, or route suggestions.",
+      suggestedSiteIds: [],
+    };
+  }
+
+  if (/\b(ai|chatbot|answer|answers|hallucination|hallucinate)\b/.test(normalizedQuery)) {
+    return {
+      text: "The chatbot answers from the Handumanan directory and does not intentionally invent places or facts. If a fact is missing, uncertain, closed, or outside the directory, it should say so and suggest verified alternatives instead.",
+      suggestedSiteIds: [],
+    };
+  }
+
+  if (/\b(planner|itinerary|route|routing|navigation|google maps|maps)\b/.test(normalizedQuery)) {
+    return {
+      text: "The itinerary planner uses selected or suggested heritage sites, checks availability, removes duplicate or closed stops, and arranges them into a practical route. The map/routing layer uses available route data for distance, ETA, and navigation.",
+      suggestedSiteIds: [],
+    };
+  }
+
+  if (/\b(live location|location tracking|gps|privacy|data|firebase|retention)\b/.test(normalizedQuery)) {
+    return {
+      text: "Location is requested only when needed for nearby suggestions, route generation, or live navigation. User-created data such as favorites, reviews, and saved itineraries can be stored in Firebase, while live GPS is used for route updates and should not be treated as a permanent tracking record.",
+      suggestedSiteIds: [],
+    };
+  }
+
+  if (/\b(source of truth|verified|verification|validate|validation|closed site|open site)\b/.test(normalizedQuery)) {
+    return {
+      text: "Handumanan treats its verified heritage directory as the source of truth. Site status, visiting hours, coordinates, and descriptions should be updated through the admin-managed directory; closed or inactive sites are filtered out of recommendations and route planning.",
+      suggestedSiteIds: [],
+    };
+  }
+
+  return {
+    text: "Handumanan can help with heritage-site discovery, site details, itinerary planning, map navigation, chatbot questions, and verified directory data. Ask about a site, city, category, route, or app feature.",
+    suggestedSiteIds: [],
+  };
+}
+
+function getSiteFactResponse(query: string, site: HeritageSiteRecord): HeritageChatOutput {
+  const normalizedQuery = normalizeSearchText(query);
+  const availability = isSiteOpenForVisit(site) ? 'currently available based on the directory data' : 'not currently available based on the directory data';
+
+  if (/\b(open|closed|available|hours|time|schedule|when)\b/.test(normalizedQuery)) {
+    return {
+      text: `${site.name} is ${availability}. Listed visiting hours: ${site.visitingHours}. Please verify with the site or local office before visiting if timing is critical.`,
+      suggestedSiteIds: [site.id],
+    };
+  }
+
+  if (/\b(where|located|location|address|map|maps|pin)\b/.test(normalizedQuery)) {
+    return {
+      text: `${site.name} is located in ${site.city}. Address/location details: ${site.location}. You can open its site card to view the exact map pin and directions.`,
+      suggestedSiteIds: [site.id],
+    };
+  }
+
+  if (/\b(category|type|classified|classification)\b/.test(normalizedQuery)) {
+    return {
+      text: `${site.name} is classified under ${site.category}.`,
+      suggestedSiteIds: [site.id],
+    };
+  }
+
+  if (/\b(accessible|accessibility|pwd|wheelchair|disability)\b/.test(normalizedQuery)) {
+    return {
+      text: `${site.name} has this accessibility note in the directory: ${site.accessibilityStatus}. If accessibility is important for the visit, please verify directly before going.`,
+      suggestedSiteIds: [site.id],
+    };
+  }
+
+  if (/\b(rating|rated|must visit|recommended|worth|best)\b/.test(normalizedQuery)) {
+    return {
+      text: `${site.name} has a directory rating of ${site.rating}/5${site.isMustVisit ? ' and is marked as a must-visit site' : ''}. It is listed under ${site.category} in ${site.city}.`,
+      suggestedSiteIds: [site.id],
+    };
+  }
+
+  if (/\b(history|historical|significance|important|why|story|meaning|about|overview)\b/.test(normalizedQuery)) {
+    return {
+      text: `${site.name}: ${site.overview} Historical significance: ${site.significance}`,
+      suggestedSiteIds: [site.id],
+    };
+  }
+
+  return {
+    text: `${site.name} is in ${site.city}, under ${site.category}. ${site.description} Visiting hours: ${site.visitingHours}.`,
+    suggestedSiteIds: [site.id],
   };
 }
 
@@ -759,7 +975,7 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
   const lastMessage = input.history[input.history.length - 1]?.content[0]?.text ?? '';
   const query = lastMessage.toLowerCase();
   const sites = getSiteCorpus(input);
-  const activeSites = sites.filter(site => site.isActive);
+  const activeSites = sites.filter(site => isSiteOpenForVisit(site));
   const mustVisitSites = activeSites
     .filter(site => site.isMustVisit)
     .sort((a, b) => b.rating - a.rating)
@@ -791,9 +1007,13 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
 
   if (isHelpQuery(lastMessage)) {
     return {
-      text: `I am the Handumanan Guide. I can search ${activeSites.length} active directory sites, explain their history, compare places, suggest nearby stops, and build routes when you explicitly ask for a trip plan.`,
+      text: `I am the Handumanan Guide. I can search ${sites.length} active heritage site records, explain their history, compare places, suggest nearby open stops, and build routes when you explicitly ask for a trip plan. For recommendations, I prioritize the ${activeSites.length} sites currently available based on listed status and visiting hours.`,
       suggestedSiteIds: [],
     };
+  }
+
+  if (isSystemQuestion(lastMessage)) {
+    return getSystemQuestionResponse(lastMessage, sites);
   }
 
   if (!isHandumananFocusedQuery(lastMessage, sites)) {
@@ -804,37 +1024,29 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
     return getTravelTimeChatResponse(lastMessage, sites);
   }
 
+  if (isOpenSitesQuery(lastMessage)) {
+    return getOpenSitesResponse(lastMessage, sites);
+  }
+
   if (isNearbyLocationQuery(lastMessage)) {
     return getNearbyChatResponse(input, lastMessage, sites);
+  }
+
+  if (matchingSites.length > 0 && (matchingSites.length === 1 || scoreSiteMatch(matchingSites[0], lastMessage) >= 50)) {
+    return getSiteFactResponse(lastMessage, matchingSites[0]);
   }
 
   if (isDirectoryListQuery(query) && directoryMatches.length > 0) {
     const city = getCityFromQuery(lastMessage);
     const category = getCategoryFromQuery(lastMessage);
     const filteredTotal = sites.filter(site => {
-      return site.isActive && (!city || site.city === city) && (!category || site.category === category);
+      return isSiteOpenForVisit(site) && (!city || site.city === city) && (!category || site.category === category);
     }).length;
     const isGenericDirectoryQuery = /\b(all|directory|locations|places|sites)\b/.test(normalizeSearchText(lastMessage));
 
     return {
       text: formatSiteList(directoryMatches, city || category || isGenericDirectoryQuery ? filteredTotal : directoryMatches.length),
       suggestedSiteIds: directoryMatches.map(site => site.id),
-    };
-  }
-
-  if (matchingSites.length > 0 && (matchingSites.length === 1 || scoreSiteMatch(matchingSites[0], lastMessage) >= 50)) {
-    const site = matchingSites[0];
-
-    if (query.includes('category') || query.includes('type') || query.includes('classified')) {
-      return {
-        text: `${site.name} is listed under ${site.category}.`,
-        suggestedSiteIds: [site.id],
-      };
-    }
-
-    return {
-      text: `${site.name} is in ${site.city}, under ${site.category}. ${site.description} ${site.significance} Visiting hours: ${site.visitingHours}.`,
-      suggestedSiteIds: [site.id],
     };
   }
 
@@ -908,6 +1120,7 @@ function shouldAnswerLocally(input: HeritageChatInput): boolean {
   return (
     findMatchingSites(lastMessage, 1, sites).length > 0 ||
     normalizedMessage.includes('favorite') ||
+    isSystemQuestion(lastMessage) ||
     isRecommendationQuery(normalizeSearchText(lastMessage)) ||
     /\b(top site|top sites|best site|best sites|must visit|must see|recommend.*site|recommend.*sites)\b/.test(normalizedMessage) ||
     normalizedMessage.includes('next') ||
@@ -937,10 +1150,11 @@ const searchSitesTool = ai.defineTool(
 
     let matches = input.query.trim()
       ? findMatchingSites(input.query, limit)
-      : HERITAGE_SITES.filter(site => site.isActive);
+      : HERITAGE_SITES.filter(site => isSiteOpenForVisit(site));
 
     if (normalizedCity) matches = matches.filter(site => site.city === normalizedCity);
     if (normalizedCategory) matches = matches.filter(site => site.category === normalizedCategory);
+    matches = matches.filter(site => isSiteOpenForVisit(site));
 
     return matches.slice(0, limit).map(site => ({
       id: site.id,
@@ -961,7 +1175,7 @@ const searchSitesTool = ai.defineTool(
 
 function buildDirectoryBrief(sites: HeritageSiteRecord[]) {
   return sites
-    .filter(site => site.isActive)
+    .filter(site => isSiteOpenForVisit(site))
     .sort((a, b) => {
       if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
       if (a.city !== b.city) return a.city.localeCompare(b.city);
@@ -973,6 +1187,22 @@ function buildDirectoryBrief(sites: HeritageSiteRecord[]) {
       return `- ${site.id}: ${site.name} (${site.city}; ${site.category}; hours: ${site.visitingHours}${tags})`;
     })
     .join('\n');
+}
+
+function sanitizeChatOutput(output: HeritageChatOutput, sites: HeritageSiteRecord[]): HeritageChatOutput {
+  const openSiteIds = new Set(sites.filter(site => isSiteOpenForVisit(site)).map(site => site.id));
+  const suggestedSiteIds = Array.from(new Set(output.suggestedSiteIds || []))
+    .filter(id => openSiteIds.has(id))
+    .slice(0, 6);
+
+  const text = output.text?.trim()
+    ? output.text.trim()
+    : "I can help with Handumanan's verified Metro Cebu heritage directory. Please ask about a listed site, city, category, or route.";
+
+  return {
+    text,
+    suggestedSiteIds,
+  };
 }
 
 export async function chatWithHeritageBot(input: HeritageChatInput): Promise<HeritageChatOutput> {
@@ -994,7 +1224,13 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
       You are embedded inside the Handumanan app, so behave like a site-specific ChatGPT plus directory search, not a general web chatbot.
       Source of truth: the Handumanan directory, the user favorites/last itinerary supplied in context, and user GPS only when provided.
       Do not claim to browse Google or the open web. Do not invent places, schedules, facts, prices, or routes outside the directory.
+      Never recommend a site that is inactive, closed, unavailable, demolished, or outside its listed visiting hours. Recommend nearby open heritage sites instead.
+      You may answer questions about how the Handumanan system works, including directory search, maps, itinerary planning, live location, Firebase-backed saved data, privacy basics, and chatbot limitations.
+      If the user's question is unrelated to Handumanan, Metro Cebu heritage, travel planning inside the app, or the system itself, politely refuse and redirect to supported topics.
       Use searchSites or the directory brief whenever the user asks about a site, city, category, route theme, historical topic, or comparison.
+      Before naming a site, check that it appears in the active directory snapshot below or in searchSites output. If it is not present, say it is not currently listed.
+      When facts conflict or are missing, say the detail needs verification instead of guessing.
+      Keep answers grounded: mention the city/category/hours when recommending places, and do not add exact fees, schedules, events, or claims that are absent from the directory.
       If a place or topic is outside the directory, say it is not currently listed in Handumanan and offer a relevant directory search instead.
       Only create or describe an itinerary when the user explicitly asks for a route, trip, tour, plan, travel time, or stop sequence. Recommendation questions should return suggestions, not auto-routes.
       If you mention specific sites, include their EXACT IDs in "suggestedSiteIds"; otherwise return an empty array.
@@ -1005,7 +1241,7 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
     });
 
     if (!output) throw new Error('No response from AI');
-    return output;
+    return sanitizeChatOutput(output, sites);
   } catch (error: any) {
     // Gracefully handle quota errors
     if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {

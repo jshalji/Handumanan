@@ -7,6 +7,7 @@
 
 import {ai, hasGoogleAiApiKey} from '@/ai/genkit';
 import {z} from 'genkit';
+import { isSiteOpenForVisit } from '@/lib/site-availability';
 
 const GeneratePersonalizedItineraryInputSchema = z.object({
   selectedSitesJson: z.string().describe('JSON array of heritage sites currently in the user localstorage.').optional(),
@@ -32,23 +33,110 @@ const GeneratePersonalizedItineraryOutputSchema = z.object({
 
 export type GeneratePersonalizedItineraryOutput = z.infer<typeof GeneratePersonalizedItineraryOutputSchema>;
 
-function generateLocalItinerary(input: z.infer<typeof GeneratePersonalizedItineraryInputSchema>): GeneratePersonalizedItineraryOutput {
-  let selectedSites: Array<{ id?: string; siteId?: string; name?: string; siteName?: string; city?: string }> = [];
+type PlannerSite = {
+  id?: string;
+  siteId?: string;
+  name?: string;
+  siteName?: string;
+  city?: string;
+  visitingHours?: string;
+  isActive?: boolean;
+  status?: string;
+};
 
+function parsePlannerSites(input: z.infer<typeof GeneratePersonalizedItineraryInputSchema>): PlannerSite[] {
   try {
-    selectedSites = JSON.parse(input.selectedSitesJson || input.siteDatabase || '[]');
+    const parsed = JSON.parse(input.selectedSitesJson || input.siteDatabase || '[]');
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    selectedSites = [];
+    return [];
   }
+}
 
+function getPlannerSiteId(site: PlannerSite) {
+  return site.siteId || site.id || '';
+}
+
+function getPlannerSiteName(site: PlannerSite) {
+  return site.siteName || site.name || '';
+}
+
+function getPlannerSiteKey(site: PlannerSite) {
+  return (getPlannerSiteId(site) || getPlannerSiteName(site)).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function getAvailableUniquePlannerSites(input: z.infer<typeof GeneratePersonalizedItineraryInputSchema>) {
   const usedSiteKeys = new Set<string>();
-  selectedSites = selectedSites
+
+  return parsePlannerSites(input)
+    .filter(site => isSiteOpenForVisit(site))
     .filter(site => {
-      const key = (site.siteId || site.id || site.siteName || site.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const key = getPlannerSiteKey(site);
       if (!key || usedSiteKeys.has(key)) return false;
       usedSiteKeys.add(key);
       return true;
+    });
+}
+
+function sanitizeGeneratedItinerary(
+  output: GeneratePersonalizedItineraryOutput,
+  input: z.infer<typeof GeneratePersonalizedItineraryInputSchema>
+): GeneratePersonalizedItineraryOutput {
+  const availableSites = getAvailableUniquePlannerSites(input);
+  const allowedById = new Map(availableSites.map(site => [getPlannerSiteId(site), site]));
+  const allowedByName = new Map(availableSites.map(site => [getPlannerSiteName(site).toLowerCase(), site]));
+  const targetStopCount = Math.max(1, Math.min(availableSites.length, Math.ceil(input.availableTimeHours || 4)));
+  const usedKeys = new Set<string>();
+
+  const cleaned = output.itinerary
+    .map(stop => {
+      const sourceSite = allowedById.get(stop.siteId) || allowedByName.get(stop.siteName.toLowerCase());
+      if (!sourceSite) return null;
+
+      const key = getPlannerSiteKey(sourceSite);
+      if (!key || usedKeys.has(key)) return null;
+      usedKeys.add(key);
+
+      return {
+        siteId: getPlannerSiteId(sourceSite),
+        siteName: getPlannerSiteName(sourceSite),
+        estimatedVisitDurationMinutes: Math.min(60, Math.max(30, Math.round(stop.estimatedVisitDurationMinutes || 40))),
+        description: stop.description || `Visit ${getPlannerSiteName(sourceSite)} as part of the open heritage route.`,
+      };
     })
+    .filter(Boolean) as GeneratePersonalizedItineraryOutput['itinerary'];
+
+  for (const site of availableSites) {
+    if (cleaned.length >= targetStopCount) break;
+
+    const key = getPlannerSiteKey(site);
+    if (usedKeys.has(key)) continue;
+
+    cleaned.push({
+      siteId: getPlannerSiteId(site),
+      siteName: getPlannerSiteName(site),
+      estimatedVisitDurationMinutes: 40,
+      description: `Added because this heritage site is currently available and fits the requested tour.`,
+    });
+    usedKeys.add(key);
+  }
+
+  const totalEstimatedDurationMinutes = cleaned.reduce((total, stop) => total + stop.estimatedVisitDurationMinutes, 0);
+
+  return {
+    itinerary: cleaned,
+    summary: cleaned.length > 0
+      ? `Prepared a ${cleaned.length}-stop route using only available Handumanan sites.`
+      : 'No currently open heritage sites were available for this itinerary.',
+    routeSuggestion: cleaned.length > 0
+      ? `Start from ${input.startingLocation || 'your current location'}, then visit ${cleaned.map(stop => stop.siteName).join(' -> ')}.`
+      : 'No route is available because there are no eligible open sites.',
+    totalEstimatedDurationMinutes,
+  };
+}
+
+function generateLocalItinerary(input: z.infer<typeof GeneratePersonalizedItineraryInputSchema>): GeneratePersonalizedItineraryOutput {
+  const selectedSites = getAvailableUniquePlannerSites(input)
     .slice(0, Math.max(1, input.availableTimeHours));
 
   const itinerary = selectedSites
@@ -100,7 +188,9 @@ export async function generatePersonalizedItinerary(
       4. Organize the sites provided into a geographically logical order for a Cebu tour.
       5. Provide realistic visit durations (30-60 mins).
       6. Include routeSuggestion and totalEstimatedDurationMinutes.
-      7. Output MUST be valid JSON matching the provided schema.`,
+      7. Do not include any site marked inactive, closed, unavailable, or outside listed visiting hours.
+      8. Keep the route practical: nearby sites first, avoid zigzagging between cities, and prefer stronger-rated/must-visit sites when the sequence is otherwise equal.
+      9. Output MUST be valid JSON matching the provided schema.`,
       prompt: `Organize these selected heritage sites into a logical ${input.availableTimeHours}-hour tour. 
       Starting Location: ${input.startingLocation || 'Current location'}
       Interests: ${input.interests?.join(', ') || 'General Interest'}
@@ -111,7 +201,7 @@ export async function generatePersonalizedItinerary(
       throw new Error('AI failed to generate a response.');
     }
 
-    return output;
+    return sanitizeGeneratedItinerary(output, input);
   } catch (error: any) {
     if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
        return generateLocalItinerary(input);

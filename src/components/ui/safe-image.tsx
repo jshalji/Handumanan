@@ -18,7 +18,7 @@ export function SafeImage({
   className,
   fallbackClassName = 'object-contain bg-primary/5 p-8',
   fill,
-  fallbackDelayMs = 0,
+  fallbackDelayMs,
   loading = 'lazy',
   decoding = 'async',
   onError,
@@ -28,6 +28,7 @@ export function SafeImage({
   const [currentSrc, setCurrentSrc] = useState(src || fallbackSrc);
   const [isFallback, setIsFallback] = useState(!src);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const resolvedFallbackDelayMs = fallbackDelayMs ?? (src?.startsWith('http') ? 5000 : 0);
 
   useEffect(() => {
     setCurrentSrc(src || fallbackSrc);
@@ -36,15 +37,15 @@ export function SafeImage({
   }, [fallbackSrc, src]);
 
   useEffect(() => {
-    if (!src || currentSrc === fallbackSrc || fallbackDelayMs <= 0 || hasLoaded) return;
+    if (!src || currentSrc === fallbackSrc || resolvedFallbackDelayMs <= 0 || hasLoaded) return;
 
     const timeout = window.setTimeout(() => {
       setCurrentSrc(fallbackSrc);
       setIsFallback(true);
-    }, fallbackDelayMs);
+    }, resolvedFallbackDelayMs);
 
     return () => window.clearTimeout(timeout);
-  }, [currentSrc, fallbackDelayMs, fallbackSrc, hasLoaded, src]);
+  }, [currentSrc, fallbackSrc, hasLoaded, resolvedFallbackDelayMs, src]);
 
   return (
     <img

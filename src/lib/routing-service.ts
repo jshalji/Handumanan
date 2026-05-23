@@ -16,6 +16,113 @@ export interface RouteData {
   distance: number;
   duration: number;
   steps: RouteStep[];
+  provider?: 'google-routes' | 'openrouteservice' | 'osrm';
+  alternativesConsidered?: number;
+}
+
+async function getGoogleRouteMulti(
+  points: { lat: number; lng: number }[],
+  profile: string = 'DRIVE'
+): Promise<RouteData | null> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+  if (!apiKey || apiKey.trim() === '' || points.length < 2) return null;
+
+  const origin = points[0];
+  const destination = points[points.length - 1];
+  const intermediates = points.slice(1, -1);
+  const isWalking = profile === 'WALK';
+  const canAskForAlternatives = !isWalking && intermediates.length === 0;
+
+  try {
+    const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey.trim(),
+        'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs.steps.navigationInstruction,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration',
+      },
+      body: JSON.stringify({
+        origin: { location: { latLng: origin } },
+        destination: { location: { latLng: destination } },
+        intermediates: intermediates.map(point => ({ location: { latLng: point } })),
+        travelMode: isWalking ? 'WALK' : 'DRIVE',
+        routingPreference: isWalking ? undefined : 'TRAFFIC_AWARE',
+        departureTime: isWalking ? undefined : new Date().toISOString(),
+        computeAlternativeRoutes: canAskForAlternatives,
+        polylineQuality: 'HIGH_QUALITY',
+      }),
+    }).catch(() => null);
+
+    if (!response || !response.ok) return null;
+
+    const data = await response.json();
+    const routes = Array.isArray(data?.routes) ? data.routes : [];
+    const route = routes
+      .filter(Boolean)
+      .sort((first: any, second: any) => {
+        const durationDifference = parseGoogleDuration(first.duration) - parseGoogleDuration(second.duration);
+        if (durationDifference !== 0) return durationDifference;
+        return Number(first.distanceMeters || 0) - Number(second.distanceMeters || 0);
+      })[0];
+    if (!route) return null;
+
+    return {
+      coordinates: decodeGooglePolyline(route.polyline?.encodedPolyline || ''),
+      distance: Number(route.distanceMeters || 0) / 1000,
+      duration: parseGoogleDuration(route.duration),
+      steps: (route.legs || []).flatMap((leg: any) => (
+        (leg.steps || []).map((step: any) => ({
+          instruction: step.navigationInstruction?.instructions || 'Continue',
+          distance: Number(step.distanceMeters || 0) / 1000,
+          duration: parseGoogleDuration(step.staticDuration),
+        }))
+      )),
+      provider: 'google-routes',
+      alternativesConsidered: routes.length || 1,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseGoogleDuration(value: string | undefined): number {
+  if (!value) return 0;
+  const seconds = Number(String(value).replace('s', ''));
+  return Number.isFinite(seconds) ? seconds / 60 : 0;
+}
+
+function decodeGooglePolyline(encoded: string): [number, number][] {
+  const points: [number, number][] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let byte: number;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    result = 0;
+    shift = 0;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    points.push([lat / 1e5, lng / 1e5]);
+  }
+
+  return points;
 }
 
 /**
@@ -36,6 +143,9 @@ export async function getRouteMulti(
   );
   
   if (validPoints.length < 2) return null;
+
+  const googleRoute = await getGoogleRouteMulti(validPoints);
+  if (googleRoute) return googleRoute;
 
   // If no API key, use OSRM Public Demo Server
   if (!apiKey || apiKey.trim() === '' || apiKey.includes('YOUR_')) {
@@ -69,7 +179,8 @@ export async function getRouteMulti(
           coordinates: coords,
           distance: route.distance / 1000, // OSRM gives meters
           duration: route.duration / 60,
-          steps: allSteps
+          steps: allSteps,
+          provider: 'osrm'
         };
       }
       return null;
@@ -126,7 +237,8 @@ export async function getRouteMulti(
         coordinates: coords,
         distance,
         duration: duration / 60,
-        steps: allSteps
+        steps: allSteps,
+        provider: 'openrouteservice'
       };
     }
     

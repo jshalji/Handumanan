@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { DEPRECATED_HERITAGE_SITE_IDS, HeritageSite, HERITAGE_SITES } from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation, watchCurrentLocation } from '@/lib/location-utils';
 import { getRouteMulti, RouteStep, getRoute } from '@/lib/routing-service';
+import { getSiteAvailability, isSiteOpenForVisit } from '@/lib/site-availability';
 import { generatePersonalizedItinerary, type GeneratePersonalizedItineraryOutput } from '@/ai/flows/generate-personalized-itinerary';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -165,6 +166,8 @@ function ExploreRouteContent() {
     ));
   }, [dbSites]);
 
+  const availableSites = useMemo(() => allSites.filter(site => isSiteOpenForVisit(site)), [allSites]);
+
   // LOCAL STORAGE SYNC
   useEffect(() => {
     const saved = localStorage.getItem('handumanan_draft_itinerary');
@@ -217,10 +220,14 @@ function ExploreRouteContent() {
   }, [allSites, getSiteCoords]);
 
   const saveToLocal = useCallback((ids: string[]) => {
-    const cleanIds = ids.filter(id => !DEPRECATED_HERITAGE_SITE_IDS.includes(id));
+    const cleanIds = ids.filter(id => {
+      if (DEPRECATED_HERITAGE_SITE_IDS.includes(id)) return false;
+      const site = allSites.find(candidate => candidate.id === id);
+      return site ? isSiteOpenForVisit(site) : false;
+    });
     localStorage.setItem('handumanan_draft_itinerary', JSON.stringify(cleanIds));
     setItineraryIds(cleanIds);
-  }, []);
+  }, [allSites]);
 
   // LOAD SAVED TRIP FROM URL PARAM
   const itineraryIdParam = searchParams.get('itineraryId');
@@ -278,7 +285,6 @@ function ExploreRouteContent() {
   }, [clearSingleSiteFocus]);
 
   useEffect(() => {
-    const siteIdFromUrl = searchParams.get('siteId');
     const tripFromChat = searchParams.get('trip') === 'chat';
 
     if (tripFromChat) {
@@ -296,14 +302,7 @@ function ExploreRouteContent() {
         }
       }
     }
-
-    if (siteIdFromUrl) {
-      const site = allSites.find(s => s.id === siteIdFromUrl);
-      if (site) {
-        focusSingleSite(site);
-      }
-    }
-  }, [searchParams, allSites, itineraryIds, toast, focusSingleSite]);
+  }, [searchParams, itineraryIds, toast]);
 
   const detectLocation = useCallback(async (options: { showError?: boolean } = {}) => {
     setLoading(true);
@@ -324,6 +323,85 @@ function ExploreRouteContent() {
       setLoading(false);
     }
   }, [toast]);
+
+  const getNearbyOpenAlternatives = useCallback((closedSite: any, limit = 3) => {
+    const closedCoords = getSiteCoords(closedSite);
+
+    return availableSites
+      .filter(site => site.id !== closedSite.id)
+      .map(site => {
+        const coords = getSiteCoords(site);
+        return {
+          ...site,
+          distance: calculateDistance(Number(closedCoords.lat), Number(closedCoords.lng), Number(coords.lat), Number(coords.lng)),
+        };
+      })
+      .sort((a, b) => {
+        if (a.city === closedSite.city && b.city !== closedSite.city) return -1;
+        if (a.city !== closedSite.city && b.city === closedSite.city) return 1;
+        return a.distance - b.distance;
+      })
+      .slice(0, limit);
+  }, [availableSites, getSiteCoords]);
+
+  const handledDirectoryActionRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const siteIdFromUrl = searchParams.get('siteId');
+    if (!siteIdFromUrl) return;
+
+    const site = allSites.find(s => s.id === siteIdFromUrl);
+    if (!site) return;
+
+    const action = searchParams.get('action') || 'focus';
+    const actionKey = `${siteIdFromUrl}:${action}`;
+    if (handledDirectoryActionRef.current === actionKey) return;
+    handledDirectoryActionRef.current = actionKey;
+
+    focusSingleSite(site, { openExplorer: true, updateSearch: true });
+
+    const availability = getSiteAvailability(site);
+    if ((action === 'add' || action === 'route') && !availability.isOpen) {
+      const alternatives = getNearbyOpenAlternatives(site, 3);
+      setSelectedCity(site.city || null);
+      setSelectedCategory(null);
+
+      if (alternatives.length > 0) {
+        focusSingleSite(alternatives[0], { openExplorer: true, updateSearch: true });
+        toast({
+          title: "Site Closed",
+          description: `${site.name} is closed. Showing nearby open alternatives like ${alternatives[0].name}.`,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Site Closed",
+          description: `${site.name} is closed. ${availability.reason}`,
+          variant: "destructive"
+        });
+      }
+      return;
+    }
+
+    if (action === 'add') {
+      if (!itineraryIds.includes(site.id)) {
+        saveToLocal([...itineraryIds, site.id]);
+        toast({ title: "Added to Itinerary", description: `${site.name} is now in your trip.` });
+      }
+      setActiveTab('planner');
+      setIsTripMapFocused(true);
+      return;
+    }
+
+    if (action === 'route') {
+      setIsolatedItinerarySiteId(site.id);
+      setIsTripMapFocused(false);
+      setIsPanelExpanded(false);
+      lastLiveRouteRefreshRef.current = null;
+      detectLocation({ showError: true });
+      toast({ title: "Route Initialized", description: `Preparing directions to ${site.name}.` });
+    }
+  }, [allSites, detectLocation, focusSingleSite, getNearbyOpenAlternatives, itineraryIds, saveToLocal, searchParams, toast]);
 
   useEffect(() => {
     if (!isNavigating) {
@@ -396,8 +474,13 @@ function ExploreRouteContent() {
   }, [selectedCity, selectedCategory, userLocation, searchQuery, allSites]);
 
   const itinerarySites = useMemo(() => {
-    return itineraryIds.map(id => allSites.find(s => s.id === id)).filter(Boolean) as any[];
-  }, [itineraryIds, allSites]);
+    return itineraryIds.map(id => availableSites.find(s => s.id === id)).filter(Boolean) as any[];
+  }, [itineraryIds, availableSites]);
+
+  const selectedCitySites = useMemo(() => {
+    if (!selectedCity) return [];
+    return filteredAndSortedSites.filter(site => site.city === selectedCity);
+  }, [filteredAndSortedSites, selectedCity]);
 
   useEffect(() => {
     if (!userLocation || isNavigating || itineraryIds.length < 2) return;
@@ -600,6 +683,24 @@ function ExploreRouteContent() {
   }, [activeStopIndex, getSiteCoords, hasArrived, isNavigating, itinerarySites, toast, userLocation]);
 
   const toggleSite = async (id: string) => {
+    const selectedSite = allSites.find(site => site.id === id);
+    if (selectedSite && !isSiteOpenForVisit(selectedSite)) {
+      const alternatives = getNearbyOpenAlternatives(selectedSite, 3);
+      setSelectedCity(selectedSite.city || null);
+      setSelectedCategory(null);
+      if (alternatives.length > 0) {
+        focusSingleSite(alternatives[0], { updateSearch: true, openExplorer: true });
+      }
+      toast({
+        title: "Site Closed",
+        description: alternatives.length > 0
+          ? `${selectedSite.name} is closed. Try nearby open sites like ${alternatives.map(site => site.name).join(', ')}.`
+          : `${selectedSite.name} is closed. No nearby open alternative was found with the current directory data.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
     const isRemoving = itineraryIds.includes(id);
     const nextIds = isRemoving ? itineraryIds.filter(i => i !== id) : [...itineraryIds, id];
 
@@ -791,25 +892,26 @@ function ExploreRouteContent() {
       const maxStops = requestedHours <= 1 ? 2 : requestedHours <= 2 ? 3 : requestedHours <= 4 ? 4 : requestedHours <= 6 ? 5 : 6;
       const isUsingUserPreference = !!(selectedCity || selectedCategory || searchQuery.trim());
       const candidateSites = effectiveGenerationMode === 'themed'
-        ? allSites.filter(site => site.category === selectedPlannerCategory && (!selectedCity || site.city === selectedCity))
+        ? availableSites.filter(site => site.category === selectedPlannerCategory && (!selectedCity || site.city === selectedCity))
         : effectiveGenerationMode === 'balanced'
-          ? allSites
+          ? availableSites
           : isUsingUserPreference
-          ? filteredAndSortedSites
-          : allSites;
-      const activeCandidateSites = candidateSites.filter(site => site.isActive !== false);
+          ? filteredAndSortedSites.filter(site => isSiteOpenForVisit(site))
+          : availableSites;
+      const openCandidateSites = candidateSites.filter(site => isSiteOpenForVisit(site));
       const starterSites = effectiveGenerationMode === 'balanced'
-        ? selectBalancedSites(activeCandidateSites, maxStops, plannerLocation)
-        : sortSitesByDistanceAndQuality(activeCandidateSites, plannerLocation).slice(0, maxStops);
-      const sitesToPlan = itinerarySites.length > 0 ? itinerarySites : starterSites;
+        ? selectBalancedSites(openCandidateSites, maxStops, plannerLocation)
+        : sortSitesByDistanceAndQuality(openCandidateSites, plannerLocation).slice(0, maxStops);
+      const openItinerarySites = itinerarySites.filter(site => isSiteOpenForVisit(site));
+      const sitesToPlan = openItinerarySites.length > 0 ? openItinerarySites : starterSites;
 
       if (sitesToPlan.length === 0) {
-        toast({ title: "No Sites Found", description: "Try clearing filters or search first.", variant: "destructive" });
+        toast({ title: "No Open Sites Found", description: "Try clearing filters or generating the trip during visiting hours.", variant: "destructive" });
         return;
       }
 
       const output = await generatePersonalizedItinerary({
-        selectedSitesJson: JSON.stringify(sitesToPlan.map(s => ({ id: s.id, name: s.name, city: s.city, coordinates: s.coordinates }))),
+        selectedSitesJson: JSON.stringify(sitesToPlan.map(s => ({ id: s.id, name: s.name, city: s.city, coordinates: s.coordinates, visitingHours: s.visitingHours }))),
         availableTimeHours: requestedHours
       });
 
@@ -1111,6 +1213,7 @@ function ExploreRouteContent() {
                       <button key={city} onClick={() => {
                         clearSingleSiteFocus();
                         setIsTripMapFocused(false);
+                        setSelectedCategory(null);
                         setSelectedCity(selectedCity === city ? null : city);
                       }} className={cn("min-h-10 rounded-2xl border px-2 py-2.5 text-[10px] font-bold leading-tight transition-all", selectedCity === city ? "bg-primary text-white border-primary shadow-lg" : "bg-slate-50 border-slate-100 text-slate-600")}>
                         {city}
@@ -1118,25 +1221,51 @@ function ExploreRouteContent() {
                     ))}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Categories</p>
-                  <div className="grid grid-cols-1 gap-2">
-                    {CATEGORIES.map(cat => (
-                      <button key={cat.value} onClick={() => {
-                        clearSingleSiteFocus();
-                        setIsTripMapFocused(false);
-                        setSelectedCategory(selectedCategory === cat.value ? null : cat.value);
-                      }} className={cn("flex items-center gap-4 px-4 py-3 rounded-2xl transition-all border text-left min-h-[48px]", selectedCategory === cat.value ? "bg-slate-900 text-white border-slate-900 shadow-lg" : "bg-white border-slate-100 text-slate-600")}>
-                        <cat.icon size={16} className="shrink-0" /><span className="text-[10px] font-bold uppercase tracking-wide leading-tight">{cat.label}</span>
-                      </button>
-                    ))}
+
+                {selectedCity ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3 px-1">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Showing City</p>
+                        <p className="text-sm font-black text-slate-900">{selectedCity}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          setSelectedCity(null);
+                          clearSingleSiteFocus();
+                        }}
+                        className="h-9 rounded-xl px-3 text-[9px] font-black uppercase tracking-widest text-primary hover:bg-primary/5"
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                    <div className="rounded-2xl bg-primary/5 px-4 py-3 text-[10px] font-black uppercase tracking-widest text-primary">
+                      {selectedCitySites.length} heritage {selectedCitySites.length === 1 ? 'site' : 'sites'} found
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Nearby Landmarks</p>
+                ) : (
                   <div className="space-y-2">
-                     {filteredAndSortedSites.slice(0, 15).map(site => {
-                       const coords = site.coordinates || { lat: (site as any).latitude, lng: (site as any).longitude };
+                    <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Categories</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {CATEGORIES.map(cat => (
+                        <button key={cat.value} onClick={() => {
+                          clearSingleSiteFocus();
+                          setIsTripMapFocused(false);
+                          setSelectedCategory(selectedCategory === cat.value ? null : cat.value);
+                        }} className={cn("flex items-center gap-4 px-4 py-3 rounded-2xl transition-all border text-left min-h-[48px]", selectedCategory === cat.value ? "bg-slate-900 text-white border-slate-900 shadow-lg" : "bg-white border-slate-100 text-slate-600")}>
+                          <cat.icon size={16} className="shrink-0" /><span className="text-[10px] font-bold uppercase tracking-wide leading-tight">{cat.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">{selectedCity ? `${selectedCity} Sites` : 'Nearby Landmarks'}</p>
+                  <div className="space-y-2">
+                     {(selectedCity ? selectedCitySites : filteredAndSortedSites.slice(0, 15)).map(site => {
                        return (
                          <div key={site.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-[1.25rem] border border-slate-100">
                             <div className="flex-1 truncate mr-3 cursor-pointer" onClick={() => focusSingleSite(site)}>
@@ -1210,6 +1339,8 @@ function ExploreRouteContent() {
                        <Button variant="ghost" onClick={() => {
                          setIsTripMapFocused(false);
                          saveToLocal([]);
+                         clearSingleSiteFocus();
+                         clearRouteData();
                        }} className="text-[9px] font-black uppercase text-red-500">Clear All Stops</Button>
                     </div>
                   </div>

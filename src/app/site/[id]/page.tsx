@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageFallback } from '@/lib/site-images';
+import { getDailyVisitingTime, WEEKLY_VISITING_DAYS } from '@/lib/visiting-hours';
 
 function mergeSiteRecord(baseSite: HeritageSite | undefined, overrideSite: any): HeritageSite | null {
   if (!baseSite && !overrideSite) return null;
@@ -153,6 +154,14 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   const averageRating = reviews && reviews.length > 0 
     ? (reviews.reduce((acc, rev) => acc + (rev.rating || 0), 0) / reviews.length).toFixed(1)
     : site.rating.toFixed(1);
+  const siteLatitude = Number(site.coordinates?.lat);
+  const siteLongitude = Number(site.coordinates?.lng);
+  const hasExactCoordinates = Number.isFinite(siteLatitude) && Number.isFinite(siteLongitude) && siteLatitude !== 0 && siteLongitude !== 0;
+  const discoverRouteHref = `/discover?siteId=${encodeURIComponent(site.id)}&action=route`;
+  const discoverAddHref = `/discover?siteId=${encodeURIComponent(site.id)}&action=add`;
+  const externalMapsHref = hasExactCoordinates
+    ? `https://www.google.com/maps/search/?api=1&query=${siteLatitude},${siteLongitude}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${site.name} ${site.location}`)}`;
 
   const handleToggleFavorite = async () => {
     if (!user || !db) {
@@ -485,8 +494,8 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   <div>
                     <h4 className="font-black text-[10px] text-slate-400 uppercase tracking-widest mb-1.5">Official Address</h4>
                     <p className="text-sm md:text-base font-bold text-slate-700 leading-tight">{site.location}</p>
-                    <Link href={`/discover?siteId=${site.id}`} className="text-[9px] font-black text-primary uppercase mt-2 flex items-center gap-1 hover:underline">
-                      Open in Map <Route size={10} />
+                    <Link href={externalMapsHref} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-primary uppercase mt-2 flex items-center gap-1 hover:underline">
+                      Open in Maps <Route size={10} />
                     </Link>
                   </div>
                 </div>
@@ -494,7 +503,14 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   <div className="p-3 bg-slate-50 rounded-2xl text-primary shadow-sm"><Clock size={24} /></div>
                   <div>
                     <h4 className="font-black text-[10px] text-slate-400 uppercase tracking-widest mb-1.5">Visiting Hours</h4>
-                    <p className="text-sm md:text-base font-bold text-slate-700 leading-tight">{site.visitingHours}</p>
+                    <div className="grid gap-1.5">
+                      {WEEKLY_VISITING_DAYS.map(({ abbr, day }) => (
+                        <div key={day} className="grid grid-cols-[2rem_1fr] items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-primary">{abbr}</span>
+                          <span className="text-xs font-bold leading-snug text-slate-700">{day}: {getDailyVisitingTime(site.visitingHours)}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-start gap-5">
@@ -508,7 +524,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
 
               <div className="flex flex-col gap-4">
                 <Button className="w-full h-14 bg-primary rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-primary/30 active:scale-95 transition-all" asChild>
-                  <Link href={`/discover?siteId=${site.id}`}>
+                  <Link href={discoverRouteHref}>
                     <Route size={20} className="mr-2" /> Initialize Route
                   </Link>
                 </Button>
@@ -518,7 +534,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                    className="w-full h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2 hover:bg-primary/5 active:scale-95 transition-all"
                    asChild
                 >
-                   <Link href="/discover">
+                   <Link href={discoverAddHref}>
                       <Plus size={18} className="mr-2" /> Add to Itinerary
                    </Link>
                 </Button>

@@ -5,10 +5,16 @@
 - Heritage Site Profiles: Display detailed information for each cultural heritage site, including description, category, images, location data, and visiting hours, ensuring mobile and desktop accessibility.
 - Advanced Site Search & Filtering: Provide a comprehensive search interface allowing users to find heritage sites by keywords, name, category, and apply various filters for refined results.
 - Location-Based Discovery: Suggest nearby heritage sites to users based on their current geographic location or a specified area within Metro Cebu, integrated with mapping functionalities.
-- AI Itinerary Planner Tool: A tool that generates personalized multi-site travel itineraries, recommending an optimal route and duration based on user preferences and the characteristics of heritage sites, utilizing simple AI logic.
-- User Comments & Ratings: Enable users to post comments, feedback, and ratings for individual heritage sites, fostering community engagement and providing valuable insights for content improvement. This data will be stored in the MySQL database.
-- Admin Content Management: A secure, web-based administrative dashboard for authenticated users to create, edit, delete, and publish heritage site information, manage categories, and moderate user-submitted content within the MySQL database via PHP backend.
-- Interactive Map Integration: Embed an interactive map (e.g., OpenStreetMap for open-source friendliness) to visually represent all heritage site locations and facilitate easy navigation and discovery for tourists and students.
+- AI Itinerary Planner Tool: Generate personalized multi-site heritage itineraries using user preferences, available time, site metadata, route distance, and a measurable non-AI baseline for comparison.
+- User Comments & Ratings: Enable registered users to post comments, feedback, and ratings for individual heritage sites. This data is stored in Firebase Firestore under the related heritage site records.
+- Admin Content Management: A secure, web-based administrative dashboard for authenticated administrators to create, edit, hide, delete, validate, and publish heritage site information through Firebase Authentication, Firestore, and role-based access rules.
+- Interactive Map Integration: Use Google Maps Platform for map display, geolocation-supported discovery, route calculation, and route optimization. The system may use Google Maps AI capabilities, such as Places API AI-powered summaries or Grounding with Google Maps, only as supporting context and not as the sole source of verified heritage facts.
+
+## Documentation Revisions:
+
+- Figure 4: Data Flow Diagram revisions, including corrected DFD symbols plus Level 0 and Level 1 diagrams, are documented in [system-diagrams.md](./system-diagrams.md).
+- Detailed descriptions for the use case diagrams are also inserted in [system-diagrams.md](./system-diagrams.md), covering visitor discovery, itinerary planning, user accounts, administrator management, and map-based route discovery.
+- Re-defense panel comments, objective metrics, Google Maps migration notes, and AI/data-governance answers are documented in [redefense-panel-response-plan.md](./redefense-panel-response-plan.md).
 
 ## Style Guidelines:
 
