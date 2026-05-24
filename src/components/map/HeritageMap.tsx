@@ -77,6 +77,7 @@ interface HeritageMapProps {
   sites: any[];
   itinerary: any[];
   routeCoords?: [number, number][];
+  routeAlternatives?: Array<{ coordinates: [number, number][] }>;
   totalTime?: number;
   totalDist?: number;
   onAddSite: (id: string) => void;
@@ -104,6 +105,16 @@ const getSiteCoordinates = (site: any) => ({
   lat: site.coordinates?.lat ?? site.latitude,
   lng: site.coordinates?.lng ?? site.longitude,
 });
+
+const formatTravelTime = (minutes: number) => {
+  const roundedMinutes = Math.max(0, Math.round(minutes || 0));
+  const hours = Math.floor(roundedMinutes / 60);
+  const mins = roundedMinutes % 60;
+
+  if (hours <= 0) return `${roundedMinutes} MIN`;
+  if (mins === 0) return `${hours} HR`;
+  return `${hours} HR ${mins} MIN`;
+};
 
 function CategoryMarkerIcon({
   category,
@@ -148,16 +159,22 @@ function CategoryMarkerIcon({
   );
 }
 
-function RoutePolyline({ routeCoords }: { routeCoords?: [number, number][] }) {
+function RoutePolyline({
+  routeCoords,
+  routeAlternatives = [],
+}: {
+  routeCoords?: [number, number][];
+  routeAlternatives?: Array<{ coordinates: [number, number][] }>;
+}) {
   const map = useMap();
   const maps = useMapsLibrary('maps');
-  const polylineRef = useRef<google.maps.Polyline | null>(null);
+  const polylineRefs = useRef<google.maps.Polyline[]>([]);
 
   useEffect(() => {
     if (!map || !maps) return;
 
-    polylineRef.current?.setMap(null);
-    polylineRef.current = null;
+    polylineRefs.current.forEach(polyline => polyline.setMap(null));
+    polylineRefs.current = [];
 
     const path = (routeCoords || [])
       .filter(([lat, lng]) => isValidCoordinate(lat, lng))
@@ -165,21 +182,40 @@ function RoutePolyline({ routeCoords }: { routeCoords?: [number, number][] }) {
 
     if (path.length < 2) return;
 
+    routeAlternatives.forEach((alternative) => {
+      const alternativePath = (alternative.coordinates || [])
+        .filter(([lat, lng]) => isValidCoordinate(lat, lng))
+        .map(([lat, lng]) => ({ lat, lng }));
+
+      if (alternativePath.length < 2) return;
+
+      const alternativePolyline = new maps.Polyline({
+        path: alternativePath,
+        geodesic: true,
+        strokeColor: '#93c5fd',
+        strokeOpacity: 0.75,
+        strokeWeight: 5,
+      });
+      alternativePolyline.setMap(map);
+      polylineRefs.current.push(alternativePolyline);
+    });
+
     const polyline = new maps.Polyline({
       path,
       geodesic: true,
-      strokeColor: '#10b981',
-      strokeOpacity: 0.9,
+      strokeColor: '#1d4ed8',
+      strokeOpacity: 0.95,
       strokeWeight: 7,
     });
 
     polyline.setMap(map);
-    polylineRef.current = polyline;
+    polylineRefs.current.push(polyline);
 
     return () => {
-      polyline.setMap(null);
+      polylineRefs.current.forEach(item => item.setMap(null));
+      polylineRefs.current = [];
     };
-  }, [map, maps, routeCoords]);
+  }, [map, maps, routeAlternatives, routeCoords]);
 
   return null;
 }
@@ -275,6 +311,7 @@ export default function HeritageMap({
   sites,
   itinerary,
   routeCoords,
+  routeAlternatives,
   totalTime,
   totalDist,
   onAddSite,
@@ -329,7 +366,7 @@ export default function HeritageMap({
             recenterKey={recenterKey}
             fitSitesKey={fitSitesKey}
           />
-          <RoutePolyline routeCoords={routeCoords} />
+          <RoutePolyline routeCoords={routeCoords} routeAlternatives={routeAlternatives} />
 
           {userLocation && isValidCoordinate(userLocation.lat, userLocation.lng) && (
             <AdvancedMarker position={userLocation} title="Your Location">
@@ -463,7 +500,7 @@ export default function HeritageMap({
         <div className="pointer-events-none absolute left-1/2 top-20 z-10 -translate-x-1/2 rounded-2xl bg-white/95 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 shadow-xl ring-1 ring-black/5">
           <span className="inline-flex items-center gap-2">
             <Navigation size={12} className="text-primary" />
-            {Math.round(totalTime)} MIN - {totalDist.toFixed(1)} KM
+            EST. {formatTravelTime(totalTime)} - {totalDist.toFixed(1)} KM
           </span>
         </div>
       )}

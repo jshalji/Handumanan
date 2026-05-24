@@ -17,45 +17,87 @@ export interface RouteData {
   duration: number;
   steps: RouteStep[];
   provider?: 'google-routes' | 'openrouteservice' | 'osrm';
+  requestedMode?: TravelMode;
+  resolvedMode?: TravelMode;
+  fallbackReason?: string;
   alternativesConsidered?: number;
+  alternatives?: Array<{
+    coordinates: [number, number][];
+    distance: number;
+    duration: number;
+  }>;
+}
+
+export type TravelMode = 'DRIVE' | 'TWO_WHEELER' | 'TRANSIT' | 'WALK';
+
+type GoogleRouteResult = {
+  route: RouteData | null;
+  error?: string;
+};
+
+function getGoogleTravelMode(profile: string): TravelMode {
+  const normalizedProfile = profile.toUpperCase().replace(/[-_\s]/g, '');
+  if (normalizedProfile.includes('WALK') || normalizedProfile.includes('FOOT')) return 'WALK';
+  if (normalizedProfile.includes('TRANSIT')) return 'TRANSIT';
+  if (normalizedProfile.includes('TWO') || normalizedProfile.includes('MOTORCYCLE') || normalizedProfile.includes('SCOOTER')) return 'TWO_WHEELER';
+  return 'DRIVE';
+}
+
+function getFallbackProfile(profile: string) {
+  const travelMode = getGoogleTravelMode(profile);
+  if (travelMode === 'WALK') return 'foot-walking';
+  if (travelMode === 'TWO_WHEELER') return 'cycling-regular';
+  return 'driving-car';
+}
+
+function estimateDurationFromDistance(distanceKm: number, mode: TravelMode, providerDurationMinutes: number) {
+  if (!Number.isFinite(distanceKm) || distanceKm <= 0) return providerDurationMinutes || 0;
+  if (mode === 'WALK') return (distanceKm / 4.5) * 60;
+  if (mode === 'TWO_WHEELER') return (distanceKm / 24) * 60;
+  if (mode === 'TRANSIT') return providerDurationMinutes || 0;
+  return providerDurationMinutes || (distanceKm / 18) * 60;
 }
 
 async function getGoogleRouteMulti(
   points: { lat: number; lng: number }[],
   profile: string = 'DRIVE'
-): Promise<RouteData | null> {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
-  if (!apiKey || apiKey.trim() === '' || points.length < 2) return null;
+): Promise<GoogleRouteResult> {
+  if (points.length < 2) return { route: null, error: 'Not enough route points.' };
 
   const origin = points[0];
   const destination = points[points.length - 1];
   const intermediates = points.slice(1, -1);
-  const isWalking = profile === 'WALK';
-  const canAskForAlternatives = !isWalking && intermediates.length === 0;
+  const travelMode = getGoogleTravelMode(profile);
+  const isTrafficAwareMode = travelMode === 'DRIVE' || travelMode === 'TWO_WHEELER';
+  const canAskForAlternatives = intermediates.length === 0 && travelMode !== 'TRANSIT';
 
   try {
-    const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+    const response = await fetch('/api/google-routes', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey.trim(),
-        'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs.steps.navigationInstruction,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration',
       },
       body: JSON.stringify({
         origin: { location: { latLng: origin } },
         destination: { location: { latLng: destination } },
         intermediates: intermediates.map(point => ({ location: { latLng: point } })),
-        travelMode: isWalking ? 'WALK' : 'DRIVE',
-        routingPreference: isWalking ? undefined : 'TRAFFIC_AWARE',
-        departureTime: isWalking ? undefined : new Date().toISOString(),
+        travelMode,
+        routingPreference: isTrafficAwareMode ? 'TRAFFIC_AWARE' : undefined,
+        departureTime: travelMode === 'WALK' ? undefined : new Date().toISOString(),
         computeAlternativeRoutes: canAskForAlternatives,
         polylineQuality: 'HIGH_QUALITY',
       }),
     }).catch(() => null);
 
-    if (!response || !response.ok) return null;
+    if (!response) return { route: null, error: 'Network request failed.' };
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const googleMessage = data?.error?.message || data?.error || `Request failed with status ${response.status}.`;
+      return { route: null, error: googleMessage };
+    }
+
     const routes = Array.isArray(data?.routes) ? data.routes : [];
     const route = routes
       .filter(Boolean)
@@ -64,24 +106,37 @@ async function getGoogleRouteMulti(
         if (durationDifference !== 0) return durationDifference;
         return Number(first.distanceMeters || 0) - Number(second.distanceMeters || 0);
       })[0];
-    if (!route) return null;
+    if (!route) return { route: null, error: 'Google returned no usable route.' };
+
+    const alternatives = routes
+      .filter((candidate: any) => candidate && candidate !== route && candidate.polyline?.encodedPolyline)
+      .map((candidate: any) => ({
+        coordinates: decodeGooglePolyline(candidate.polyline.encodedPolyline),
+        distance: Number(candidate.distanceMeters || 0) / 1000,
+        duration: parseGoogleDuration(candidate.duration),
+      }));
 
     return {
-      coordinates: decodeGooglePolyline(route.polyline?.encodedPolyline || ''),
-      distance: Number(route.distanceMeters || 0) / 1000,
-      duration: parseGoogleDuration(route.duration),
-      steps: (route.legs || []).flatMap((leg: any) => (
-        (leg.steps || []).map((step: any) => ({
-          instruction: step.navigationInstruction?.instructions || 'Continue',
-          distance: Number(step.distanceMeters || 0) / 1000,
-          duration: parseGoogleDuration(step.staticDuration),
-        }))
-      )),
-      provider: 'google-routes',
-      alternativesConsidered: routes.length || 1,
+      route: {
+        coordinates: decodeGooglePolyline(route.polyline?.encodedPolyline || ''),
+        distance: Number(route.distanceMeters || 0) / 1000,
+        duration: parseGoogleDuration(route.duration),
+        steps: (route.legs || []).flatMap((leg: any) => (
+          (leg.steps || []).map((step: any) => ({
+            instruction: step.navigationInstruction?.instructions || 'Continue',
+            distance: Number(step.distanceMeters || 0) / 1000,
+            duration: parseGoogleDuration(step.staticDuration),
+          }))
+        )),
+        provider: 'google-routes',
+        requestedMode: travelMode,
+        resolvedMode: travelMode,
+        alternativesConsidered: routes.length || 1,
+        alternatives,
+      },
     };
   } catch {
-    return null;
+    return { route: null, error: 'Google route parsing failed.' };
   }
 }
 
@@ -144,14 +199,28 @@ export async function getRouteMulti(
   
   if (validPoints.length < 2) return null;
 
-  const googleRoute = await getGoogleRouteMulti(validPoints);
-  if (googleRoute) return googleRoute;
+  const googleResult = await getGoogleRouteMulti(validPoints, profile);
+  if (googleResult.route) return googleResult.route;
+
+  const requestedMode = getGoogleTravelMode(profile);
+  if (requestedMode === 'TRANSIT') return null;
+
+  const fallbackProfile = getFallbackProfile(profile);
+  const fallbackResolvedMode: TravelMode = fallbackProfile === 'foot-walking'
+    ? 'WALK'
+    : fallbackProfile === 'cycling-regular'
+      ? 'TWO_WHEELER'
+      : 'DRIVE';
+  const fallbackReason = requestedMode === fallbackResolvedMode
+    ? `Google Routes unavailable${googleResult.error ? `: ${googleResult.error}` : ''}; using fallback routing provider.`
+    : `${requestedMode.replace('_', ' ')} routing unavailable${googleResult.error ? `: ${googleResult.error}` : ''}; using ${fallbackResolvedMode.replace('_', ' ').toLowerCase()} fallback.`;
 
   // If no API key, use OSRM Public Demo Server
   if (!apiKey || apiKey.trim() === '' || apiKey.includes('YOUR_')) {
     try {
       const coordsString = validPoints.map(p => `${p.lng},${p.lat}`).join(';');
-      const url = `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=geojson&steps=true`;
+      const osrmProfile = fallbackProfile === 'foot-walking' ? 'foot' : fallbackProfile === 'cycling-regular' ? 'bike' : 'driving';
+      const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${coordsString}?overview=full&geometries=geojson&steps=true`;
 
       const response = await fetch(url).catch(() => null);
       if (!response || !response.ok) return null;
@@ -175,12 +244,18 @@ export async function getRouteMulti(
           }
         });
 
+        const distanceKm = route.distance / 1000;
+        const durationMinutes = estimateDurationFromDistance(distanceKm, fallbackResolvedMode, route.duration / 60);
+
         return {
           coordinates: coords,
-          distance: route.distance / 1000, // OSRM gives meters
-          duration: route.duration / 60,
+          distance: distanceKm,
+          duration: durationMinutes,
           steps: allSteps,
-          provider: 'osrm'
+          provider: 'osrm',
+          requestedMode,
+          resolvedMode: fallbackResolvedMode,
+          fallbackReason
         };
       }
       return null;
@@ -192,7 +267,7 @@ export async function getRouteMulti(
   try {
     // ORS format: [longitude, latitude]
     const coordinates = validPoints.map(p => [Number(p.lng), Number(p.lat)]);
-    const url = `https://api.openrouteservice.org/v2/directions/${profile}/geojson`;
+    const url = `https://api.openrouteservice.org/v2/directions/${fallbackProfile}/geojson`;
     
     const response = await fetch(url, {
       method: 'POST',
@@ -217,6 +292,7 @@ export async function getRouteMulti(
       // Leaflet format: [latitude, longitude]
       const coords = feature.geometry.coordinates.map((c: number[]) => [Number(c[1]), Number(c[0])] as [number, number]);
       const { distance, duration } = feature.properties.summary;
+      const durationMinutes = estimateDurationFromDistance(distance, fallbackResolvedMode, duration / 60);
       
       const allSteps: RouteStep[] = [];
       if (feature.properties.segments) {
@@ -236,9 +312,12 @@ export async function getRouteMulti(
       return {
         coordinates: coords,
         distance,
-        duration: duration / 60,
+        duration: durationMinutes,
         steps: allSteps,
-        provider: 'openrouteservice'
+        provider: 'openrouteservice',
+        requestedMode,
+        resolvedMode: fallbackResolvedMode,
+        fallbackReason
       };
     }
     

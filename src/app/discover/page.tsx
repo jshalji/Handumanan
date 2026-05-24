@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DEPRECATED_HERITAGE_SITE_IDS, HeritageSite, HERITAGE_SITES } from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation, watchCurrentLocation } from '@/lib/location-utils';
-import { getRouteMulti, RouteStep, getRoute } from '@/lib/routing-service';
+import { getRouteMulti, RouteStep, getRoute, type TravelMode } from '@/lib/routing-service';
 import { getSiteAvailability, isSiteOpenForVisit } from '@/lib/site-availability';
 import { generatePersonalizedItinerary, type GeneratePersonalizedItineraryOutput } from '@/ai/flows/generate-personalized-itinerary';
 import { Button } from '@/components/ui/button';
@@ -41,7 +41,11 @@ import {
   ChevronRight,
   CheckCircle2,
   ArrowRight,
-  History
+  History,
+  CarFront,
+  Bike,
+  Bus,
+  Footprints
 } from 'lucide-react';
 import { useFirestore, useUser, useAuth, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -85,6 +89,37 @@ const CATEGORIES = [
   { label: "Cultural & Religious (Non-Catholic Sites)", value: "Cultural & Religious (Non-Catholic Sites)", icon: Church }
 ];
 
+const TRAVEL_MODES: Array<{ value: TravelMode; label: string; description: string; icon: any }> = [
+  { value: 'DRIVE', label: 'Drive', description: 'Traffic-aware car route', icon: CarFront },
+  { value: 'TWO_WHEELER', label: '2-Wheel', description: 'Motorbike route when supported', icon: Bike },
+  { value: 'TRANSIT', label: 'Transit', description: 'Public transport when available', icon: Bus },
+  { value: 'WALK', label: 'Walk', description: 'Walking route', icon: Footprints },
+];
+
+const getTravelModeLabel = (mode?: TravelMode) => {
+  if (mode === 'TWO_WHEELER') return '2-wheel';
+  if (mode === 'TRANSIT') return 'transit';
+  if (mode === 'WALK') return 'walking';
+  return 'driving';
+};
+
+const formatTravelTime = (minutes: number) => {
+  const roundedMinutes = Math.max(0, Math.round(minutes || 0));
+  const hours = Math.floor(roundedMinutes / 60);
+  const mins = roundedMinutes % 60;
+
+  if (hours <= 0) return `${roundedMinutes} min`;
+  if (mins === 0) return `${hours} hr`;
+  return `${hours} hr ${mins} min`;
+};
+
+const formatRouteStatus = (text: string) => {
+  if (!text) return '';
+  if (text.toLowerCase().includes('fallback')) return 'Using backup route estimate';
+  if (text.toLowerCase().includes('unavailable')) return 'Route mode unavailable';
+  return text;
+};
+
 function ExploreRouteContent() {
   const { user } = useUser();
   const auth = useAuth();
@@ -99,8 +134,11 @@ function ExploreRouteContent() {
   const [loading, setLoading] = useState(false);
   const [itineraryIds, setItineraryIds] = useState<string[]>([]);
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
+  const [routeAlternatives, setRouteAlternatives] = useState<Array<{ coordinates: [number, number][]; distance: number; duration: number }>>([]);
   const [totalDist, setTotalDist] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
+  const [travelMode, setTravelMode] = useState<TravelMode>('DRIVE');
+  const [routeStatusText, setRouteStatusText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [focusedLocation, setFocusedLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -134,6 +172,7 @@ function ExploreRouteContent() {
   const [customTripDuration, setCustomTripDuration] = useState('4');
 
   const [isNavDrawerOpen, setIsNavDrawerOpen] = useState(false);
+  const routeRequestIdRef = useRef(0);
 
   // LOAD DYNAMIC SITES FROM FIRESTORE
   const sitesQuery = useMemoFirebase(() => db ? query(collection(db, 'heritageSites'), orderBy('name')) : null, [db]);
@@ -444,6 +483,16 @@ function ExploreRouteContent() {
 
   const clearRouteData = useCallback(() => {
     setRouteCoords([]);
+    setRouteAlternatives([]);
+    setNavigationSteps([]);
+    setTotalDist(0);
+    setTotalTime(0);
+    setRouteStatusText('');
+  }, []);
+
+  const clearRouteValues = useCallback(() => {
+    setRouteCoords([]);
+    setRouteAlternatives([]);
     setNavigationSteps([]);
     setTotalDist(0);
     setTotalTime(0);
@@ -568,22 +617,38 @@ function ExploreRouteContent() {
 
   useEffect(() => {
     let isRouteRequestCurrent = true;
+    const routeRequestId = ++routeRequestIdRef.current;
+    const requestedTravelMode = travelMode;
 
     const applyRouteData = (data: Awaited<ReturnType<typeof getRouteMulti>> | Awaited<ReturnType<typeof getRoute>>) => {
       if (!isRouteRequestCurrent) return;
+      if (routeRequestId !== routeRequestIdRef.current) return;
+      if (data?.requestedMode && data.requestedMode !== requestedTravelMode) return;
 
       if (data) {
         setRouteCoords(data.coordinates);
+        setRouteAlternatives(data.alternatives || []);
         setNavigationSteps(data.steps);
         setTotalDist(data.distance);
         setTotalTime(data.duration);
+        const providerLabel = data.provider === 'google-routes'
+          ? 'Google traffic-aware'
+          : data.provider === 'openrouteservice'
+            ? 'OpenRouteService fallback'
+            : 'OSRM fallback';
+        setRouteStatusText(data.fallbackReason || `${providerLabel} ${getTravelModeLabel(data.resolvedMode || requestedTravelMode)} route`);
       } else {
-        clearRouteData();
+        clearRouteValues();
+        setRouteStatusText(requestedTravelMode === 'TRANSIT'
+          ? 'Transit route unavailable for these stops. Try Drive, 2-Wheel, or Walk.'
+          : `${getTravelModeLabel(requestedTravelMode)} route unavailable. Try another travel mode.`
+        );
       }
     };
 
     const clearRouteDataIfCurrent = () => {
       if (isRouteRequestCurrent) {
+        routeRequestIdRef.current += 1;
         clearRouteData();
       }
     };
@@ -605,7 +670,7 @@ function ExploreRouteContent() {
           }
 
           const stopCoords = getSiteCoords(isolatedStop);
-          const data = await getRoute(userLocation, stopCoords, orsKey);
+          const data = await getRoute(userLocation, stopCoords, orsKey, travelMode);
           applyRouteData(data);
           return;
         }
@@ -628,7 +693,7 @@ function ExploreRouteContent() {
           lastLiveRouteRefreshRef.current = { time: now, lat: userLocation.lat, lng: userLocation.lng };
           const stop = itinerarySites[activeStopIndex];
           const stopCoords = stop.coordinates || { lat: stop.latitude, lng: stop.longitude };
-          const data = await getRoute(userLocation, stopCoords, orsKey);
+          const data = await getRoute(userLocation, stopCoords, orsKey, travelMode);
           applyRouteData(data);
           return;
         }
@@ -642,7 +707,7 @@ function ExploreRouteContent() {
           return;
         }
         
-        const data = await getRouteMulti(pointsToRoute, orsKey);
+        const data = await getRouteMulti(pointsToRoute, orsKey, travelMode);
         if (data && isRouteRequestCurrent) {
           applyRouteData(data);
         } else if (!data) {
@@ -662,7 +727,7 @@ function ExploreRouteContent() {
     return () => {
       isRouteRequestCurrent = false;
     };
-  }, [activeStopIndex, allSites, clearRouteData, getSiteCoords, isolatedItinerarySiteId, itineraryIds, orsKey, itinerarySites, isNavigating, userLocation]);
+  }, [activeStopIndex, allSites, clearRouteData, clearRouteValues, getSiteCoords, isolatedItinerarySiteId, itineraryIds, orsKey, itinerarySites, isNavigating, travelMode, userLocation]);
 
   useEffect(() => {
     if (!isNavigating || !userLocation || hasArrived) return;
@@ -917,7 +982,7 @@ function ExploreRouteContent() {
 
       const cleanedItinerary = dedupeGeneratedItinerary(output.itinerary, sitesToPlan, maxStops);
       const routePoints = getRoutePointsForItinerary(cleanedItinerary, sitesToPlan, plannerLocation);
-      const generatedRoute = await getRouteMulti(routePoints, orsKey);
+      const generatedRoute = await getRouteMulti(routePoints, orsKey, travelMode);
       const travelMinutes = generatedRoute?.duration ?? 0;
       const visitMinutes = cleanedItinerary.reduce((total, stop) => total + stop.estimatedVisitDurationMinutes, 0);
       const routeSummaryNote = generatedRoute
@@ -935,8 +1000,15 @@ function ExploreRouteContent() {
       setAiItineraryData(cleanedOutput);
       if (generatedRoute) {
         setRouteCoords(generatedRoute.coordinates);
+        setRouteAlternatives(generatedRoute.alternatives || []);
         setTotalDist(generatedRoute.distance);
         setTotalTime(generatedRoute.duration);
+        const providerLabel = generatedRoute.provider === 'google-routes'
+          ? 'Google traffic-aware'
+          : generatedRoute.provider === 'openrouteservice'
+            ? 'OpenRouteService fallback'
+            : 'OSRM fallback';
+        setRouteStatusText(generatedRoute.fallbackReason || `${providerLabel} ${getTravelModeLabel(generatedRoute.resolvedMode || travelMode)} route`);
       } else {
         clearRouteData();
       }
@@ -989,6 +1061,7 @@ function ExploreRouteContent() {
           sites={mapSites}
           itinerary={itinerarySites}
           routeCoords={selectedMapSiteId && !isolatedItinerarySiteId && !isTripMapFocused ? [] : routeCoords}
+          routeAlternatives={selectedMapSiteId && !isolatedItinerarySiteId && !isTripMapFocused ? [] : routeAlternatives}
           totalTime={totalTime}
           totalDist={totalDist}
           onAddSite={toggleSite}
@@ -1166,11 +1239,16 @@ function ExploreRouteContent() {
                }}><X size={18} /></Button>
             </div>
             <div className={cn(
-              "mb-4 rounded-2xl px-4 py-3 text-[9px] font-black uppercase tracking-widest",
+              "mb-3 rounded-2xl px-4 py-3 text-[9px] font-black uppercase tracking-widest",
               isLiveTracking ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
             )}>
               {isLiveTracking ? "Live tracking active" : "Waiting for live GPS"}
             </div>
+            {routeStatusText && (
+              <div className="mb-4 rounded-2xl bg-blue-50 px-4 py-3 text-[9px] font-black uppercase tracking-widest text-blue-700">
+                {formatRouteStatus(routeStatusText)}
+              </div>
+            )}
             {hasArrived ? (
               <div className="flex flex-col gap-3">
                  <div className="bg-green-50 p-4 rounded-2xl border border-green-100 flex items-center gap-3"><CheckCircle2 className="text-green-500" /><p className="text-xs font-black text-green-700 uppercase">You have arrived!</p></div>
@@ -1180,8 +1258,8 @@ function ExploreRouteContent() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                 <div className="bg-slate-50 p-4 rounded-2xl"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Remaining</p><p className="text-lg font-black text-slate-900">{totalDist.toFixed(1)} KM</p></div>
-                 <div className="bg-slate-50 p-4 rounded-2xl"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">ETE</p><p className="text-lg font-black text-slate-900">{Math.round(totalTime)} MIN</p></div>
+                 <div className="bg-slate-50 p-4 rounded-2xl"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimated Distance</p><p className="text-lg font-black text-slate-900">{totalDist.toFixed(1)} KM</p></div>
+                 <div className="bg-slate-50 p-4 rounded-2xl"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimated Time</p><p className="text-lg font-black text-slate-900">{formatTravelTime(totalTime)}</p></div>
               </div>
             )}
           </Card>
@@ -1290,6 +1368,45 @@ function ExploreRouteContent() {
                   {isGeneratingPlanner ? <Loader2 className="animate-spin mr-2" size={18} /> : <Zap size={18} className="mr-2" />} 
                   Auto-Generate Trip
                 </Button>
+                <div className="space-y-2">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Travel Mode</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {TRAVEL_MODES.map(mode => {
+                      const Icon = mode.icon;
+                      const isSelected = travelMode === mode.value;
+                      return (
+                        <button
+                          key={mode.value}
+                          type="button"
+                          onClick={() => {
+                            routeRequestIdRef.current += 1;
+                            setTravelMode(mode.value);
+                            lastLiveRouteRefreshRef.current = null;
+                            clearRouteValues();
+                            setRouteStatusText(`Calculating ${getTravelModeLabel(mode.value)} route...`);
+                          }}
+                          className={cn(
+                            "flex min-h-14 items-center gap-3 rounded-2xl border px-3 py-2 text-left transition-all",
+                            isSelected
+                              ? "border-primary bg-primary text-white shadow-lg shadow-primary/20"
+                              : "border-slate-100 bg-white text-slate-600 hover:bg-slate-50"
+                          )}
+                        >
+                          <Icon size={17} className={cn("shrink-0", isSelected ? "text-white" : "text-primary")} />
+                          <span className="min-w-0">
+                            <span className="block text-[10px] font-black uppercase tracking-wide">{mode.label}</span>
+                            <span className={cn("block truncate text-[8px] font-bold", isSelected ? "text-white/75" : "text-slate-400")}>{mode.description}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {routeStatusText && (
+                    <div className="rounded-2xl bg-blue-50 px-4 py-3 text-[9px] font-black uppercase tracking-widest text-blue-700">
+                      {formatRouteStatus(routeStatusText)}
+                    </div>
+                  )}
+                </div>
                 {itineraryIds.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 text-center opacity-30">
                     <History size={40} className="mb-2" />
@@ -1507,12 +1624,12 @@ function ExploreRouteContent() {
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="rounded-2xl bg-primary/5 p-3 text-center">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Total</p>
-                    <p className="mt-1 text-sm font-black text-slate-900">{Math.round(aiItineraryData.totalEstimatedDurationMinutes)} min</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Estimated Total</p>
+                    <p className="mt-1 text-sm font-black text-slate-900">{formatTravelTime(aiItineraryData.totalEstimatedDurationMinutes)}</p>
                   </div>
                   <div className="rounded-2xl bg-primary/5 p-3 text-center">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Travel</p>
-                    <p className="mt-1 text-sm font-black text-slate-900">{Math.round(totalTime)} min</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Est. Travel</p>
+                    <p className="mt-1 text-sm font-black text-slate-900">{formatTravelTime(totalTime)}</p>
                   </div>
                   <div className="rounded-2xl bg-primary/5 p-3 text-center">
                     <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Distance</p>
