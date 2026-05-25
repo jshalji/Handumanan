@@ -291,9 +291,17 @@ function isHelpQuery(query: string) {
 
 function isSystemQuestion(query: string) {
   const normalizedQuery = normalizeSearchText(query);
+  const mentionsHandumanan = /\b(handumanan|this app|this system|this website|this platform|this chatbot|your chatbot|your ai|heritage guide)\b/.test(normalizedQuery);
+  const asksAppCapability = /\b(what can you do|what can i ask|how to use|how do i use|features|feature|about handumanan|what is handumanan|how does handumanan work)\b/.test(normalizedQuery);
+  const asksHandumananFeature =
+    /\b(what can|how does|how do|why does|explain)\b.*\b(chatbot|planner|itinerary|route|routing|navigation|live location|location tracking|firebase|google maps|maps|source of truth|verified|verification|closed site|open site)\b/.test(normalizedQuery) ||
+    /\b(chatbot|planner|itinerary|route|routing|navigation|live location|location tracking)\b.*\b(handumanan|this app|this system|work|works|do|feature|features)\b/.test(normalizedQuery);
+
   return (
-    /\b(what is handumanan|about handumanan|how does handumanan work|how to use|how do i use|features|feature|system|app|application|website|platform)\b/.test(normalizedQuery) ||
-    /\b(ai|chatbot|planner|itinerary|route|routing|navigation|live location|location tracking|privacy|data|firebase|google maps|maps|source of truth|verified|verification|closed site|open site)\b/.test(normalizedQuery)
+    asksAppCapability ||
+    asksHandumananFeature ||
+    (mentionsHandumanan && /\b(system|app|application|website|platform|feature|features|how|what|about)\b/.test(normalizedQuery)) ||
+    (mentionsHandumanan && /\b(ai|chatbot|planner|itinerary|route|routing|navigation|live location|location tracking|privacy|data|firebase|google maps|maps|source of truth|verified|verification|closed site|open site)\b/.test(normalizedQuery))
   );
 }
 
@@ -715,13 +723,15 @@ const HANDUMANAN_FOCUS_WORDS = [
 
 const METRO_CEBU_SCOPE_REGEX = /\b(cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapulapu|lapu-lapu|mactan|parian|colon)\b/;
 
-const HANDUMANAN_DOMAIN_REGEX = /\b(handumanan|heritage|museum|museums|church|churches|cathedral|basilica|shrine|plaza|plazas|landmark|landmarks|monument|monuments|ancestral|historic|historical|route|itinerary|tour|trip|site|sites|directory|visiting hours|open sites|nearby sites|must visit|map|maps|navigation)\b/;
+const HANDUMANAN_DOMAIN_REGEX = /\b(handumanan|heritage|museum|museums|church|churches|cathedral|basilica|shrine|plaza|plazas|landmark|landmarks|monument|monuments|ancestral|historic|historical|route|itinerary|tour|trip|site|sites|directory|visiting hours|open sites|nearby sites|must visit)\b/;
 
 const OUTSIDE_SCOPE_PLACE_REGEX = /\b(china|japan|korea|south korea|north korea|taiwan|hong kong|singapore|thailand|vietnam|indonesia|malaysia|usa|united states|america|canada|australia|europe|manila|luzon|davao|iloilo|bacolod|bohol|palawan|boracay|baguio|vigan|intramuros)\b/;
 
 const SELF_LOCATION_SCOPE_REGEX = /\b(near me|nearby|nearest|closest|close to me|around me|my location|current location)\b/;
 
-const GENERAL_OFF_TOPIC_REGEX = /\b(president|vice president|prime minister|senator|congressman|election|politics|political|mayor|governor|weather|temperature|sports|basketball|nba|movie|movies|actor|actress|celebrity|song|lyrics|recipe|cook|math|homework|essay|translate|currency|stock|crypto)\b/;
+const GENERAL_OFF_TOPIC_REGEX = /\b(president|vice president|prime minister|senator|congressman|election|politics|political|mayor|governor|weather|temperature|sports|basketball|football|volleyball|nba|movie|movies|anime|manga|cartoon|actor|actress|celebrity|celebrities|kpop|song|songs|music|lyrics|recipe|cook|math|homework|essay|translate|currency|stock|crypto|python|javascript|java|php|html|css|code|coding|program|programming|login|register|authentication|database|sql|science|planet|planets|space|religion|bible)\b/;
+
+const GENERAL_TASK_REQUEST_REGEX = /\b(generate|create|build|make|write|code|develop|implement|debug|fix)\b/;
 
 const NON_LOCATION_SCOPE_WORDS = new Set([
   'church',
@@ -849,10 +859,11 @@ function hasHandumananFocusKeyword(normalizedQuery: string) {
 
 function isClearlyUnsupportedGeneralQuestion(query: string, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
   const normalizedQuery = normalizeSearchText(query);
-  if (!GENERAL_OFF_TOPIC_REGEX.test(normalizedQuery)) return false;
   if (SELF_LOCATION_SCOPE_REGEX.test(normalizedQuery)) return false;
   if (getCityFromQuery(query) || getCategoryFromQuery(query)) return false;
   if (HANDUMANAN_DOMAIN_REGEX.test(normalizedQuery) || METRO_CEBU_SCOPE_REGEX.test(normalizedQuery)) return false;
+  if (GENERAL_TASK_REQUEST_REGEX.test(normalizedQuery) && !HANDUMANAN_DOMAIN_REGEX.test(normalizedQuery)) return true;
+  if (!GENERAL_OFF_TOPIC_REGEX.test(normalizedQuery)) return false;
 
   return getStrongMatchingSites(query, 1, sites).length === 0;
 }
@@ -877,7 +888,7 @@ function isHandumananFocusedQuery(query: string, sites: HeritageSiteRecord[] = H
 
 function getFocusedRedirectResponse(): HeritageChatOutput {
   return {
-    text: "I cannot answer that reliably because it is outside Handumanan's scope. I can help with Metro Cebu heritage sites, site history, categories, visiting hours, routes, nearby places, and how this app works.",
+    text: "Sorry, I can only answer questions related to Metro Cebu heritage sites, tourism guidance, routes, itineraries, and the Handumanan system.",
     suggestedSiteIds: [],
   };
 }
@@ -1285,8 +1296,12 @@ function sanitizeChatOutput(output: HeritageChatOutput, sites: HeritageSiteRecor
 export async function chatWithHeritageBot(input: HeritageChatInput): Promise<HeritageChatOutput> {
   const lastMessage = input.history[input.history.length - 1].content[0].text;
   const sites = getSiteCorpus(input);
+  const normalizedLastMessage = normalizeSearchText(lastMessage);
 
-  if (asksOutsideMetroCebu(normalizeSearchText(lastMessage))) {
+  if (
+    !isFriendlyChatQuery(lastMessage) &&
+    (asksOutsideMetroCebu(normalizedLastMessage) || !isHandumananFocusedQuery(lastMessage, sites))
+  ) {
     return getFocusedRedirectResponse();
   }
 

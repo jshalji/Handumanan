@@ -109,8 +109,9 @@ function normalizeChatText(value: string) {
 const CHAT_METRO_CEBU_SCOPE_REGEX = /\b(cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapulapu|lapu-lapu|mactan|parian|colon)\b/;
 const CHAT_OUTSIDE_SCOPE_PLACE_REGEX = /\b(china|japan|korea|south korea|north korea|taiwan|hong kong|singapore|thailand|vietnam|indonesia|malaysia|usa|united states|america|canada|australia|europe|manila|luzon|davao|iloilo|bacolod|bohol|palawan|boracay|baguio|vigan|intramuros)\b/;
 const CHAT_SELF_LOCATION_SCOPE_REGEX = /\b(near me|nearby|nearest|closest|close to me|around me|my location|current location)\b/;
-const CHAT_GENERAL_OFF_TOPIC_REGEX = /\b(president|vice president|prime minister|senator|congressman|election|politics|political|mayor|governor|weather|temperature|sports|basketball|nba|movie|movies|actor|actress|celebrity|song|lyrics|recipe|cook|math|homework|essay|translate|currency|stock|crypto)\b/;
-const CHAT_HANDUMANAN_CONTEXT_REGEX = /\b(handumanan|heritage|cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapu-lapu|mactan|magellan|colon|parian|museum|museums|church|churches|cathedral|basilica|shrine|plaza|plazas|landmark|landmarks|monument|monuments|ancestral|historic|historical|route|itinerary|tour|trip|site|sites|directory|visiting hours|open sites|nearby sites|must visit|map|maps|navigation)\b/;
+const CHAT_GENERAL_OFF_TOPIC_REGEX = /\b(president|vice president|prime minister|senator|congressman|election|politics|political|mayor|governor|weather|temperature|sports|basketball|football|volleyball|nba|movie|movies|anime|manga|cartoon|actor|actress|celebrity|celebrities|kpop|song|songs|music|lyrics|recipe|cook|math|homework|essay|translate|currency|stock|crypto|python|javascript|java|php|html|css|code|coding|program|programming|login|register|authentication|database|sql|science|planet|planets|space|religion|bible)\b/;
+const CHAT_GENERAL_TASK_REQUEST_REGEX = /\b(generate|create|build|make|write|code|develop|implement|debug|fix)\b/;
+const CHAT_HANDUMANAN_CONTEXT_REGEX = /\b(handumanan|heritage|cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapu-lapu|mactan|magellan|colon|parian|museum|museums|church|churches|cathedral|basilica|shrine|plaza|plazas|landmark|landmarks|monument|monuments|ancestral|historic|historical|route|itinerary|tour|trip|site|sites|directory|visiting hours|open sites|nearby sites|must visit)\b/;
 const CHAT_NON_LOCATION_SCOPE_WORDS = new Set([
   'church',
   'churches',
@@ -140,6 +141,10 @@ const CHAT_NON_LOCATION_SCOPE_WORDS = new Set([
 function isOutsideHandumananScope(text: string) {
   const query = normalizeChatText(text);
   const hasHandumananContext = CHAT_HANDUMANAN_CONTEXT_REGEX.test(query);
+  if (CHAT_GENERAL_TASK_REQUEST_REGEX.test(query) && !hasHandumananContext) {
+    return true;
+  }
+
   if (CHAT_GENERAL_OFF_TOPIC_REGEX.test(query) && !CHAT_SELF_LOCATION_SCOPE_REGEX.test(query) && !hasHandumananContext) {
     return true;
   }
@@ -205,7 +210,7 @@ function getClientFallbackResponse(text: string, sites: any[]): { text: string; 
 
   if (isOutsideHandumananScope(text)) {
     return {
-      text: "I cannot answer that reliably because it is outside Handumanan's scope. I can help with Metro Cebu heritage sites, site history, categories, visiting hours, routes, nearby places, and how this app works.",
+      text: "Sorry, I can only answer questions related to Metro Cebu heritage sites, tourism guidance, routes, itineraries, and the Handumanan system.",
       suggestedSiteIds: [],
     };
   }
@@ -238,7 +243,7 @@ function getClientFallbackResponse(text: string, sites: any[]): { text: string; 
 
   if (!hasSupportedFallbackIntent) {
     return {
-      text: "I cannot answer that reliably because it is outside Handumanan's scope. I can help with Metro Cebu heritage sites, site history, categories, visiting hours, routes, nearby places, and how this app works.",
+      text: "Sorry, I can only answer questions related to Metro Cebu heritage sites, tourism guidance, routes, itineraries, and the Handumanan system.",
       suggestedSiteIds: [],
     };
   }
