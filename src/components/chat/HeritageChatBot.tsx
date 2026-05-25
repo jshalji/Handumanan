@@ -106,6 +106,55 @@ function normalizeChatText(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+const CHAT_METRO_CEBU_SCOPE_REGEX = /\b(cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapulapu|lapu-lapu|mactan|parian|colon)\b/;
+const CHAT_OUTSIDE_SCOPE_PLACE_REGEX = /\b(china|japan|korea|south korea|north korea|taiwan|hong kong|singapore|thailand|vietnam|indonesia|malaysia|usa|united states|america|canada|australia|europe|manila|luzon|davao|iloilo|bacolod|bohol|palawan|boracay|baguio|vigan|intramuros)\b/;
+const CHAT_NON_LOCATION_SCOPE_WORDS = new Set([
+  'church',
+  'churches',
+  'museum',
+  'museums',
+  'ancestral',
+  'house',
+  'houses',
+  'landmark',
+  'landmarks',
+  'monument',
+  'monuments',
+  'plaza',
+  'plazas',
+  'park',
+  'parks',
+  'government',
+  'building',
+  'buildings',
+  'temple',
+  'temples',
+  'religious',
+  'cultural',
+  'historical',
+]);
+
+function isOutsideHandumananScope(text: string) {
+  const query = normalizeChatText(text);
+  const isPlaceSeekingQuery = /\b(tourist|destination|destinations|attraction|attractions|museum|museums|church|churches|site|sites|place|places|landmark|landmarks|heritage)\b/.test(query);
+  if (!isPlaceSeekingQuery) return false;
+
+  if (CHAT_OUTSIDE_SCOPE_PLACE_REGEX.test(query) && !CHAT_METRO_CEBU_SCOPE_REGEX.test(query)) {
+    return true;
+  }
+
+  const scopeMatches = Array.from(query.matchAll(/\b(?:in|at|near|around|outside)\s+([a-z][a-z\s-]{1,40})(?=$|\?|\.|,|\b(?:for|with|please|that|today|now)\b)/g));
+  if (scopeMatches.length === 0) return false;
+
+  return scopeMatches.some(match => {
+    const scope = match[1].trim();
+    const scopeWords = scope.split(/\s+/).filter(Boolean);
+    const isCategoryScope = scopeWords.length > 0 && scopeWords.every(word => CHAT_NON_LOCATION_SCOPE_WORDS.has(word));
+    if (isCategoryScope) return false;
+    return !CHAT_METRO_CEBU_SCOPE_REGEX.test(scope);
+  });
+}
+
 function getClientFallbackResponse(text: string, sites: any[]): { text: string; suggestedSiteIds: string[] } {
   const query = normalizeChatText(text);
   const activeSites = sites.filter(site => site?.isActive !== false && site?.status !== 'Inactive');
@@ -118,6 +167,13 @@ function getClientFallbackResponse(text: string, sites: any[]): { text: string; 
     return {
       text: "Hello! Maayong adlaw. I can still help you explore Handumanan's Metro Cebu heritage directory, routes, and must-visit sites.",
       suggestedSiteIds: mustVisitSites.map(site => site.id),
+    };
+  }
+
+  if (isOutsideHandumananScope(text)) {
+    return {
+      text: "I cannot answer that reliably because it is outside Handumanan's scope. I can help with Metro Cebu heritage sites, site history, categories, visiting hours, routes, nearby places, and how this app works.",
+      suggestedSiteIds: [],
     };
   }
 
@@ -170,7 +226,7 @@ function getClientFallbackResponse(text: string, sites: any[]): { text: string; 
 
   return {
     text: "I can help with Handumanan topics like Metro Cebu heritage sites, routes, cities, categories, and must-visit places. Try asking: recommend heritage sites in Cebu City.",
-    suggestedSiteIds: mustVisitSites.map(site => site.id),
+    suggestedSiteIds: [],
   };
 }
 

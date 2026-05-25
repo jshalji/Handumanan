@@ -713,19 +713,59 @@ const HANDUMANAN_FOCUS_WORDS = [
   'ancestral',
 ];
 
+const METRO_CEBU_SCOPE_REGEX = /\b(cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapulapu|lapu-lapu|mactan|parian|colon)\b/;
+
+const OUTSIDE_SCOPE_PLACE_REGEX = /\b(china|japan|korea|south korea|north korea|taiwan|hong kong|singapore|thailand|vietnam|indonesia|malaysia|usa|united states|america|canada|australia|europe|manila|luzon|davao|iloilo|bacolod|bohol|palawan|boracay|baguio|vigan|intramuros)\b/;
+
+const NON_LOCATION_SCOPE_WORDS = new Set([
+  'church',
+  'churches',
+  'museum',
+  'museums',
+  'ancestral',
+  'house',
+  'houses',
+  'landmark',
+  'landmarks',
+  'monument',
+  'monuments',
+  'plaza',
+  'plazas',
+  'park',
+  'parks',
+  'government',
+  'building',
+  'buildings',
+  'temple',
+  'temples',
+  'religious',
+  'cultural',
+  'historical',
+]);
+
 function isComplexHeritageQuery(query: string) {
   return /\b(compare|comparison|difference|different|similar|similarities|versus|vs|why|explain|relationship|connect|connected|theme|themes|timeline|story|stories|recommend.*because|which.*better)\b/.test(normalizeSearchText(query));
 }
 
 function asksOutsideMetroCebu(normalizedQuery: string) {
-  const scopeMatch = normalizedQuery.match(/\bin\s+([a-z\s-]+)$/);
-  if (!scopeMatch) return false;
-
-  const scope = scopeMatch[1].trim();
-  const isMetroCebuScope = /\b(cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapulapu|lapu-lapu|mactan|parian|colon)\b/.test(scope);
   const isPlaceSeekingQuery = /\b(tourist|destination|destinations|attraction|attractions|museum|museums|church|churches|site|sites|place|places|landmark|landmarks|heritage)\b/.test(normalizedQuery);
+  if (!isPlaceSeekingQuery) return false;
 
-  return isPlaceSeekingQuery && !isMetroCebuScope;
+  if (OUTSIDE_SCOPE_PLACE_REGEX.test(normalizedQuery) && !METRO_CEBU_SCOPE_REGEX.test(normalizedQuery)) {
+    return true;
+  }
+
+  const scopeMatches = Array.from(normalizedQuery.matchAll(/\b(?:in|at|near|around|outside)\s+([a-z][a-z\s-]{1,40})(?=$|\?|\.|,|\b(?:for|with|please|that|today|now)\b)/g));
+  if (scopeMatches.length === 0) return false;
+
+  return scopeMatches.some(match => {
+    const scope = match[1].trim();
+    const scopeWords = scope.split(/\s+/).filter(Boolean);
+    const isCategoryScope = scopeWords.length > 0 && scopeWords.every(word => NON_LOCATION_SCOPE_WORDS.has(word));
+    if (isCategoryScope) return false;
+
+    return !METRO_CEBU_SCOPE_REGEX.test(scope);
+  });
 }
 
 function isRecommendationQuery(normalizedQuery: string) {
@@ -974,6 +1014,7 @@ function getNearbyChatResponse(input: HeritageChatInput, query: string, sites: H
 async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageChatOutput> {
   const lastMessage = input.history[input.history.length - 1]?.content[0]?.text ?? '';
   const query = lastMessage.toLowerCase();
+  const normalizedQuery = normalizeSearchText(lastMessage);
   const sites = getSiteCorpus(input);
   const activeSites = sites.filter(site => isSiteOpenForVisit(site));
   const mustVisitSites = activeSites
@@ -1010,6 +1051,10 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
       text: `I am the Handumanan Guide. I can search ${sites.length} active heritage site records, explain their history, compare places, suggest nearby open stops, and build routes when you explicitly ask for a trip plan. For recommendations, I prioritize the ${activeSites.length} sites currently available based on listed status and visiting hours.`,
       suggestedSiteIds: [],
     };
+  }
+
+  if (asksOutsideMetroCebu(normalizedQuery)) {
+    return getFocusedRedirectResponse();
   }
 
   if (isSystemQuestion(lastMessage)) {
@@ -1208,6 +1253,10 @@ function sanitizeChatOutput(output: HeritageChatOutput, sites: HeritageSiteRecor
 export async function chatWithHeritageBot(input: HeritageChatInput): Promise<HeritageChatOutput> {
   const lastMessage = input.history[input.history.length - 1].content[0].text;
   const sites = getSiteCorpus(input);
+
+  if (asksOutsideMetroCebu(normalizeSearchText(lastMessage))) {
+    return getFocusedRedirectResponse();
+  }
 
   if (!hasGoogleAiApiKey || shouldAnswerLocally(input)) {
     return getLocalChatResponse(input);
