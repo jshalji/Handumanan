@@ -717,6 +717,8 @@ const METRO_CEBU_SCOPE_REGEX = /\b(cebu|metro cebu|cebu city|mandaue|talisay|lap
 
 const OUTSIDE_SCOPE_PLACE_REGEX = /\b(china|japan|korea|south korea|north korea|taiwan|hong kong|singapore|thailand|vietnam|indonesia|malaysia|usa|united states|america|canada|australia|europe|manila|luzon|davao|iloilo|bacolod|bohol|palawan|boracay|baguio|vigan|intramuros)\b/;
 
+const SELF_LOCATION_SCOPE_REGEX = /\b(near me|nearby|nearest|closest|close to me|around me|my location|current location)\b/;
+
 const NON_LOCATION_SCOPE_WORDS = new Set([
   'church',
   'churches',
@@ -750,6 +752,7 @@ function isComplexHeritageQuery(query: string) {
 function asksOutsideMetroCebu(normalizedQuery: string) {
   const isPlaceSeekingQuery = /\b(tourist|destination|destinations|attraction|attractions|museum|museums|church|churches|site|sites|place|places|landmark|landmarks|heritage)\b/.test(normalizedQuery);
   if (!isPlaceSeekingQuery) return false;
+  if (SELF_LOCATION_SCOPE_REGEX.test(normalizedQuery)) return false;
 
   if (OUTSIDE_SCOPE_PLACE_REGEX.test(normalizedQuery) && !METRO_CEBU_SCOPE_REGEX.test(normalizedQuery)) {
     return true;
@@ -1006,7 +1009,7 @@ function getNearbyChatResponse(input: HeritageChatInput, query: string, sites: H
   const filterNote = category || city ? ` matching ${[category, city].filter(Boolean).join(' in ')}` : '';
 
   return {
-    text: `Using your current GPS location, the nearest Handumanan sites${filterNote} are: ${formatNearbySiteList(nearbySites)}.`,
+    text: `Using your current GPS location, the nearest open or available Handumanan sites${filterNote} are: ${formatNearbySiteList(nearbySites)}.`,
     suggestedSiteIds: nearbySites.map(({ site }) => site.id),
   };
 }
@@ -1069,12 +1072,12 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
     return getTravelTimeChatResponse(lastMessage, sites);
   }
 
-  if (isOpenSitesQuery(lastMessage)) {
-    return getOpenSitesResponse(lastMessage, sites);
-  }
-
   if (isNearbyLocationQuery(lastMessage)) {
     return getNearbyChatResponse(input, lastMessage, sites);
+  }
+
+  if (isOpenSitesQuery(lastMessage)) {
+    return getOpenSitesResponse(lastMessage, sites);
   }
 
   if (matchingSites.length > 0 && (matchingSites.length === 1 || scoreSiteMatch(matchingSites[0], lastMessage) >= 50)) {

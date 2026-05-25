@@ -108,6 +108,7 @@ function normalizeChatText(value: string) {
 
 const CHAT_METRO_CEBU_SCOPE_REGEX = /\b(cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapulapu|lapu-lapu|mactan|parian|colon)\b/;
 const CHAT_OUTSIDE_SCOPE_PLACE_REGEX = /\b(china|japan|korea|south korea|north korea|taiwan|hong kong|singapore|thailand|vietnam|indonesia|malaysia|usa|united states|america|canada|australia|europe|manila|luzon|davao|iloilo|bacolod|bohol|palawan|boracay|baguio|vigan|intramuros)\b/;
+const CHAT_SELF_LOCATION_SCOPE_REGEX = /\b(near me|nearby|nearest|closest|close to me|around me|my location|current location)\b/;
 const CHAT_NON_LOCATION_SCOPE_WORDS = new Set([
   'church',
   'churches',
@@ -138,6 +139,7 @@ function isOutsideHandumananScope(text: string) {
   const query = normalizeChatText(text);
   const isPlaceSeekingQuery = /\b(tourist|destination|destinations|attraction|attractions|museum|museums|church|churches|site|sites|place|places|landmark|landmarks|heritage)\b/.test(query);
   if (!isPlaceSeekingQuery) return false;
+  if (CHAT_SELF_LOCATION_SCOPE_REGEX.test(query)) return false;
 
   if (CHAT_OUTSIDE_SCOPE_PLACE_REGEX.test(query) && !CHAT_METRO_CEBU_SCOPE_REGEX.test(query)) {
     return true;
