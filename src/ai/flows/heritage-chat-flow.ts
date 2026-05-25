@@ -260,6 +260,15 @@ const CHAT_SEARCH_STOP_WORDS = new Set([
   'sites',
   'heritage',
   'cebu',
+  'city',
+  'here',
+  'open',
+  'opened',
+  'available',
+  'still',
+  'currently',
+  'now',
+  'today',
 ]);
 
 function normalizeSearchText(value: string) {
@@ -422,9 +431,16 @@ function formatSiteList(sites: HeritageSiteRecord[], totalCount?: number) {
 
 function isOpenSitesQuery(query: string) {
   const normalizedQuery = normalizeSearchText(query);
+  const asksOpenOrAvailable = /\b(open|available|visit today|right now|currently open|open today|still open)\b/.test(normalizedQuery);
+  const hasHeritageTarget =
+    /\b(heritage|site|sites|place|places|directory|destinations|tourist|tourism|landmark|landmarks|museum|museums|church|churches)\b/.test(normalizedQuery) ||
+    Boolean(getCityFromQuery(query)) ||
+    Boolean(getCategoryFromQuery(query)) ||
+    /\b(recommend|recommended|suggest|suggested|where|what can|which)\b/.test(normalizedQuery);
+
   return (
-    /\b(open|available|visit today|right now|currently open|open today)\b/.test(normalizedQuery) &&
-    /\b(heritage|site|sites|place|places|directory|destinations)\b/.test(normalizedQuery)
+    asksOpenOrAvailable &&
+    hasHeritageTarget
   );
 }
 
