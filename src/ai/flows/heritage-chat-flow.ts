@@ -6,7 +6,7 @@
 import { ai, hasGoogleAiApiKey } from '@/ai/genkit';
 import { z } from 'genkit';
 import { DEPRECATED_HERITAGE_SITE_IDS, HERITAGE_SITES } from '@/lib/heritage-data';
-import { isSiteOpenForVisit } from '@/lib/site-availability';
+import { getSiteAvailability, isSiteOpenForVisit } from '@/lib/site-availability';
 
 const MessageSchema = z.object({
   role: z.enum(['user', 'model', 'system']),
@@ -442,6 +442,54 @@ function isOpenSitesQuery(query: string) {
     asksOpenOrAvailable &&
     hasHeritageTarget
   );
+}
+
+function isClosedSitesQuery(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  const asksClosedOrUnavailable = /\b(closed|not open|unavailable|outside hours|after hours)\b/.test(normalizedQuery);
+  const hasHeritageTarget =
+    /\b(heritage|site|sites|place|places|directory|destinations|tourist|tourism|landmark|landmarks|museum|museums|church|churches)\b/.test(normalizedQuery) ||
+    Boolean(getCityFromQuery(query)) ||
+    Boolean(getCategoryFromQuery(query)) ||
+    /\b(show|list|which|what|where|find)\b/.test(normalizedQuery);
+
+  return asksClosedOrUnavailable && hasHeritageTarget;
+}
+
+function getClosedSitesResponse(query: string, sites: HeritageSiteRecord[], limit = 8): HeritageChatOutput {
+  const city = getCityFromQuery(query);
+  const category = getCategoryFromQuery(query);
+  const scopedSites = sites
+    .filter(site => !city || site.city === city)
+    .filter(site => !category || site.category === category);
+  const closedSites = scopedSites
+    .map(site => ({ site, availability: getSiteAvailability(site) }))
+    .filter(({ availability }) => !availability.isOpen)
+    .sort((a, b) => {
+      if (a.site.city !== b.site.city) return a.site.city.localeCompare(b.site.city);
+      return a.site.name.localeCompare(b.site.name);
+    });
+  const shownSites = closedSites.slice(0, limit);
+  const scopeText = [category, city].filter(Boolean).join(' in ');
+
+  if (closedSites.length === 0) {
+    return {
+      text: `Based on the directory's listed status and visiting hours, I could not find closed or unavailable heritage sites${scopeText ? ` for ${scopeText}` : ''} right now.`,
+      suggestedSiteIds: [],
+    };
+  }
+
+  const names = shownSites
+    .map(({ site, availability }) => `${site.name} (${site.city}; ${availability.reason})`)
+    .join(', ');
+  const moreText = closedSites.length > shownSites.length
+    ? ` Showing ${shownSites.length}; refine by city or category for more.`
+    : '';
+
+  return {
+    text: `Based on the directory's listed status and visiting hours, ${closedSites.length} heritage site${closedSites.length === 1 ? ' is' : 's are'} currently closed or unavailable${scopeText ? ` for ${scopeText}` : ''}: ${names}.${moreText}`,
+    suggestedSiteIds: [],
+  };
 }
 
 function getOpenSitesResponse(query: string, sites: HeritageSiteRecord[], limit = 8): HeritageChatOutput {
@@ -1135,6 +1183,10 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
 
   if (isNearbyLocationQuery(lastMessage)) {
     return getNearbyChatResponse(input, lastMessage, sites);
+  }
+
+  if (isClosedSitesQuery(lastMessage)) {
+    return getClosedSitesResponse(lastMessage, sites);
   }
 
   if (isOpenSitesQuery(lastMessage)) {
