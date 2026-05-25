@@ -109,6 +109,7 @@ function normalizeChatText(value: string) {
 const CHAT_METRO_CEBU_SCOPE_REGEX = /\b(cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapulapu|lapu-lapu|mactan|parian|colon)\b/;
 const CHAT_OUTSIDE_SCOPE_PLACE_REGEX = /\b(china|japan|korea|south korea|north korea|taiwan|hong kong|singapore|thailand|vietnam|indonesia|malaysia|usa|united states|america|canada|australia|europe|manila|luzon|davao|iloilo|bacolod|bohol|palawan|boracay|baguio|vigan|intramuros)\b/;
 const CHAT_SELF_LOCATION_SCOPE_REGEX = /\b(near me|nearby|nearest|closest|close to me|around me|my location|current location)\b/;
+const CHAT_GENERAL_OFF_TOPIC_REGEX = /\b(president|vice president|prime minister|senator|congressman|election|politics|political|mayor|governor|weather|temperature|sports|basketball|nba|movie|movies|actor|actress|celebrity|song|lyrics|recipe|cook|math|homework|essay|translate|currency|stock|crypto)\b/;
 const CHAT_NON_LOCATION_SCOPE_WORDS = new Set([
   'church',
   'churches',
@@ -137,6 +138,11 @@ const CHAT_NON_LOCATION_SCOPE_WORDS = new Set([
 
 function isOutsideHandumananScope(text: string) {
   const query = normalizeChatText(text);
+  const hasHandumananContext = /\b(handumanan|heritage|cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapu-lapu|mactan|magellan|colon|parian|museum|church|cathedral|basilica|shrine|plaza|landmark|monument|ancestral|route|itinerary|tour|trip|site|sites)\b/.test(query);
+  if (CHAT_GENERAL_OFF_TOPIC_REGEX.test(query) && !CHAT_SELF_LOCATION_SCOPE_REGEX.test(query) && !hasHandumananContext) {
+    return true;
+  }
+
   const isPlaceSeekingQuery = /\b(tourist|destination|destinations|attraction|attractions|museum|museums|church|churches|site|sites|place|places|landmark|landmarks|heritage)\b/.test(query);
   if (!isPlaceSeekingQuery) return false;
   if (CHAT_SELF_LOCATION_SCOPE_REGEX.test(query)) return false;

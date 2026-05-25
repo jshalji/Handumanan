@@ -719,6 +719,8 @@ const OUTSIDE_SCOPE_PLACE_REGEX = /\b(china|japan|korea|south korea|north korea|
 
 const SELF_LOCATION_SCOPE_REGEX = /\b(near me|nearby|nearest|closest|close to me|around me|my location|current location)\b/;
 
+const GENERAL_OFF_TOPIC_REGEX = /\b(president|vice president|prime minister|senator|congressman|election|politics|political|mayor|governor|weather|temperature|sports|basketball|nba|movie|movies|actor|actress|celebrity|song|lyrics|recipe|cook|math|homework|essay|translate|currency|stock|crypto)\b/;
+
 const NON_LOCATION_SCOPE_WORDS = new Set([
   'church',
   'churches',
@@ -828,9 +830,20 @@ function hasHandumananFocusKeyword(normalizedQuery: string) {
   );
 }
 
+function isClearlyUnsupportedGeneralQuestion(query: string, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!GENERAL_OFF_TOPIC_REGEX.test(normalizedQuery)) return false;
+  if (SELF_LOCATION_SCOPE_REGEX.test(normalizedQuery)) return false;
+  if (getCityFromQuery(query) || getCategoryFromQuery(query)) return false;
+  if (hasHandumananFocusKeyword(normalizedQuery)) return false;
+
+  return findMatchingSites(query, 1, sites).every(site => scoreSiteMatch(site, query) < 80);
+}
+
 function isHandumananFocusedQuery(query: string, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
   const normalizedQuery = normalizeSearchText(query);
   if (asksOutsideMetroCebu(normalizedQuery)) return false;
+  if (isClearlyUnsupportedGeneralQuestion(query, sites)) return false;
 
   return (
     findMatchingSites(query, 1, sites).length > 0 ||
@@ -1057,6 +1070,10 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
   }
 
   if (asksOutsideMetroCebu(normalizedQuery)) {
+    return getFocusedRedirectResponse();
+  }
+
+  if (isClearlyUnsupportedGeneralQuestion(lastMessage, sites)) {
     return getFocusedRedirectResponse();
   }
 
