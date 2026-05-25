@@ -110,6 +110,7 @@ const CHAT_METRO_CEBU_SCOPE_REGEX = /\b(cebu|metro cebu|cebu city|mandaue|talisa
 const CHAT_OUTSIDE_SCOPE_PLACE_REGEX = /\b(china|japan|korea|south korea|north korea|taiwan|hong kong|singapore|thailand|vietnam|indonesia|malaysia|usa|united states|america|canada|australia|europe|manila|luzon|davao|iloilo|bacolod|bohol|palawan|boracay|baguio|vigan|intramuros)\b/;
 const CHAT_SELF_LOCATION_SCOPE_REGEX = /\b(near me|nearby|nearest|closest|close to me|around me|my location|current location)\b/;
 const CHAT_GENERAL_OFF_TOPIC_REGEX = /\b(president|vice president|prime minister|senator|congressman|election|politics|political|mayor|governor|weather|temperature|sports|basketball|nba|movie|movies|actor|actress|celebrity|song|lyrics|recipe|cook|math|homework|essay|translate|currency|stock|crypto)\b/;
+const CHAT_HANDUMANAN_CONTEXT_REGEX = /\b(handumanan|heritage|cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapu-lapu|mactan|magellan|colon|parian|museum|museums|church|churches|cathedral|basilica|shrine|plaza|plazas|landmark|landmarks|monument|monuments|ancestral|historic|historical|route|itinerary|tour|trip|site|sites|directory|visiting hours|open sites|nearby sites|must visit|map|maps|navigation)\b/;
 const CHAT_NON_LOCATION_SCOPE_WORDS = new Set([
   'church',
   'churches',
@@ -138,7 +139,7 @@ const CHAT_NON_LOCATION_SCOPE_WORDS = new Set([
 
 function isOutsideHandumananScope(text: string) {
   const query = normalizeChatText(text);
-  const hasHandumananContext = /\b(handumanan|heritage|cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapu-lapu|mactan|magellan|colon|parian|museum|church|cathedral|basilica|shrine|plaza|landmark|monument|ancestral|route|itinerary|tour|trip|site|sites)\b/.test(query);
+  const hasHandumananContext = CHAT_HANDUMANAN_CONTEXT_REGEX.test(query);
   if (CHAT_GENERAL_OFF_TOPIC_REGEX.test(query) && !CHAT_SELF_LOCATION_SCOPE_REGEX.test(query) && !hasHandumananContext) {
     return true;
   }
@@ -161,6 +162,30 @@ function isOutsideHandumananScope(text: string) {
     if (isCategoryScope) return false;
     return !CHAT_METRO_CEBU_SCOPE_REGEX.test(scope);
   });
+}
+
+function getClientStrongMatches(query: string, sites: any[], limit = 5) {
+  const normalizedQuery = normalizeChatText(query);
+
+  return sites
+    .map(site => {
+      const normalizedName = normalizeChatText(String(site?.name || ''));
+      const nameWords = normalizedName.split(' ').filter(word => word.length > 2);
+      const matchedNameWords = nameWords.filter(word => normalizedQuery.includes(word)).length;
+      const searchable = normalizeChatText(`${site?.name || ''} ${site?.city || ''} ${site?.category || ''} ${site?.description || ''} ${site?.tags?.join(' ') || ''}`);
+      const score =
+        normalizedName && normalizedQuery.includes(normalizedName) ? 100 :
+        matchedNameWords >= 2 ? 70 :
+        matchedNameWords === 1 && CHAT_HANDUMANAN_CONTEXT_REGEX.test(normalizedQuery) ? 35 :
+        CHAT_HANDUMANAN_CONTEXT_REGEX.test(normalizedQuery) && normalizedQuery.split(' ').some(term => term.length > 3 && searchable.includes(term)) ? 20 :
+        0;
+
+      return { site, score };
+    })
+    .filter(result => result.score >= 35)
+    .sort((a, b) => b.score - a.score || Number(b.site?.rating ?? 0) - Number(a.site?.rating ?? 0))
+    .slice(0, limit)
+    .map(result => result.site);
 }
 
 function getClientFallbackResponse(text: string, sites: any[]): { text: string; suggestedSiteIds: string[] } {
@@ -202,14 +227,28 @@ function getClientFallbackResponse(text: string, sites: any[]): { text: string; 
     { keyword: 'temple', category: 'Cultural & Religious (Non-Catholic Sites)' },
   ];
   const category = categoryKeywords.find(item => query.includes(item.keyword))?.category;
+  const strongMatches = getClientStrongMatches(text, activeSites, 5);
+  const hasSupportedFallbackIntent =
+    CHAT_HANDUMANAN_CONTEXT_REGEX.test(query) ||
+    Boolean(cityLabel) ||
+    Boolean(category) ||
+    isNearbyLocationRequest(text) ||
+    isTripPlanningRequest(text) ||
+    strongMatches.length > 0;
+
+  if (!hasSupportedFallbackIntent) {
+    return {
+      text: "I cannot answer that reliably because it is outside Handumanan's scope. I can help with Metro Cebu heritage sites, site history, categories, visiting hours, routes, nearby places, and how this app works.",
+      suggestedSiteIds: [],
+    };
+  }
 
   const matches = activeSites
     .filter(site => !cityLabel || site.city === cityLabel)
     .filter(site => !category || site.category === category)
     .filter(site => {
       if (cityLabel || category || /\b(top|best|must|recommend|site|sites|place|places|directory|list|show)\b/.test(query)) return true;
-      const searchable = normalizeChatText(`${site.name} ${site.city} ${site.category} ${site.description} ${site.tags?.join(' ') || ''}`);
-      return query.split(' ').some(term => term.length > 2 && searchable.includes(term));
+      return strongMatches.some(match => match.id === site.id);
     })
     .sort((a, b) => {
       if (Boolean(a.isMustVisit) !== Boolean(b.isMustVisit)) return a.isMustVisit ? -1 : 1;

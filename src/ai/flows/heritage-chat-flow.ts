@@ -715,6 +715,8 @@ const HANDUMANAN_FOCUS_WORDS = [
 
 const METRO_CEBU_SCOPE_REGEX = /\b(cebu|metro cebu|cebu city|mandaue|talisay|lapu lapu|lapulapu|lapu-lapu|mactan|parian|colon)\b/;
 
+const HANDUMANAN_DOMAIN_REGEX = /\b(handumanan|heritage|museum|museums|church|churches|cathedral|basilica|shrine|plaza|plazas|landmark|landmarks|monument|monuments|ancestral|historic|historical|route|itinerary|tour|trip|site|sites|directory|visiting hours|open sites|nearby sites|must visit|map|maps|navigation)\b/;
+
 const OUTSIDE_SCOPE_PLACE_REGEX = /\b(china|japan|korea|south korea|north korea|taiwan|hong kong|singapore|thailand|vietnam|indonesia|malaysia|usa|united states|america|canada|australia|europe|manila|luzon|davao|iloilo|bacolod|bohol|palawan|boracay|baguio|vigan|intramuros)\b/;
 
 const SELF_LOCATION_SCOPE_REGEX = /\b(near me|nearby|nearest|closest|close to me|around me|my location|current location)\b/;
@@ -819,6 +821,21 @@ function findMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[]
     .map(result => result.site);
 }
 
+function getStrongMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+  const normalizedQuery = normalizeSearchText(query);
+
+  return sites
+    .filter(site => isSiteOpenForVisit(site))
+    .map(site => ({ site, score: scoreSiteMatch(site, query), normalizedName: normalizeSearchText(site.name) }))
+    .filter(result => {
+      if (result.score >= 50) return true;
+      return result.normalizedName.length > 4 && normalizedQuery.includes(result.normalizedName);
+    })
+    .sort((a, b) => b.score - a.score || b.site.rating - a.site.rating)
+    .slice(0, limit)
+    .map(result => result.site);
+}
+
 function hasHandumananFocusKeyword(normalizedQuery: string) {
   const terms = new Set(normalizedQuery.split(' ').filter(Boolean));
   const focusTerms = HANDUMANAN_FOCUS_WORDS.filter(word => !word.includes(' '));
@@ -835,9 +852,9 @@ function isClearlyUnsupportedGeneralQuestion(query: string, sites: HeritageSiteR
   if (!GENERAL_OFF_TOPIC_REGEX.test(normalizedQuery)) return false;
   if (SELF_LOCATION_SCOPE_REGEX.test(normalizedQuery)) return false;
   if (getCityFromQuery(query) || getCategoryFromQuery(query)) return false;
-  if (hasHandumananFocusKeyword(normalizedQuery)) return false;
+  if (HANDUMANAN_DOMAIN_REGEX.test(normalizedQuery) || METRO_CEBU_SCOPE_REGEX.test(normalizedQuery)) return false;
 
-  return findMatchingSites(query, 1, sites).every(site => scoreSiteMatch(site, query) < 80);
+  return getStrongMatchingSites(query, 1, sites).length === 0;
 }
 
 function isHandumananFocusedQuery(query: string, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
@@ -846,13 +863,13 @@ function isHandumananFocusedQuery(query: string, sites: HeritageSiteRecord[] = H
   if (isClearlyUnsupportedGeneralQuestion(query, sites)) return false;
 
   return (
-    findMatchingSites(query, 1, sites).length > 0 ||
+    getStrongMatchingSites(query, 1, sites).length > 0 ||
     Boolean(getCityFromQuery(query)) ||
     Boolean(getCategoryFromQuery(query)) ||
     isSystemQuestion(query) ||
     isNearbyLocationQuery(query) ||
     isTripPlanningQuery(normalizedQuery) ||
-    hasHandumananFocusKeyword(normalizedQuery) ||
+    (hasHandumananFocusKeyword(normalizedQuery) && HANDUMANAN_DOMAIN_REGEX.test(normalizedQuery)) ||
     isRecommendationQuery(normalizedQuery) ||
     /\b(favorite|favorites|top site|top sites|best site|best sites|must visit|must see|recommend.*site|next stop|nearby site|nearby sites)\b/.test(normalizedQuery)
   );
@@ -1038,7 +1055,7 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 3);
 
-  const matchingSites = findMatchingSites(lastMessage, 3, sites);
+  const matchingSites = getStrongMatchingSites(lastMessage, 3, sites);
   const directoryMatches = getDirectoryMatches(lastMessage, 8, sites);
 
   if (isSimpleGreetingQuery(lastMessage)) {
@@ -1161,12 +1178,7 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
     };
   }
 
-  const suggestedSites = matchingSites.length > 0 ? matchingSites : mustVisitSites;
-
-  return {
-    text: `I found a few Cebu heritage matches: ${suggestedSites.map(site => site.name).join(', ')}. Open a card to view details or map directions.`,
-    suggestedSiteIds: suggestedSites.map(site => site.id),
-  };
+  return getFocusedRedirectResponse();
 }
 
 function shouldAnswerLocally(input: HeritageChatInput): boolean {
@@ -1183,7 +1195,7 @@ function shouldAnswerLocally(input: HeritageChatInput): boolean {
   }
 
   return (
-    findMatchingSites(lastMessage, 1, sites).length > 0 ||
+    getStrongMatchingSites(lastMessage, 1, sites).length > 0 ||
     normalizedMessage.includes('favorite') ||
     isSystemQuestion(lastMessage) ||
     isRecommendationQuery(normalizeSearchText(lastMessage)) ||
