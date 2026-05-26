@@ -429,6 +429,93 @@ function formatSiteList(sites: HeritageSiteRecord[], totalCount?: number) {
   return `I found ${count} matching site${count === 1 ? '' : 's'}: ${names}.${suffix}`;
 }
 
+function getScopedSites(query: string, sites: HeritageSiteRecord[]) {
+  const city = getCityFromQuery(query);
+  const category = getCategoryFromQuery(query);
+
+  return {
+    city,
+    category,
+    scopedSites: sites
+      .filter(site => !city || site.city === city)
+      .filter(site => !category || site.category === category),
+  };
+}
+
+function formatScopeText(category?: string, city?: string) {
+  return [category, city].filter(Boolean).join(' in ');
+}
+
+function getTourGuideReason(site: HeritageSiteRecord) {
+  if (site.isMustVisit) return 'it is marked as a must-visit entry in the directory';
+  if (site.category.includes('Churches')) return 'it gives visitors a strong look at Cebu religious heritage';
+  if (site.category.includes('Museums')) return 'it is useful for learning historical context before visiting nearby sites';
+  if (site.category.includes('Ancestral')) return 'it shows preserved local architecture and family heritage';
+  if (site.category.includes('Plazas')) return 'it is easy to include as a public-space stop during a walking route';
+  return `it represents ${site.category.toLowerCase()} in ${site.city}`;
+}
+
+function formatGuideRecommendationList(sites: HeritageSiteRecord[]) {
+  return sites
+    .map(site => {
+      const availability = getSiteAvailability(site);
+      const status = availability.isOpen ? 'open/available now' : 'closed or unavailable now';
+      return `${site.name} (${site.city}) - ${status}; recommended because ${getTourGuideReason(site)}. Hours: ${site.visitingHours}`;
+    })
+    .join(' ');
+}
+
+function isHeritageRecommendationQuery(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  return (
+    /\b(recommend|recommended|suggest|suggested|top|best|must visit|must see|where should|what should|worth visiting)\b/.test(normalizedQuery) &&
+    (
+      HANDUMANAN_DOMAIN_REGEX.test(normalizedQuery) ||
+      METRO_CEBU_SCOPE_REGEX.test(normalizedQuery) ||
+      Boolean(getCityFromQuery(query)) ||
+      Boolean(getCategoryFromQuery(query))
+    )
+  );
+}
+
+function getGuideRecommendationResponse(query: string, sites: HeritageSiteRecord[], limit = 4): HeritageChatOutput {
+  const { city, category, scopedSites } = getScopedSites(query, sites);
+  const scopeText = formatScopeText(category, city);
+  const openSites = scopedSites
+    .filter(site => isSiteOpenForVisit(site))
+    .sort((a, b) => {
+      if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
+      return b.rating - a.rating;
+    });
+  const unavailableSites = scopedSites.filter(site => !isSiteOpenForVisit(site));
+  const shownSites = openSites.slice(0, limit);
+
+  if (shownSites.length === 0) {
+    const alternatives = sites
+      .filter(site => isSiteOpenForVisit(site))
+      .filter(site => !city || site.city === city)
+      .filter(site => !category || site.category === category)
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, limit);
+
+    return {
+      text: alternatives.length > 0
+        ? `I could not find currently open recommendations${scopeText ? ` for ${scopeText}` : ''}. As a practical alternative, you can try: ${formatGuideRecommendationList(alternatives)}`
+        : `I could not find currently open recommendations${scopeText ? ` for ${scopeText}` : ''} based on the directory's listed status and visiting hours.`,
+      suggestedSiteIds: alternatives.map(site => site.id),
+    };
+  }
+
+  const unavailableNote = unavailableSites.length > 0
+    ? ` I skipped ${unavailableSites.length} closed or unavailable ${unavailableSites.length === 1 ? 'site' : 'sites'} so the route stays practical.`
+    : '';
+
+  return {
+    text: `As your Handumanan guide, I recommend these currently open heritage stops${scopeText ? ` for ${scopeText}` : ''}: ${formatGuideRecommendationList(shownSites)}${unavailableNote}`,
+    suggestedSiteIds: shownSites.map(site => site.id),
+  };
+}
+
 function isOpenSitesQuery(query: string) {
   const normalizedQuery = normalizeSearchText(query);
   const asksOpenOrAvailable = /\b(open|available|visit today|right now|currently open|open today|still open)\b/.test(normalizedQuery);
@@ -1018,14 +1105,26 @@ function getSystemQuestionResponse(query: string, sites: HeritageSiteRecord[]): 
   };
 }
 
-function getSiteFactResponse(query: string, site: HeritageSiteRecord): HeritageChatOutput {
+function getSiteFactResponse(query: string, site: HeritageSiteRecord, sites: HeritageSiteRecord[] = HERITAGE_SITES): HeritageChatOutput {
   const normalizedQuery = normalizeSearchText(query);
-  const availability = isSiteOpenForVisit(site) ? 'currently available based on the directory data' : 'not currently available based on the directory data';
+  const siteAvailability = getSiteAvailability(site);
+  const availability = siteAvailability.isOpen ? 'currently open/available based on the directory data' : `currently closed or unavailable based on the directory data (${siteAvailability.reason})`;
+  const alternativeSites = siteAvailability.isOpen
+    ? []
+    : sites
+      .filter(candidate => candidate.id !== site.id)
+      .filter(candidate => candidate.city === site.city)
+      .filter(candidate => isSiteOpenForVisit(candidate))
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 3);
+  const alternativeText = alternativeSites.length > 0
+    ? ` Since it is unavailable, nearby open alternatives in ${site.city} include ${alternativeSites.map(candidate => candidate.name).join(', ')}.`
+    : '';
 
   if (/\b(open|closed|available|hours|time|schedule|when)\b/.test(normalizedQuery)) {
     return {
-      text: `${site.name} is ${availability}. Listed visiting hours: ${site.visitingHours}. Please verify with the site or local office before visiting if timing is critical.`,
-      suggestedSiteIds: [site.id],
+      text: `${site.name} is ${availability}. Listed visiting hours: ${site.visitingHours}.${alternativeText} Please verify with the site or local office before visiting if timing is critical.`,
+      suggestedSiteIds: [site.id, ...alternativeSites.map(candidate => candidate.id)],
     };
   }
 
@@ -1059,14 +1158,14 @@ function getSiteFactResponse(query: string, site: HeritageSiteRecord): HeritageC
 
   if (/\b(history|historical|significance|important|why|story|meaning|about|overview)\b/.test(normalizedQuery)) {
     return {
-      text: `${site.name}: ${site.overview} Historical significance: ${site.significance}`,
-      suggestedSiteIds: [site.id],
+      text: `${site.name} is ${availability}. ${site.overview} Historical significance: ${site.significance}${alternativeText}`,
+      suggestedSiteIds: [site.id, ...alternativeSites.map(candidate => candidate.id)],
     };
   }
 
   return {
-    text: `${site.name} is in ${site.city}, under ${site.category}. ${site.description} Visiting hours: ${site.visitingHours}.`,
-    suggestedSiteIds: [site.id],
+    text: `${site.name} is in ${site.city}, under ${site.category}, and is ${availability}. ${site.description} Visiting hours: ${site.visitingHours}.${alternativeText}`,
+    suggestedSiteIds: [site.id, ...alternativeSites.map(candidate => candidate.id)],
   };
 }
 
@@ -1194,7 +1293,11 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
   }
 
   if (matchingSites.length > 0 && (matchingSites.length === 1 || scoreSiteMatch(matchingSites[0], lastMessage) >= 50)) {
-    return getSiteFactResponse(lastMessage, matchingSites[0]);
+    return getSiteFactResponse(lastMessage, matchingSites[0], sites);
+  }
+
+  if (isHeritageRecommendationQuery(lastMessage)) {
+    return getGuideRecommendationResponse(lastMessage, sites);
   }
 
   if (isDirectoryListQuery(query) && directoryMatches.length > 0) {
@@ -1244,10 +1347,7 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
   }
 
   if (query.includes('top') || query.includes('best') || query.includes('must') || query.includes('recommend')) {
-    return {
-      text: `For top Handumanan destinations, start with ${mustVisitSites.map(site => `${site.name} in ${site.city}`).join(', ')}. These are highly rated must-visit entries in the directory and give a strong first look at Metro Cebu's religious, civic, and resistance history.`,
-      suggestedSiteIds: mustVisitSites.map(site => site.id),
-    };
+    return getGuideRecommendationResponse(lastMessage, sites);
   }
 
   if (query.includes('next') || query.includes('stop')) {
@@ -1277,6 +1377,7 @@ function shouldAnswerLocally(input: HeritageChatInput): boolean {
     getStrongMatchingSites(lastMessage, 1, sites).length > 0 ||
     normalizedMessage.includes('favorite') ||
     isSystemQuestion(lastMessage) ||
+    isHeritageRecommendationQuery(lastMessage) ||
     isRecommendationQuery(normalizeSearchText(lastMessage)) ||
     /\b(top site|top sites|best site|best sites|must visit|must see|recommend.*site|recommend.*sites)\b/.test(normalizedMessage) ||
     normalizedMessage.includes('next') ||
@@ -1385,20 +1486,22 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
       tools: [searchSitesTool],
       output: { schema: HeritageChatOutputSchema },
       system: `You are the "Handumanan Guide", an expert virtual tour guide for Metro Cebu.
-      You are embedded inside the Handumanan app, so behave like a site-specific ChatGPT plus directory search, not a general web chatbot.
+      You are embedded inside the Handumanan app, so behave like a real local Cebu heritage tour guide, not a general web chatbot or random answer generator.
       Source of truth: the Handumanan directory, the user favorites/last itinerary supplied in context, and user GPS only when provided.
       Do not claim to browse Google or the open web. Do not invent places, schedules, facts, prices, or routes outside the directory.
-      Never recommend a site that is inactive, closed, unavailable, demolished, or outside its listed visiting hours. Recommend nearby open heritage sites instead.
+      Always identify the user's intent first: site fact, city/category search, open/closed check, nearby request, route/travel time, itinerary, comparison, or system feature.
+      Strictly filter by requested city, category, open/closed status, and location. If the user asks for Cebu City, do not recommend Talisay, Mandaue, or Lapu-Lapu sites unless you clearly say they are alternatives.
+      Never recommend a site that is inactive, closed, unavailable, demolished, or outside its listed visiting hours. If a requested site is unavailable, explain that and suggest open alternatives from the same city or nearby cluster when possible.
       You may answer questions about how the Handumanan system works, including directory search, maps, itinerary planning, live location, Firebase-backed saved data, privacy basics, and chatbot limitations.
       If the user's question is unrelated to Handumanan, Metro Cebu heritage, travel planning inside the app, or the system itself, politely refuse and redirect to supported topics.
       Use searchSites or the directory brief whenever the user asks about a site, city, category, route theme, historical topic, or comparison.
       Before naming a site, check that it appears in the active directory snapshot below or in searchSites output. If it is not present, say it is not currently listed.
       When facts conflict or are missing, say the detail needs verification instead of guessing.
-      Keep answers grounded: mention the city/category/hours when recommending places, and do not add exact fees, schedules, events, or claims that are absent from the directory.
+      Keep answers grounded and useful: when recommending places, mention city, category, open/closed status, visiting hours, and a short reason why each site fits the user's request.
       If a place or topic is outside the directory, say it is not currently listed in Handumanan and offer a relevant directory search instead.
       Only create or describe an itinerary when the user explicitly asks for a route, trip, tour, plan, travel time, or stop sequence. Recommendation questions should return suggestions, not auto-routes.
       If you mention specific sites, include their EXACT IDs in "suggestedSiteIds"; otherwise return an empty array.
-      Stay concise: 2-4 helpful sentences, warm and Cebuano-proud.
+      Stay conversational, calm, and practical: 2-4 helpful sentences, warm and Cebuano-proud.
 
       Active Handumanan directory snapshot:
       ${buildDirectoryBrief(sites)}`,
