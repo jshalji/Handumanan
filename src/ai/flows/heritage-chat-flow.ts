@@ -982,11 +982,11 @@ function findMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[]
     .map(result => result.site);
 }
 
-function getStrongMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+function getStrongMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[] = HERITAGE_SITES, requireOpen = true) {
   const normalizedQuery = normalizeSearchText(query);
 
   return sites
-    .filter(site => isSiteOpenForVisit(site))
+    .filter(site => !requireOpen || isSiteOpenForVisit(site))
     .map(site => ({ site, score: scoreSiteMatch(site, query), normalizedName: normalizeSearchText(site.name) }))
     .filter(result => {
       if (result.score >= 50) return true;
@@ -1016,7 +1016,7 @@ function isClearlyUnsupportedGeneralQuestion(query: string, sites: HeritageSiteR
   if (GENERAL_TASK_REQUEST_REGEX.test(normalizedQuery) && !HANDUMANAN_DOMAIN_REGEX.test(normalizedQuery)) return true;
   if (!GENERAL_OFF_TOPIC_REGEX.test(normalizedQuery)) return false;
 
-  return getStrongMatchingSites(query, 1, sites).length === 0;
+  return getStrongMatchingSites(query, 1, sites, false).length === 0;
 }
 
 function isHandumananFocusedQuery(query: string, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
@@ -1025,7 +1025,7 @@ function isHandumananFocusedQuery(query: string, sites: HeritageSiteRecord[] = H
   if (isClearlyUnsupportedGeneralQuestion(query, sites)) return false;
 
   return (
-    getStrongMatchingSites(query, 1, sites).length > 0 ||
+    getStrongMatchingSites(query, 1, sites, false).length > 0 ||
     Boolean(getCityFromQuery(query)) ||
     Boolean(getCategoryFromQuery(query)) ||
     isSystemQuestion(query) ||
@@ -1229,7 +1229,7 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 3);
 
-  const matchingSites = getStrongMatchingSites(lastMessage, 3, sites);
+  const matchingSites = getStrongMatchingSites(lastMessage, 3, sites, false);
   const directoryMatches = getDirectoryMatches(lastMessage, 8, sites);
 
   if (isSimpleGreetingQuery(lastMessage)) {
@@ -1374,7 +1374,7 @@ function shouldAnswerLocally(input: HeritageChatInput): boolean {
   }
 
   return (
-    getStrongMatchingSites(lastMessage, 1, sites).length > 0 ||
+    getStrongMatchingSites(lastMessage, 1, sites, false).length > 0 ||
     normalizedMessage.includes('favorite') ||
     isSystemQuestion(lastMessage) ||
     isHeritageRecommendationQuery(lastMessage) ||
