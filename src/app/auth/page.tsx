@@ -17,7 +17,7 @@ export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -118,23 +118,21 @@ export default function AuthPage() {
                 <div className="relative">
                   <Input 
                     id="password" 
-                    type={!isLogin && showCreatePassword ? 'text' : 'password'} 
+                    type={showPassword ? 'text' : 'password'} 
                     placeholder="********"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className={!isLogin ? 'pr-11' : undefined}
+                    className="pr-12"
                     required 
                   />
-                  {!isLogin && (
-                    <button
-                      type="button"
-                      onClick={() => setShowCreatePassword(prev => !prev)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                      aria-label={showCreatePassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showCreatePassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(prev => !prev)}
+                    className="absolute right-2 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+                  </button>
                 </div>
               </div>
               <Button type="submit" className="w-full h-11 rounded-full font-bold" disabled={isSubmitting}>
