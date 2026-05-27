@@ -460,7 +460,7 @@ export function HeritageChatBot() {
           isOpen ? "scale-0 opacity-0" : "scale-100 opacity-100",
           "right-4 md:right-6",
           isDiscoverPage
-            ? (isMobile ? "bottom-[calc(env(safe-area-inset-bottom)+5rem)]" : "bottom-6")
+            ? (isMobile ? "top-[calc(env(safe-area-inset-top)+4.75rem)]" : "bottom-6")
             : "bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] md:bottom-6"
         )}
       >
@@ -472,7 +472,7 @@ export function HeritageChatBot() {
           "fixed left-3 right-3 md:left-auto md:right-8 w-auto md:w-[380px] h-[550px] md:h-[620px] max-h-[calc(100dvh-1.5rem)] md:max-h-[85vh] z-50 transition-all duration-500 flex flex-col rounded-[2rem] md:rounded-[2.5rem] shadow-3xl border-none overflow-hidden bg-white/95 backdrop-blur-3xl ring-1 ring-black/5",
           isOpen ? "translate-y-0 opacity-100 scale-100" : "translate-y-10 opacity-0 scale-95 pointer-events-none",
           isDiscoverPage
-            ? (isMobile ? "bottom-[calc(env(safe-area-inset-bottom)+5rem)]" : "bottom-8")
+            ? (isMobile ? "top-[calc(env(safe-area-inset-top)+4.5rem)]" : "bottom-8")
             : "bottom-[calc(env(safe-area-inset-bottom)+1rem)] md:bottom-8"
         )}
       >

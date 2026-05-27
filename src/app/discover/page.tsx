@@ -1193,9 +1193,9 @@ function ExploreRouteContent() {
 
       <div
         className={cn(
-          "fixed left-3 z-40 flex items-center gap-2 md:hidden",
+          "fixed left-3 z-40 flex items-center gap-2 transition-all duration-300 md:hidden",
           isPanelExpanded
-            ? "bottom-[calc(62dvh+1rem)]"
+            ? "pointer-events-none bottom-[calc(62dvh+1rem)] opacity-0"
             : "bottom-[calc(env(safe-area-inset-bottom)+1rem)]"
         )}
       >
