@@ -71,10 +71,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Mabini St, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 5:00 AM - 8:00 PM",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Cathedral01.jpg/1920px-Cathedral01.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail&_=20191225144139",
+    imageUrl: "/heritage-sites/metropolitancebucathedral1.jpg",
     galleryImages: [
-      "https://scontent.fceb6-1.fna.fbcdn.net/v/t39.30808-6/494644822_1123730156451013_7397569282367316444_n.jpg?_nc_cat=105&ccb=1-7&_nc_sid=13d280&_nc_eui2=AeG2Ipq-I8lUrnr59f8R9t8iwoLbRaUHg9fCgttFpQeD15AsxP1JIFm5GOwzFls7CoaM60nbeSXAs7JgqBZLiDuY&_nc_ohc=x7wwsemh0O0Q7kNvwF58IRj&_nc_oc=Adrn2hbYx1ZprwWXp6HNE7d_DbYxlDfaoXYpLnDQRyTfR5E1JhvWZvAJf7vBB11imD0&_nc_zt=23&_nc_ht=scontent.fceb6-1.fna&_nc_gid=EYNxCPflMbqv-oLUCk_Yeg&_nc_ss=7b2a8&oh=00_Af4qyo-Tx70dhm6qaW9_Pko0eY1FNKL2qN5SVAxZHgsQOg&oe=6A08FA63",
-      "https://d384rxa9e2cak.cloudfront.net/public/churchbanners/churches_1456588764_1914_7065.jpg"
+      "/heritage-sites/metropolitancebucathedral1.jpg",
+      "/heritage-sites/metropolitancebucathedral2.jpg",
+      "/heritage-sites/metropolitancebucathedral3.jpg"
     ],
     rating: 4.7,
     tags: ["cathedral", "baroque"],
@@ -95,10 +96,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "P. Burgos St, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 8:00 AM - 6:00 PM",
-    imageUrl: "https://travelcebu.b-cdn.net/wp-content/uploads/2024/03/inside-magellancross.jpg",
+    imageUrl: "/heritage-sites/magellanscross1.jpg",
     galleryImages: [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Magellan%27s_Cross_2024-07-05.jpg/1280px-Magellan%27s_Cross_2024-07-05.jpg",
-      "https://kahibalo.com/wp-content/uploads/2024/10/krzyz-magellana-cebu-filipiny-fundacja-kahibalo-1.jpg"
+      "/heritage-sites/magellanscross1.jpg",
+      "/heritage-sites/magellanscross2.jpg",
+      "/heritage-sites/magellanscross3.jpg"
     ],
     rating: 4.8,
     tags: ["cross", "magellan"],
@@ -119,10 +121,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Cathedral Complex, Mabini St, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 9:00 AM - 5:00 PM",
-    imageUrl: "/heritage-archdiocesan-museum.jpg",
+    imageUrl: "/heritage-sites/Archdiocesanmuseumofcebu1.jpg",
     galleryImages: [
-      "/heritage-archdiocesan-interior-1.jpg",
-      "/heritage-archdiocesan-interior-2.avif"
+      "/heritage-sites/Archdiocesanmuseumofcebu1.jpg",
+      "/heritage-sites/Archdiocesanmuseumofcebu2.jpg",
+      "/heritage-sites/Archdiocesanmuseumofcebu3.jpg"
     ],
     rating: 4.5,
     tags: ["museum", "religious-art"],
@@ -143,10 +146,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Lopez Jaena St, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 9:00 AM - 5:00 PM",
-    imageUrl: "/heritage-casa-gorordo.jpg",
+    imageUrl: "/heritage-sites/casagorordomuseum1.jpg",
     galleryImages: [
-      "/heritage-casa-gorordo-interior-1.webp",
-      "/heritage-casa-gorordo-interior-2.jpg"
+      "/heritage-sites/casagorordomuseum1.jpg",
+      "/heritage-sites/casagorordomuseum2.jpg",
+      "/heritage-sites/casagorordomuseum3.jpg"
     ],
     rating: 4.7,
     tags: ["mansion", "lifestyle"],
@@ -167,10 +171,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Mabini St, Parian, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 9:00 AM - 6:00 PM",
-    imageUrl: "https://images.trvl-media.com/place/6285586/39681211-f84a-4acd-8a7e-a374c5690292.jpg",
+    imageUrl: "/heritage-sites/yapsandiegoancestralhouse1.jpg",
     galleryImages: [
-      "https://travelcebu.b-cdn.net/wp-content/uploads/2024/05/yap-san-diego-inside.jpg",
-      "https://images.trvl-media.com/place/6285586/3c0b21af-a19a-4c7a-a9a0-c5d000aeacae.jpg"
+      "/heritage-sites/yapsandiegoancestralhouse1.jpg",
+      "/heritage-sites/yapsandiegoancestralhouse2.jpg",
+      "/heritage-sites/yapsandiegoancestralhouse3.jpg"
     ],
     rating: 4.7,
     tags: ["ancestral", "parian"],
@@ -191,10 +196,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Zulueta St, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 9:00 AM - 4:30 PM",
-    imageUrl: "https://gumlet-images.assettype.com/gulfnews%2Fimport%2F2016%2F5%2F1%2F1_16a082dac8b.1816082_1977176752_16a082dac8b_large.jpg?w=640&auto=format%2Ccompress&fit=max",
+    imageUrl: "/heritage-sites/1730jesuithouse1.jpg",
     galleryImages: [
-      "https://dynamic-media-cdn.tripadvisor.com/media/photo-s/02/54/ad/09/1730-jesuit-house.jpg?w=600&h=-1&s=1",
-      "https://ak-d.tripcdn.com/images/1mi5912000c6z55yx984A_W_640_0_R5_Q80.jpg?proc=source/trip"
+      "/heritage-sites/1730jesuithouse1.jpg",
+      "/heritage-sites/1730jesuithouse2.jpg",
+      "/heritage-sites/1730jesuithouse3.jpg"
     ],
     rating: 4.6,
     tags: ["jesuit", "hidden-gem"],
@@ -215,10 +221,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "A. Pigafetta St, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 9:00 AM - 6:00 PM",
-    imageUrl: "https://weblinks.nationalmuseum.gov.ph/wp-content/uploads/2023/07/31115833/DSC09024-1536x1024.jpg",
+    imageUrl: "/heritage-sites/nationalmuseumofthephilippinsecebu1.jpg",
     galleryImages: [
-      "https://travelcebu.b-cdn.net/wp-content/uploads/2024/06/entrance.jpg",
-      "https://weblinks.nationalmuseum.gov.ph/wp-content/uploads/2025/03/11163307/Gallery-2-1-scaled.jpg"
+      "/heritage-sites/nationalmuseumofthephilippinsecebu1.jpg",
+      "/heritage-sites/nationalmuseumofthephilippinsecebu2.jpg",
+      "/heritage-sites/nationalmuseumofthephilippinsecebu3.jpg"
     ],
     rating: 4.8,
     tags: ["museum", "aduana"],
@@ -239,10 +246,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Gotiaoco Building, M.C. Briones St. corner P. Burgos St., Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 10:00 AM - 5:00 PM",
-    imageUrl: "https://www.sugbuchinese.com/web/image/1244-fc089f1c/SCHMFI%20facade%20CNY.webp",
+    imageUrl: "/heritage-sites/sugbuchineseheritagemuseum1.jpg",
     galleryImages: [
-      "https://cf-images.assettype.com/sunstar%2Fimport%2Fuploads%2Fimages%2F2020%2F02%2F20%2F213848.jpg?w=1024&auto=format%2Ccompress&fit=max",
-      "https://maritimereview.ph/wp-content/uploads/2020/05/20-2Sugbu-Chinese-Museum_2_Porcelain.jpg"
+      "/heritage-sites/sugbuchineseheritagemuseum1.jpg",
+      "/heritage-sites/sugbuchineseheritagemuseum2.jpg",
+      "/heritage-sites/sugbuchineseheritagemuseum3.jpg"
     ],
     rating: 4.6,
     tags: ["museum", "chinese", "gotiaoco", "trade", "culture"],
@@ -314,10 +322,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "P. del Rosario St, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 8:30 AM - 5:30 PM",
-    imageUrl: "https://www.hlimg.com/images/things2do/738X538/ttd_1518782742m1.jpg?w=1080&dpr=1.3",
+    imageUrl: "/heritage-sites/universityofsancarlosmuseum1.jpg",
     galleryImages: [
-      "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/12/b6/d5/d4/univ-of-san-carlos.jpg?w=1600&h=-1&s=1",
-      "https://media-cdn.tripadvisor.com/media/photo-s/1a/3f/44/b9/entrance-of-the-usc-museum.jpg"
+      "/heritage-sites/universityofsancarlosmuseum1.jpg",
+      "/heritage-sites/universityofsancarlosmuseum2.jpg",
+      "/heritage-sites/universityofsancarlosmuseum3.jpg"
     ],
     rating: 4.6,
     tags: ["academic", "artifacts"],
@@ -338,10 +347,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "A. Pigafetta St, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 8:00 AM - 7:00 PM",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Fort_San_Pedro%2C_Cebu-City_%2849063919082%29.jpg/1920px-Fort_San_Pedro%2C_Cebu-City_%2849063919082%29.jpg",
+    imageUrl: "/heritage-sites/fortsanpedro1.jpg",
     galleryImages: [
-      "https://live.staticflickr.com/5450/7044070907_10f9ba6159_c.jpg",
-      "https://live.staticflickr.com/2874/34105089401_2a5520ddf5_z.jpg"
+      "/heritage-sites/fortsanpedro1.jpg",
+      "/heritage-sites/fortsanpedro2.jpg",
+      "/heritage-sites/fortsanpedro3.jpg"
     ],
     rating: 4.6,
     tags: ["military", "bastion"],
@@ -487,9 +497,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Mabini St, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 24 Hours",
-    imageUrl: "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhUijs9A83k5dganQXw0pqLJ12Z_Rb7u2CwU_J0yjIV7Bvo5r13n6vKa-7lKhI97ve5VYzbPAM-Dw46ETfmoYr3wtuHDQrbX7gxMyS_ZG31X_KE-YS8IQuM57kvVhe2SZVTVZdpip8V1_c/s1600/P2210039.JPG",
+    imageUrl: "/heritage-sites/plazahamabar1.jpg",
     galleryImages: [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Humabon_NHCP_marker.jpg/960px-Humabon_NHCP_marker.jpg.webp"
+      "/heritage-sites/plazahamabar1.jpg",
+      "/heritage-sites/plazahamabar2.jpg",
+      "/heritage-sites/plazahamabar3.jpg"
     ],
     rating: 4.2,
     tags: ["rajah", "history"],
@@ -510,11 +522,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Osmeña Blvd, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 24 Hours",
-    imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Fuente%20Osmena%20Circle%2C%20Osme%C3%B1a%20Boulevard%20%28Cebu%20City%3B%2009-05-2022%29.jpg?width=1400",
+    imageUrl: "/heritage-sites/fuenteosmenacircle1.jpg",
     galleryImages: [
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Fuente%20Osmena%20Circle%2C%20Osme%C3%B1a%20Boulevard%20sunset%20%28Cebu%20City%3B%2009-06-2022%29.jpg?width=1400",
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Cebu%20Fuente%20Osme%C3%B1a%20Circle%20top%20view%20%28Cebu%20City%3B%2009-09-2022%29.jpg?width=1400",
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Osme%C3%B1a%20Boulevard%20Fuente%20Circle-General%20Maxilom%20Avenue%20%28Cebu%20City%3B%2009-05-2022%29.jpg?width=1400"
+      "/heritage-sites/fuenteosmenacircle1.jpg",
+      "/heritage-sites/fuenteosmenacircle2.jpg",
+      "/heritage-sites/fuenteosmenacircle3.jpg"
     ],
     rating: 4.5,
     tags: ["fountain", "osmeña"],
@@ -535,10 +547,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "M.C. Briones St, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 8:00 AM - 5:00 PM",
-    imageUrl: "https://cebudailynews.inquirer.net/files/2023/07/IMG_3415-1536x1152.jpg",
+    imageUrl: "/heritage-sites/cebucityhall1.jpg",
     galleryImages: [
-      "https://cf-images.assettype.com/sunstar%2Fimport%2Fuploads%2Fimages%2F2022%2F10%2F12%2F387350.jpg?w=1024&auto=format%2Ccompress&fit=max",
-      "https://scontent-mnl3-1.xx.fbcdn.net/v/t39.30808-6/492041906_1022941220020152_5135996101850111015_n.jpg?stp=dst-jpg_s960x960_tt6&_nc_cat=103&ccb=1-7&_nc_sid=cc71e4&_nc_eui2=AeG6NGIMlYTIhIxGMhSgitdYIPySslalTMQg_JKyVqVMxLukxWLxz5k1WedRtSo9r9QzgTD39JGdCNo8w-kULqHz&_nc_ohc=u2uQ2j03H1QQ7kNvwHBC_w5&_nc_oc=AdpZkDPQpvMlhpEEln4KIq50xR4a3HPHcZvmITTjHz057Ed6TSQVwivm5sq56MlhEFs&_nc_zt=23&_nc_ht=scontent-mnl3-1.xx&_nc_gid=JV5PTREJCyGUx9ndPCGeMQ&_nc_ss=7b2a8&oh=00_Af7JePAyE9jzrT0P90F1UnRHUE9nNrb3Am9QHB7bP9tXxw&oe=6A091E06"
+      "/heritage-sites/cebucityhall1.jpg",
+      "/heritage-sites/cebucityhall2.jpg",
+      "/heritage-sites/cebucityhall3.jpg"
     ],
     rating: 4.1,
     tags: ["government", "civic"],
@@ -559,11 +572,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Escario St, Cebu City",
     city: "Cebu City",
     visitingHours: "Monday to Sunday, 8:00 AM - 5:00 PM",
-    imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Cebu%20Capitol%20Compund.jpg?width=1400",
+    imageUrl: "/heritage-sites/cebuprovincialhall1.jpg.jpg",
     galleryImages: [
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Cebu%20Provincial%20Capitol.jpg?width=1400",
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Cebu%20Provincial%20Capitol%20Building.jpg?width=1400",
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Cebu%20Provincial%20Capitol%20%28N.%20Escario%2C%20Cebu%20City%3B%2001-23-2024%29.jpg?width=1400"
+      "/heritage-sites/cebuprovincialhall1.jpg.jpg",
+      "/heritage-sites/cebuprovincialhall2.jpg.jpg",
+      "/heritage-sites/cebuprovincialhall3.jpg"
     ],
     rating: 4.8,
     tags: ["capitol", "neoclassical"],
@@ -636,10 +649,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Larawan Beach, Talisay City",
     city: "Talisay City",
     visitingHours: "Monday to Sunday, 24 Hours",
-    imageUrl: "https://files.cdn-files-a.com/uploads/3254295/normal_64ad9624c684b.jpg",
+    imageUrl: "/heritage-sites/talisaylandingsite1.jpg",
     galleryImages: [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Talisay_landing_site.jpg/1280px-Talisay_landing_site.jpg",
-      "https://scontent-mnl3-3.xx.fbcdn.net/v/t39.30808-6/659337321_998312002867312_4095035197233032138_n.jpg?_nc_cat=109&ccb=1-7&_nc_sid=7b2446&_nc_eui2=AeEKh8c8Zds3YBHe9_CwiSNdI_fKZBHy2BQj98pkEfLYFLtLTL3cObkV8czwBqGDSauPXIufz5zIswoAt1YDeO7Z&_nc_ohc=l1ZQKxD2TMQQ7kNvwGfIhOF&_nc_oc=AdrPQUU0uZ6bktrhWl52VTktWgmXKFcbF4H-qyekX6MY57lh0gDGYfbNODyaNC95pF8&_nc_zt=23&_nc_ht=scontent-mnl3-3.xx&_nc_gid=AuyFDCHP6VC2_SlhcX_8cQ&_nc_ss=7b2a8&oh=00_Af4WEcPpkTNsnb0F7V-3sJwF1O6PvwypwXgWK8bwH1Cerw&oe=6A08FB1F"
+      "/heritage-sites/talisaylandingsite1.jpg",
+      "/heritage-sites/talisaylandingsite2.jpg",
+      "/heritage-sites/talisaylandingsite3.jpg"
     ],
     rating: 4.7,
     tags: ["WWII", "memorial", "liberation"],
@@ -660,10 +674,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Poblacion, Talisay City",
     city: "Talisay City",
     visitingHours: "Monday to Sunday, 5:00 AM - 8:00 PM",
-    imageUrl: "https://static.where-e.com/Philippines/Central_Visayas_Region/Cebu_Province/Sta-Teresa-De-Avila-Church_5fd36777081d94635c2471b0c3a26a74.jpg",
+    imageUrl: "/heritage-sites/stateresadeavilaparishchurch1.jpg",
     galleryImages: [
-      "https://static.where-e.com/Philippines/Central_Visayas_Region/Cebu_Province/Sta-Teresa-De-Avila-Church_3cdaf98bbad6e81d7916199959625f17.jpg",
-      "https://static.where-e.com/Philippines/Central_Visayas_Region/Cebu_Province/Sta-Teresa-De-Avila-Church_270b5a8e4186bf088d8f8651c484b705.jpg"
+      "/heritage-sites/stateresadeavilaparishchurch1.jpg",
+      "/heritage-sites/stateresadeavilaparishchurch2.jpg",
+      "/heritage-sites/stateresadeavilaparishchurch3.jpg"
     ],
     rating: 4.6,
     tags: ["church", "religious", "heritage"],
@@ -684,10 +699,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Poblacion, Talisay City",
     city: "Talisay City",
     visitingHours: "Monday to Sunday, 24 Hours",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/en/thumb/4/44/Talisay_City_Hall_and_Plaza_%28CSCR%2C_Talisay%2C_Cebu%3B_09-07-2022%29.jpg/1920px-Talisay_City_Hall_and_Plaza_%28CSCR%2C_Talisay%2C_Cebu%3B_09-07-2022%29.jpg?_=20220922015758",
+    imageUrl: "/heritage-sites/talisaycityplaza1.jpg",
     galleryImages: [
-      "https://suroy.ph/wp-content/uploads/2024/12/christmasintalisay-3-1120x840.jpg",
-      "https://scontent-mnl3-3.xx.fbcdn.net/v/t39.30808-6/497443985_1226770206126604_739861156463822267_n.jpg?_nc_cat=109&ccb=1-7&_nc_sid=127cfc&_nc_eui2=AeH4fwf5O7n-nv443d6mpFiug0TypoQX7eWDRPKmhBft5SqeEoAn8cWtWLbrqmDujlPr2fUiFnlnGMQDBKCDWED5&_nc_ohc=-WdhoHFqXUUQ7kNvwHS7hhH&_nc_oc=AdrecPZgqfn8cYTN0YUoMwQZl0DNJjE76vRLW_JnV47JlagupyMWgyNrltJZkHphCvI&_nc_zt=23&_nc_ht=scontent-mnl3-3.xx&_nc_gid=VxiYyz9oOdBIA4WygN_7Sw&_nc_ss=7b2a8&oh=00_Af7lM9A3gpzXMZwWwwVUZWjxQvbiXgADaSxeKCa9gwULNg&oe=6A092F7E"
+      "/heritage-sites/talisaycityplaza1.jpg",
+      "/heritage-sites/talisaycityplaza2.jpg",
+      "/heritage-sites/talisaycityplaza3.jpg"
     ],
     rating: 4.3,
     tags: ["plaza", "civic", "gathering"],
@@ -735,10 +751,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "P. Burgos St, Mandaue City",
     city: "Mandaue City",
     visitingHours: "Monday to Sunday, 5:00 AM - 8:00 PM",
-    imageUrl: "https://d384rxa9e2cak.cloudfront.net/public/churchbanners/churches_1476842574_9355_2707.jpg",
+    imageUrl: "/heritage-sites/nationalshrineofsaintjoseph1.jpg",
     galleryImages: [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/The_National_Shrine_of_St._Joseph%2C_Mandaue%2C_Cebu%2C_Jan_2024.jpg/1280px-The_National_Shrine_of_St._Joseph%2C_Mandaue%2C_Cebu%2C_Jan_2024.jpg",
-      "https://cebudailynews.inquirer.net/files/2023/04/337433663_206436435337398_6523133706650289883_n.jpeg"
+      "/heritage-sites/nationalshrineofsaintjoseph1.jpg",
+      "/heritage-sites/nationalshrineofsaintjoseph2.jpg",
+      "/heritage-sites/nationalshrineofsaintjoseph3.jpg"
     ],
     rating: 4.8,
     tags: ["shrine", "religious", "jesuit"],
@@ -759,10 +776,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Poblacion, Mandaue City",
     city: "Mandaue City",
     visitingHours: "Monday to Sunday, 8:00 AM - 5:00 PM",
-    imageUrl: "https://cf-images.assettype.com/sunstar%2F2025-07-28%2Frjjivr5w%2FMandaue-City-public-library.jpg?rect=0%2C51%2C750%2C422&w=1024&auto=format%2Ccompress&fit=max",
+    imageUrl: "/heritage-sites/mandauecitypubliclibary1.jpg",
     galleryImages: [
-      "https://cebudailynews.inquirer.net/files/2025/11/Mandaue-City-Library-1536x1152.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Mandaue_City_Public_Library%2C_Cebu%2C_Jan_2024.jpg/1920px-Mandaue_City_Public_Library%2C_Cebu%2C_Jan_2024.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail&_=20240128091402"
+      "/heritage-sites/mandauecitypubliclibary1.jpg",
+      "/heritage-sites/mandauecitypubliclibary2.jpg",
+      "/heritage-sites/mandauecitypubliclibary3.jpg"
     ],
     rating: 4.2,
     tags: ["library", "educational", "architecture"],
@@ -783,10 +801,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Looc, Mandaue City",
     city: "Mandaue City",
     visitingHours: "Monday to Sunday, Daylight Hours",
-    imageUrl: "https://cebudailynews.inquirer.net/files/2022/11/313380746_683962686627241_4337483621810933988_n.png",
+    imageUrl: "/heritage-sites/bantayansahari1.jpg",
     galleryImages: [
-      "https://www.mycebu.ph/wp-content/uploads/2021/07/20210706_133134-7.jpg",
-      "https://www.mycebu.ph/wp-content/uploads/2021/07/20210708_151946.jpg"
+      "/heritage-sites/bantayansahari1.jpg",
+      "/heritage-sites/bantayansahari2.jpg",
+      "/heritage-sites/bantayansahari3.jpg"
     ],
     rating: 4.0,
     tags: ["watchtower", "spanish", "military"],
@@ -807,10 +826,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Poblacion, Mandaue City",
     city: "Mandaue City",
     visitingHours: "Monday to Sunday, 8:00 AM - 5:00 PM",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/en/thumb/5/51/Mandaue_Presidencia_%28SB_Cabahug%2C_Madaue%2C_Cebu%3B_09-04-2022%29.jpg/1920px-Mandaue_Presidencia_%28SB_Cabahug%2C_Madaue%2C_Cebu%3B_09-04-2022%29.jpg?_=20220921233707",
+    imageUrl: "/heritage-sites/mandauepresidencia1.jpg",
     galleryImages: [
-      "https://upload.wikimedia.org/wikipedia/en/thumb/1/1c/Mandaue_Presidencia_Sotero_Cabahug.jpg/1280px-Mandaue_Presidencia_Sotero_Cabahug.jpg?_=20200310202210",
-      "https://cebudailynews.inquirer.net/files/2020/03/mand-1024x656.jpg"
+      "/heritage-sites/mandauepresidencia1.jpg",
+      "/heritage-sites/mandauepresidencia2.jpg",
+      "/heritage-sites/mandauepresidencia3jpg.jpg"
     ],
     rating: 4.6,
     tags: ["government", "neoclassical", "cityhall"],
@@ -831,10 +851,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Mandaue City",
     city: "Mandaue City",
     visitingHours: "Monday to Sunday, 24 Hours",
-    imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Mandaue-Mactan_Bridge_I.jpg/1280px-Mandaue-Mactan_Bridge_I.jpg",
+    imageUrl: "/heritage-sites/mandauemactanbridge1.jpg",
     galleryImages: [
-      "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/1b/1a/8e/9e/photo1jpg.jpg?w=1400&h=-1&s=1",
-      "https://ocglobal.jp/wpdata/wp-content/uploads/2024/06/%E5%86%99%E7%9C%9F%E3%80%80%E7%AC%AC1%E3%82%BB%E3%83%96%E3%83%9E%E3%82%AF%E3%82%BF%E3%83%B3%E6%A9%8B%E5%85%A8%E6%99%AF-2048x832.jpg"
+      "/heritage-sites/mandauemactanbridge1.jpg",
+      "/heritage-sites/mandauemactanbridge2.jpg",
+      "/heritage-sites/mandauemactanbridge3.jpg"
     ],
     rating: 4.4,
     tags: ["bridge", "iconic", "channel"],
@@ -855,11 +876,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Poblacion, Mandaue City",
     city: "Mandaue City",
     visitingHours: "Monday to Sunday, 24 Hours",
-    imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Mandaue%20City%20Plaza%20%282024-10-27%29.jpg?width=1400",
+    imageUrl: "/heritage-sites/mandauecityheritageplaza1.jpg",
     galleryImages: [
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Mandaue%20Clock%20Tower%20%282024-10-27%29.jpg?width=1400",
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Mandaue%20Presidencia%20%28SB%20Cabahug%2C%20Madaue%2C%20Cebu%3B%2009-04-2022%29.jpg?width=1400",
-      "https://commons.wikimedia.org/wiki/Special:FilePath/The%20National%20Shrine%20of%20St.%20Joseph%2C%20Mandaue%2C%20Cebu%2C%20Jan%202024.jpg?width=1400"
+      "/heritage-sites/mandauecityheritageplaza1.jpg",
+      "/heritage-sites/mandauecityheritageplaza2.jpg",
+      "/heritage-sites/mandauecityheritageplaza3.jpg"
     ],
     rating: 4.3,
     tags: ["plaza", "civic", "park"],
@@ -882,10 +903,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "B.M. Dimataga St, Lapu-Lapu City",
     city: "Lapu-Lapu City",
     visitingHours: "Monday to Sunday, 5:00 AM - 8:00 PM",
-    imageUrl: "https://benjielayug.com/wp-content/uploads/2022/04/20220422_141117.jpg",
+    imageUrl: "/heritage-sites/virgendelareglanationalshrine1.jpg",
     galleryImages: [
-      "https://upload.wikimedia.org/wikipedia/en/thumb/9/99/Virgen_De_la_Regla_National_Shrine_inside_%28Lopez_Jaena%2C_Opon%2C_Lapu-Lapu_City%2C_Cebu%3B_01-19-2024%29.jpg/1920px-Virgen_De_la_Regla_National_Shrine_inside_%28Lopez_Jaena%2C_Opon%2C_Lapu-Lapu_City%2C_Cebu%3B_01-19-2024%29.jpg?_=20240308130944",
-      "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/0d/dd/a4/1b/caption.jpg?w=2000&h=-1&s=1"
+      "/heritage-sites/virgendelareglanationalshrine1.jpg",
+      "/heritage-sites/virgendelareglanationalshrine2.jpg",
+      "/heritage-sites/virgendelareglanationalshrine3.jpg"
     ],
     rating: 4.9,
     tags: ["shrine", "pilgrimage", "devotion"],
@@ -906,11 +928,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Punta Engaño Rd, Lapu-Lapu City",
     city: "Lapu-Lapu City",
     visitingHours: "Monday to Sunday, 24 Hours",
-    imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Lapu%20Lapu%20statue%20at%20Mactan%20Shrine%202013.jpg?width=1400",
+    imageUrl: "/heritage-sites/mactanshrine1.jpg",
     galleryImages: [
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Landscaping%20at%20the%20Lapu%20Lapu%20monument%20%289247179893%29.jpg?width=1400",
-      "https://commons.wikimedia.org/wiki/Special:FilePath/The%20place%20where%20it%20happened%20%289234950965%29.jpg?width=1400",
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Stage%20set%20for%20the%20re-enactment%20%289234955361%29.jpg?width=1400"
+      "/heritage-sites/mactanshrine1.jpg",
+      "/heritage-sites/mactanshrine2.jpg",
+      "/heritage-sites/mactanshrine3.jpg"
     ],
     rating: 4.9,
     tags: ["hero", "battle", "liberty"],
@@ -1006,11 +1028,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Pajo, Lapu-Lapu City",
     city: "Lapu-Lapu City",
     visitingHours: "Monday to Sunday, 24 Hours",
-    imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Mactan-Mandaue%20Bridge%20%28Pajo%2C%20Lapu-Lapu%20City%2C%20Cebu%3B%2001-19-2024%29.jpg?width=1400",
+    imageUrl: "/heritage-sites/oldbridgepark1.jpg",
     galleryImages: [
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Mactan-Mandaue%20Bridge%20%2801%29%20%2810-30-2022%29.jpg?width=1400",
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Mactan-Mandaue%20Bridge%20%2802%29%20%2810-30-2022%29.jpg?width=1400",
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Mactan%E2%80%93Mandaue%20Bridge%20welcome%20marker%20%28Cebu%3B%2009-04-2022%29.jpg?width=1400"
+      "/heritage-sites/oldbridgepark1.jpg",
+      "/heritage-sites/oldbridgepark2.jpg",
+      "/heritage-sites/oldbridgepark3.jpg"
     ],
     rating: 4.0,
     tags: ["park", "industrial-heritage", "community"],

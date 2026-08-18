@@ -82,9 +82,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   const imageFallback = getSiteImageFallback(site);
   const siteImageSources = site ? getSiteImageSources(site) : [];
   const allImages = siteImageSources.length > 0 ? siteImageSources : [imageFallback];
-  const getImageFallbackSources = (index: number) => [
-    ...allImages.slice(index + 1),
-    ...allImages.slice(0, index),
+  const getImageFallbackSources = (_index: number) => [
     imageFallback,
   ];
 

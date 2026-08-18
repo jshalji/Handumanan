@@ -26,8 +26,23 @@ export function SafeImage({
   ...props
 }: SafeImageProps) {
   const fallbackSources = Array.isArray(fallbackSrc) ? fallbackSrc : [fallbackSrc];
-  const sources = [src, ...fallbackSources].filter((source): source is string => Boolean(source));
-  const uniqueSources = Array.from(new Set(sources));
+  const rawSources = [src, ...fallbackSources];
+  const seenKeys = new Set<string>();
+  const uniqueSources: string[] = [];
+
+  for (const raw of rawSources) {
+    if (!raw) continue;
+    let cleaned = raw.trim();
+    if (!cleaned) continue;
+    if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://') && !cleaned.startsWith('/') && !cleaned.startsWith('data:')) {
+      cleaned = '/' + cleaned;
+    }
+    const dedupKey = cleaned.startsWith('/') ? cleaned.toLowerCase() : cleaned;
+    if (!seenKeys.has(dedupKey)) {
+      seenKeys.add(dedupKey);
+      uniqueSources.push(cleaned);
+    }
+  }
   const sourceKey = uniqueSources.join('|');
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentSrc = uniqueSources[currentIndex] || '/logo.png';
