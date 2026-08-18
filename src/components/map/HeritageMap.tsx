@@ -15,7 +15,7 @@ import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { SafeImage } from '@/components/ui/safe-image';
-import { getSiteImageFallback } from '@/lib/site-images';
+import { getSiteImageSources } from '@/lib/site-images';
 import { getSiteAvailability } from '@/lib/site-availability';
 import { getDailyVisitingTime, WEEKLY_VISITING_DAYS } from '@/lib/visiting-hours';
 
@@ -402,6 +402,7 @@ export default function HeritageMap({
             const { lat, lng } = getSiteCoordinates(selectedPopupSite);
             const isInItinerary = itinerary.some(i => i.id === selectedPopupSite.id);
             const availability = getSiteAvailability(selectedPopupSite);
+            const imageSources = getSiteImageSources(selectedPopupSite);
             if (!isValidCoordinate(lat, lng)) return null;
 
             return (
@@ -410,12 +411,12 @@ export default function HeritageMap({
                 onCloseClick={() => setSelectedPopupSite(null)}
               >
                 <div className="w-[20rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[1.75rem] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)] ring-1 ring-slate-200">
-                  {selectedPopupSite.imageUrl && (
+                  {imageSources.length > 0 && (
                     <div className="relative m-2 mb-0 h-36 overflow-hidden rounded-[1.35rem] bg-slate-100">
                       <SafeImage
-                        src={selectedPopupSite.imageUrl}
+                        src={imageSources[0]}
                         alt={selectedPopupSite.name}
-                        fallbackSrc={getSiteImageFallback(selectedPopupSite)}
+                        fallbackSrc={imageSources.slice(1)}
                         fallbackClassName="object-cover"
                         className="h-full w-full object-cover"
                       />

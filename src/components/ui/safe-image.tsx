@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 
 type SafeImageProps = Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
   src?: string | null;
-  fallbackSrc?: string;
+  fallbackSrc?: string | string[];
   fill?: boolean;
   fallbackClassName?: string;
   fallbackDelayMs?: number;
@@ -25,27 +25,31 @@ export function SafeImage({
   onLoad,
   ...props
 }: SafeImageProps) {
-  const [currentSrc, setCurrentSrc] = useState(src || fallbackSrc);
-  const [isFallback, setIsFallback] = useState(!src);
+  const fallbackSources = Array.isArray(fallbackSrc) ? fallbackSrc : [fallbackSrc];
+  const sources = [src, ...fallbackSources].filter((source): source is string => Boolean(source));
+  const uniqueSources = Array.from(new Set(sources));
+  const sourceKey = uniqueSources.join('|');
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const currentSrc = uniqueSources[currentIndex] || '/logo.png';
+  const isFallback = currentIndex > 0 || !src;
   const [hasLoaded, setHasLoaded] = useState(false);
-  const resolvedFallbackDelayMs = fallbackDelayMs ?? (src?.startsWith('http') ? 5000 : 0);
+  const resolvedFallbackDelayMs = fallbackDelayMs ?? (currentSrc.startsWith('http') ? 5000 : 0);
 
   useEffect(() => {
-    setCurrentSrc(src || fallbackSrc);
-    setIsFallback(!src);
+    setCurrentIndex(0);
     setHasLoaded(false);
-  }, [fallbackSrc, src]);
+  }, [sourceKey]);
 
   useEffect(() => {
-    if (!src || currentSrc === fallbackSrc || resolvedFallbackDelayMs <= 0 || hasLoaded) return;
+    if (currentIndex >= uniqueSources.length - 1 || resolvedFallbackDelayMs <= 0 || hasLoaded) return;
 
     const timeout = window.setTimeout(() => {
-      setCurrentSrc(fallbackSrc);
-      setIsFallback(true);
+      setHasLoaded(false);
+      setCurrentIndex(index => Math.min(index + 1, uniqueSources.length - 1));
     }, resolvedFallbackDelayMs);
 
     return () => window.clearTimeout(timeout);
-  }, [currentSrc, fallbackSrc, hasLoaded, resolvedFallbackDelayMs, src]);
+  }, [currentIndex, hasLoaded, resolvedFallbackDelayMs, uniqueSources.length]);
 
   return (
     <img
@@ -60,17 +64,14 @@ export function SafeImage({
         isFallback && fallbackClassName
       )}
       onError={(event) => {
-        if (currentSrc !== fallbackSrc) {
-          setCurrentSrc(fallbackSrc);
-          setIsFallback(true);
+        if (currentIndex < uniqueSources.length - 1) {
+          setHasLoaded(false);
+          setCurrentIndex(index => Math.min(index + 1, uniqueSources.length - 1));
         }
         onError?.(event);
       }}
       onLoad={(event) => {
         setHasLoaded(true);
-        if (currentSrc === fallbackSrc) {
-          setIsFallback(true);
-        }
         onLoad?.(event);
       }}
       {...props}

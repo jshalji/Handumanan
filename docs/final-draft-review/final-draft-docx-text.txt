@@ -1,0 +1,585 @@
+﻿Handumanan: A Web-Based Cultural Heritage 
+Site Information System for Metro Cebu
+A Capstone Project Presented to the Faculty of the College of Computer Studies
+University of Southern Philippines Foundation
+Salinas Drive, Lahug, Cebu City, Cebu
+In Partial Fulfillment of the Requirements for the
+Degree of Bachelor of Science in
+Information Technology
+Joshua E. Añasco
+Josh Alji E. Ocio
+2026
+APPROVAL SHEET
+ACKNOWLEDGEMENT
+The researchers would like to express their sincere gratitude to the people who helped and supported us throughout the completion of this study.
+First, we thank God Almighty for giving us the strength, guidance, and determination to finish this research despite the challenges we encountered along the way.
+We would like to extend our heartfelt appreciation to our research adviser, Ms. Cyrille Shane A. Pador, for her guidance, patience, and valuable suggestions that helped improve both our study and the Handumanan system.
+We are also grateful to the University of Southern Philippines Foundation for providing us with the knowledge and opportunities that contributed to the success of this research.
+Our sincere thanks go to the respondents who participated in the study and shared their time and feedback.
+Lastly, we would like to thank our families, friends, and classmates for their encouragement, support, and understanding throughout this journey.
+To everyone who became part of this study, thank you for helping us make it possible.
+DEDICATION
+ABSTRACT
+TABLE OF CONTENTS
+TABLE OF CONTENTSiv
+LIST OF FIGURESv
+LIST OF TABLESvi
+CHAPTER 11
+INTRODUCTION1
+1.1 Background of the Study1
+1.2 Statement of the Problem3
+1.3 Objectives of the Study3
+1.3.1 General Objective:3
+1.3.2 Specific Objectives:3
+1.4 Significance of the Study4
+1.5 Scope and Limitations4
+1.6 Definition of Terms5
+CHAPTER 28
+REVIEW OF RELATED LITERATURE AND STUDIES8
+2.1 Related Literature8
+Cultural Heritage and Tourism8
+Digital Platforms in Tourism9
+Web-Based Information Systems9
+Web-Based Cultural Heritage Information System9
+Usability and System Design10
+Location-Based Services and Google Maps Integration10
+Artificial Intelligence in Tourism11
+AI Chatbots in Tourism and Information Systems11
+Itinerary Planning and Recommender Systems12
+Web Technologies and System Development12
+2.2 Related Studies13
+Web-Based Tourism Information Systems13
+Digital Platforms for Tourism Promotion13
+Information Systems for Travel Planning14
+Integration of System Features14
+Application to Cultural Heritage Systems14
+2.3 Synthesis of the Reviewed Literature and Studies15
+2.4 Research Gap15
+CHAPTER 317
+METHODOLOGY17
+3.1 Conceptual Framework17
+3.1.1 Conceptual Framework Diagram17
+3.1.2 Explanation of the Conceptual Framework18
+3.2 Research Design18
+3.3 Data Gathering Procedures18
+3.3.1 Ethical Considerations19
+Informed Consent19
+User Privacy and Data Protection20
+Location Data Privacy20
+Accuracy of Cultural Heritage Information20
+Proper Use of Images and Content20
+Confidentiality of Feedback and Survey Responses21
+3.4 System Development Methodology21
+Phase 1: Requirement Analysis & Product Backlog Creation22
+Phase 2: Sprint Planning22
+Phase 3: System Design & UI/UX Prototyping22
+Phase 4: Iterative Development23
+Phase 5: Sprint Review and Testing23
+Phase 6: Deployment23
+Phase 7: Maintenance23
+3.5 Planning Phase24
+3.6 Analysis Phase24
+3.6.1 User Requirements Specification (URS)24
+Table 1: User Requirements Specifications (URS)25
+3.6.2 Functional Requirements25
+Table 2: Functional Requirement26
+3.6.3 Use Case Diagram27
+3.6.4 Data Flow Diagram29
+3.6.5 Class Diagram32
+3.6.6 Non-Functional Requirements33
+Table 3:Non-Functional Requirement34
+3.7 Design Phase34
+3.7.1 Interface Design(Main Modules)35
+3.7.2 Database Design39
+3.8 System Architecture40
+3.9 Development Phase40
+3.9.1 Technology Stack41
+Table 4: Technology Stack43
+3.10 Implementation And Testing Phase43
+3.10.1 Test Plan44
+Test Cases45
+Participants and Sampling51
+Setting of the Study52
+REFERENCES54
+APPENDICES58
+APPENDIX A - CERTIFICATE OF APPROVAL58
+APPENDIX A - CONSULTATION FORM59
+APPENDIX A - COMMITMENT FORM61
+APPENDIX B – REQUIREMENTS GATHERING DOCUMENTS62
+APPENDIX C – DESIGN AND DEVELOPMENT DOCUMENTS64
+APPENDIX D – RESEARCH ETHICS66
+APPENDIX E– GRAMMARLY RESULTS67
+APPENDIX F – CURRICULUM VITAE68
+LIST OF FIGURES
+Figure 1: IPO Model for Handumanan
+Figure 2: Agile Model for Handumanan
+Figure 3: Guest/Visitor Use Case Diagram
+Figure 3.1: Registered User Use Case Diagram
+Figure 3.2: Administrator Use Case Diagram
+Figure 4: Level 0 Context Diagram
+Figure 4.1: Level 1 Data Flow Diagram
+Figure 5: Class Diagram
+Figure 6.0: Home Page, Login Page, User Profile
+Figure 6.1: Browse, Search , View Site Details
+Figure 6.2: Map, AI Planner, Live Navigation/Route, Chatbot
+Figure 6.3: Feedback
+Figure 6.4: Admin Panel
+Figure 7: System Architecture
+LIST OF TABLES
+Table 1:  User Requirements Specifications (URS)
+Table 2 : Functional Requirement
+Table 3 : Non-Functional Requirement
+Table 4 : Technology Stack
+Table 5 : Test Plan
+Table 6 : Test Cases
+CHAPTER 1
+INTRODUCTION
+1.1 Background of the Study
+Metro Cebu is rich in historical events that have shaped the city's identity. From its religious roots, from the first Spaniards who introduced Christianity, to the way Cebuanos live their day-to-day lives. These significant events have been commemorated through heritage sites such as churches, museums, monuments, and old structures. These sites play a crucial role not just in boosting tourism but, most notably, in the cultivation and preservation of our culture. Hence, these must be taken good care of and valued significantly.
+Information about these cultural heritage sites can be easily accessed with a simple internet search, whether through a social media post, blog, website, or any digital platform. Thus, information systems enhance tourism promotion by allowing users to access platforms anytime, anywhere [5]. As studies show, when tourism information is well organized, visitors may have a positive experience and are more likely to visit additional places [1]. Hence, the Department of Tourism encourages the use of digital platforms to promote and raise public awareness of tourist spots [3]. 
+ However, major concerns arise about the completeness, consistency,  and reliability of such information. Some details are vague or simply incorrect, reflecting personal interpretations of the cultural event and leading to misinformation. These lapses may result in both tourists and residents being misled or may not be fully aware of these heritage sites.
+Another issue with such digital platforms is the lack of features that help individuals reach their destinations more quickly and conveniently, making it difficult for them to plan their visits. That said, platforms should be easy to use, with search functions and location-based services, as these are more user-friendly [6].
+Aside from providing organized heritage information, the proposed system also supports users through location-based and AI-assisted features. Handumanan provides a searchable heritage directory, map-based route support, itinerary planning, visiting-hour awareness, and an AI chatbot that assists users with heritage-related questions. These features aim to make cultural heritage information more accessible to students, tourists, local residents, and heritage enthusiasts. 
+To address these concerns, the researchers developed Handumanan: A Web-Based Cultural Heritage Site Information System for Metro Cebu, which aims to create a platform where users can easily access organized information about cultural heritage sites located particularly in the cities of Cebu, Lapu-lapu, Mandaue, and Talisay, and explore these sites more conveniently.
+1.2 Statement of the Problem
+Information about cultural heritage on the internet is often incomplete, inconsistent, and unreliable. This may mislead individuals who are not fully aware of such heritage, leading them to fail to explore it fully.  Also, digital platforms lack features that suggest places to visit, making it harder for individuals to explore nearby locations or plan their visits.
+To address these concerns, this study seeks to answer the following questions:
+How can cultural heritage site information in Metro Cebu be organized in a web-based system?
+What system features can help users search, filter, and view heritage site information more efficiently?
+How can map-based features support users in viewing site locations, routes, estimated distance, and estimated travel time?
+How can an AI-powered itinerary planner assist users in creating suggested heritage travel plans?
+How can a chatbot assist users in answering questions related to Metro Cebu heritage sites and the Handumanan system?
+1.3 Objectives of the Study
+1.3.1 General Objective:
+To develop a web-based cultural heritage site information system for Metro Cebu that provides organized and accessible information for users.
+1.3.2 Specific Objectives:
+Design and develop a web-based system that provides organized information about selected heritage sites in Metro Cebu.
+Provide search and filtering features based on city, category, and heritage site details.
+Integrate map-based features that allow users to view heritage site location, generate routes, and access estimated distance and travel time.
+Develop an AI-powered itinerary planning feature that recommends suggested heritage routes based on user preferences and available site information.
+Implement an AI chatbot that answers questions related to Metro Cebu Heritage sites and the Handumanan system.
+Provide an administrative module for managing heritage site records and maintaining site information
+1.4 Significance of the Study
+This study is significant because it contributes to the development of a cultural heritage platform. Specifically, this study will be beneficial to the following:
+Tourists. The system helps tourists discover heritage sites, view site details, and plan routes using map-based guidance. It also assists them through itinerary planning and chatbot support. 
+Tourism Offices and Local Government Units (LGUs). The system demonstrates how digital tools can support heritage promotion, information access, and cultural awareness. 
+Community. The system may help promote local heritage awareness by making cultural heritage information easier to access. It can encourage residents to appreciate and learn more about heritage sites in Metro Cebu. .
+Future Researchers. This study may serve as a basis for improving AI-assisted tourism systems, location-based services, and cultural heritage information systems. 
+1.5 Scope and Limitations
+This study focuses on developing a web-based cultural heritage site information system for selected heritage sites in Metro Cebu, particularly in Cebu City, Lapu-Lapu City, Mandaue City, and Talisay City. The system provides heritage site information such as descriptions, categories, images, coordinates, locations, and visiting information. Its main features include search and filtering, map-based site viewing, route generation, location-based suggestions, AI-powered itinerary planning, chatbot assistance, user reviews, and admin management of heritage site records. The system can be accessed through web browsers using mobile phones and computers.
+However, the system is limited to the heritage sites encoded in the Handumanan directory and does not claim to include all heritage locations in Cebu. It also requires an internet connection to access the system and its online services. Map routes, estimated distance, and estimated travel time depend on the availability of the map service, user location permission, internet connection, and API limits. The chatbot is limited to Metro Cebu heritage tourism and Handumanan system related-questions. It does not answer unrelated topics and does not replace official tourism or historical authorities. The system is also web-based only and does not include a separate mobile application. Lastly, it does not provide real-time traffic monitoring, crowd monitoring, or visitor analytics.
+1.6 Definition of Terms
+To better understand the study, the following terms are defined based on how they are applied in this study:
+Artificial Intelligence (AI). A system feature used to generate travel recommendations, suggest nearby heritage sites, and assist users in planning itineraries based on available site information and user preferences.
+Backup Route Estimate. A fallback routing method used when Google route services are unavailable. It provides an approximate distance and travel time so users can still receive basic route guidance, although it is less accurate than Google-provided routing.
+Chatbot. A built-in conversational assistance feature that helps users ask questions and receive information related to cultural heritage sites, directions, and travel recommendations within Metro Cebu.
+Cultural Heritage Sites. These are locations in Metro Cebu with historical representation and cultural value, such as churches, museums, monuments, and old structures.
+Database. An organized storage of system information. In Handumanan, Firebase Firestore stores user-related records, reviews, saved itineraries, favorites, and admin-managed heritage site records, and also uses built-in heritage site data. 
+Feedback. A user review or comment submitted on a heritage site page to share ratings and opinions about the site. 
+Firebase. A cloud-based platform used for authentication, database storage, and real-time data management in the system.
+Geolocation. A function that detects the user's current location and is used to show nearby heritage sites.
+Google Maps Integration. The use of Google Maps services to display heritage site locations, show the user’s current location, and support map-based interaction within the system.
+Google Routes API. A Google Maps Platform service used by the system to generate route paths, estimated travel time, distance, and travel mode-based route information when available.
+Information System. A system that collects, stores, and shows information to users in an organized way.
+Itinerary. A planned list of places to visit, arranged in a proper order based on travel time and the time needed for each place.
+Live Location Tracking. A system feature that updates the user’s current position on the map while navigation is active, subject to browser permission, device GPS accuracy, and internet connection.
+Location-Based Recommendation. A system feature that suggests nearby heritage sites based on the user’s current geographic location.
+Local Government Unit (LGU). These are the local authorities who are responsible for maintaining the inventory of heritage properties, preserving them, and implementing cultural programs within Metro Cebu. 
+Navigation System. A feature that provides route guidance and directions from the user’s current location to selected cultural heritage sites using interactive maps and geolocation services.
+Responsive Design. A design approach that allows the system interface to automatically adjust and display properly across different screen sizes and devices.
+System administrator. The person with admin access who is responsible for managing heritage site records in the system, including adding, updating, hiding, or deleting site information, and managing image URLs. 
+Tourism. This is an activity in which individuals visit places to explore, enjoy, and learn about other places’ tangible assets (e.g., tourist spots) and intangible assets such as culture and identity.
+Travel Mode. A routing option that allows the user to request route estimates for driving, two-wheeler, transit, or walking when supported by the routing provider.
+User Account. A registered account handled through Firebase Authentication that allows users to access features such as reviews, favorites, and saved itineraries. 
+Web-Based System. A type of system that can be used through a web browser with an internet connection.
+CHAPTER 2
+REVIEW OF RELATED LITERATURE AND STUDIES
+This chapter presents related literature and studies relevant to the development of Handumanan: A Web-Based Cultural Heritage Site Information Systems for Metro Cebu. Relevant topics related to the study include cultural heritage, tourism systems, and web-based technologies. The references used in this study include published books, journals, government reports, and online sources. Overall, these references support the idea of creating a centralized and accessible platform for cultural heritage information.
+2.1 Related Literature
+Cultural Heritage and Tourism
+To understand how people are shaped today, it is important to remember history. One way to remember it is to preserve cultural heritage. Cultural heritage helps protect the identity, traditions, and historical experiences of a community. It also supports tourism because heritage sites allow visitors to learn about the past and experience local culture. According to Timothy and Boyd, heritage tourism helps people understand traditions and historical backgrounds through actual places and cultural experiences [1]. Cultural heritage tourism also helps strengthen cultural awareness and local identity [13]. Heritage sites help people remember important events, traditions, and ways of life from the past. By preserving and promoting these places through digital systems and tourism, younger people can learn more about local history and why it should be protected [1], [9], [13]. In addition, heritage tourism encourages cultural appreciation among both residents and visitors by allowing them to experience historical sites firsthand rather than only learning from books or media. To promote heritage tourism and encourage more visitors to explore cultural destinations, heritage information should be well organized. Hence, digital tools are important in preserving and promoting cultural heritage, making it more accessible to a wider audience [9]. Cultural heritage preservation is also supported by national and international frameworks that emphasize the importance of documenting, protecting, and promoting heritage resources for public awareness and sustainable tourism [10], [38], [39], [41], [42]. 
+Digital Platforms in Tourism
+In recent years, the tourism sector has changed because of technology. Many tourism businesses and organizations now use digital platforms to promote destinations and make tourism information easier to access. These platforms help users find details about tourist spots, maps, recommendations, and other travel-related information in one place. Because of this, users do not need to rely on many separate sources just to plan their visit. Online platforms also help increase visitor engagement by allowing tourism information to be shared and accessed more easily [7], [11]. Some tourism systems also use digital tools such as chatbots and recommendation features to assist users and improve their experience [21]. With the help of these systems, tourism services become more organized and convenient for both local and foreign visitors. Digital platforms also support tourism promotion by helping destinations become more visible to the public [30], [33]. In the Philippines, digital platforms are encouraged to improve accessibility and provide updated tourism content [3]. Related works also show that information technology, social media, and digital platforms continue to influence tourism promotion, destination visibility, and user access to travel-related information [34], [35], [43], [44], [45]. 
+Web-Based Information Systems
+An information system is used to collect, store, manage, and show data in an organized way. Web-based information systems are useful because users can open them through devices with an internet connection. In tourism and cultural heritage, this kind of system can help store important details such as site names, descriptions, locations, images, and visitor information. It also allows users to access tourism-related information whenever they need it [14]. These systems help manage organized data and support the development of useful platforms [15]. They also make it easier to store, find, and present information for users [16]. The development of web-based information systems also requires proper design principles so that the system can organize data, support user interaction, and provide useful information through an accessible platform [46]. 
+Web-Based Cultural Heritage Information System
+Web-based cultural heritage information systems help organize historical and cultural information in one digital platform. These systems allow users to search, browse, and view heritage site details without relying on scattered sources such as blogs, social media posts, or separate tourism pages. In cultural tourism, organized information helps users better understand the history, value, and location of heritage sites [1], [13]. For Handumanan, this concept is important because the system focuses on selected cultural heritage sites in Metro Cebu. The system provides site information such as historical background, images, categories, and location details. It also allows users to filter by city or category and access map-based support for easier exploration. This supports the purpose of making heritage information more accessible and organized for users [9], [11].
+Usability and System Design
+Usability is important in a web-based system because it affects how people use the platform. A system should have a clear layout, readable information, and proper navigation so users can find what they need without difficulty. Nielsen states that a system should be understandable and usable for its intended users [4]. Organized information also helps keep users interested while using the system [8]. A good interface can improve user interaction and satisfaction, especially when users need quick access to information [18]. In tourism systems, this is important because users often look for site details, maps, directions, and recommendations while planning their visit. For this reason, Handumanan should be designed to work properly on both mobile phones and computers [27]. Usability assessment and user satisfaction are important in web-based systems because the design, ease of use, and clarity of information affect how users experience the platform [47], [48].  
+Location-Based Services and Google Maps Integration 
+Location-based services allow users to find places and receive information based on their current location. In tourism systems, these services are useful because they help users discover nearby attractions, view possible routes, and plan their visits more conveniently. Geolocation technologies support navigation and decision-making, especially for users who are unfamiliar with the area [19]. Geographic information systems also help organize and present maps, locations, and spatial data in a more understandable way [20]. Google Maps integration is also useful in tourism-related systems because it helps display locations, route paths, estimated distance, and estimated travel time. Through map-based support, users can better understand where a destination is located and how they may travel from one place to another [28]. This is important in cultural heritage systems because users often need directions and route guidance when visiting heritage sites. In Handumanan, location-based services and Google Maps integration help users find nearby cultural heritage sites in Metro Cebu. The system can display heritage site locations, show the user’s current location when permission is granted, provide route guidance, and support itinerary planning by showing estimated distance and travel time. These features help users explore heritage sites more easily and plan their visits based on location, available time, and preferred destinations [6], [19], [28].
+Artificial Intelligence in Tourism 
+Artificial Intelligence is used in tourism systems to support recommendations, user assistance, and travel planning. Smart tourism studies show that technology can improve tourism experiences by making information more personalized and easier to access [21]. AI can help users by suggesting destinations, answering common questions, and supporting decision-making when planning visits [23]. In Handumanan, AI is applied through the chatbot and the AI-powered itinerary planner. The chatbot helps answer questions about heritage sites, such as history, location, and visitor information. The itinerary planner helps users generate suggested travel plans based on their location, available time, and preferences. These features support users in exploring Metro Cebu heritage sites more conveniently [21], [25].
+AI Chatbots in Tourism and Information Systems
+AI chatbots are used in tourism and information systems to help users ask questions and receive quick responses. Instead of manually searching through different pages, users can ask the chatbot in a conversational way. In tourism platforms, chatbots can help provide destination information, visitor guidance, and travel-related suggestions [21], [23]. In Handumanan, the chatbot serves as a heritage guide for Metro Cebu. It answers questions related to heritage site history, location, visiting information, nearby stops, and travel planning. To avoid unrelated or unsupported answers, the chatbot is limited to the scope of Handumanan and Metro Cebu heritage tourism.
+Itinerary Planning and Recommender Systems
+Itinerary planning systems help users organize places to visit based on time, location, and preferences. In tourism, recommender systems are useful because they help users choose destinations that match their interests and available travel time. These systems are helpful when users are unfamiliar with the place or when there are many possible destinations to visit [22], [25]. In Handumanan, the AI-powered itinerary planner recommends heritage sites based on the user’s location, selected preferences, and available time. It helps arrange suggested stops and supports route planning by showing estimated travel time and distance. This feature helps users create a more organized heritage visit instead of manually choosing and arranging sites from different sources [21], [25].
+Web Technologies and System Development
+Modern web technologies are important in developing interactive and responsive systems. These technologies help developers create websites that can display information, handle user actions, and connect to databases and external services. Web development tools support the creation of dynamic platforms that can run through web browsers [37]. Cloud-based services are also useful because they support online data storage and user authentication. Firebase supports web application development through authentication, database services, and cloud-based data management [52]. Google Maps Platform supports map display, site markers, user location, and route visualization, while Google Routes API supports route paths, distance estimates, estimated travel time, and travel mode-based routing when available [49], [50]. Gemini API and Genkit support the AI-related features of the system, including chatbot responses and AI-assisted itinerary planning [51], [53]. In Handumanan, these technologies help support heritage site browsing, user accounts, map-based route guidance, chatbot support, and itinerary planning [49], [50], [51], [52], [53]. 
+Data Privacy in Location-Based Applications
+Location-based applications should handle user location carefully because they may request access to the user’s current position. Users should be informed when location access is needed, and the system should only use location data for clear system functions. In systems that involve user interaction, proper privacy practices help protect users and support responsible system use [26], [27]. In Handumanan, location permission is requested only when needed for nearby site suggestions, route guidance, and itinerary planning. Users can still browse heritage sites, search the directory, view site details, and use other non-location features without sharing their location. This helps limit unnecessary data use while still allowing users to benefit from location-based features.
+2.2 Related Studies
+Web-Based Tourism Information Systems
+Web-based tourism systems have been widely used to improve access to tourism information. These systems help users search and view destination details in a more organized way. Wang and Zhang explain that web-based tourism information systems improve user satisfaction by providing quick and organized access to travel information [6]. Online tourism systems also help reduce the problem of scattered information because users can access tourism details in one platform instead of searching through many sources [24]. For Handumanan, the web-based approach is useful because it allows users to search, browse, and view cultural heritage site information through a browser.  
+Digital Platforms for Tourism Promotion 
+Digital platforms are used in tourism to promote destinations and make travel information easier to access. These platforms allow users to view details about tourist spots, images, maps, and other information that may help them decide where to visit. Digital tourism platforms also help increase destination visibility and support tourism promotion by allowing information to be accessed through online systems [3], [5], [33].
+For Handumanan, this is related because the system helps promote cultural heritage sites in Metro Cebu by presenting organized site information in one platform. Instead of focusing only on general tourist destinations, Handumanan focuses on heritage sites and provides users with site details, categories, images, and map-based support.
+Information Systems for Travel Planning
+Information systems are helpful in travel planning because they give users the information they need in one place. These systems can help users organize their trips by showing details about destinations, routes, and possible places to visit [25]. Technology also affects how users choose destinations because it can provide suggestions and support travel decisions [23]. This makes planning more convenient since users do not need to search through many different sources. In tourism systems, maps, geolocation, and itinerary tools are often used to help users plan their visits better. Through these features, users can decide where to go based on their location, time, and preferences. For Handumanan, this supports the use of an itinerary planner that helps users create suggested travel plans for cultural heritage sites in Metro Cebu. 
+Integration of System Features
+Modern tourism systems usually combine features such as search, maps, recommendations, and travel planning. Combining these features makes the system more useful because users can do different tasks on one platform. Tourism decision support systems help users during travel planning by providing organized information and suggestions [25]. Location-based services also improve tourism systems by helping users find nearby destinations and view directions [19], [20]. In Handumanan, the integration of search, map services, location-based recommendations, chatbot support, feedback, and itinerary planning helps users explore heritage sites more conveniently. 
+Application to Cultural Heritage Systems
+Digital systems can also be applied to cultural heritage platforms. And these digital systems should organize information and include mapping and recommendation features to help explore heritage sites more effectively [9], [11]. However, it remains evident that many existing systems have limited information to offer. This limitation affects how users discover and understand these sites.
+2.3 Synthesis of the Reviewed Literature and Studies 
+The reviewed literature and studies show that digital platforms help make tourism and cultural heritage information more accessible. Cultural heritage systems are useful because they help promote awareness, preserve local identity, and support tourism activities [1], [9], [13]. Web-based systems also help organize information such as site details, images, locations, and visitor-related data in one platform [6], [14], [16]. The reviewed concepts on usability, location-based services, map integration, AI chatbots, and itinerary planning are directly related to Handumanan. Usability and responsive design help users access the system properly on different devices [4], [18], [27]. Location-based services and map tools support nearby recommendations, route guidance, estimated distance, and travel time [19], [20], [28]. AI-related features support chatbot assistance and itinerary planning based on user needs and available heritage site information [21], [23], [25]. Overall, the reviewed literature supports the need for a web-based cultural heritage information system that does more than display static information. The system should also help users search, filter, ask questions, view maps, generate routes, and plan visits. These ideas support the development of Handumanan as a centralized cultural heritage platform for Metro Cebu.
+2.4 Research Gap 
+Although many tourism websites and online sources already provide information about heritage sites, most of them present information in a scattered or general way. Users may still need to visit several websites, social media pages, or blogs to gather complete details about a heritage site [6], [8], [24]. Some sources may also lack updated visitor information, map-based support, route guidance, or personalized recommendations. Existing tourism platforms may provide general destination information, but they do not always focus specifically on Metro Cebu heritage sites. Some systems also lack integrated features such as AI-assisted itinerary planning, chatbot support, map-based route guidance, and user-friendly filtering by city or category. This creates a gap for a localized system that combines heritage information, location-based services, AI assistance, and travel planning in one platform [21], [25], [28]. Handumanan addresses this gap by providing a web-based cultural heritage site information system for selected sites in Cebu City, Lapu-Lapu City, Mandaue City, and Talisay City. The system combines a heritage site directory, map-based route guidance, location-based suggestions, AI-assisted itinerary planning, chatbot assistance, and admin-managed heritage records.
+CHAPTER 3
+METHODOLOGY
+This chapter presents how the system was designed, developed, and tested for the study Handumanan: A Web-Based Cultural Heritage Site Information System for Metro Cebu. It includes the conceptual framework based on the Input-Process-Output (IPO) model, the research design, the system development process, the participants involved, and the methods used to collect and analyze data.
+3.1 Conceptual Framework
+The conceptual framework for Handumanan uses the Input-Process-Output (IPO) model. This type of model explains how the system works, detailing what information is fed into it, how it operates on that information, and what outputs result. It also provides insight into the user's interaction with the system and the flow of information in and out of the system.
+3.1.1 Conceptual Framework Diagram
+Figure 1: IPO Model for Handumanan
+3.1.2 Explanation of the Conceptual Framework
+The IPO model serves as the foundation of how the Handumanan system operates:
+Input: This is where users and admins enter all data into the system. Users put in their search queries, current location, preferences, questions for the chatbot, comments, ratings, etc. The system can also store information about heritage sites, including their names, descriptions, categories, images, locations, and visitor information. This information is added, updated, and managed by administrators to ensure that the system remains accurate and organized. 
+Process: This stage demonstrates how the collected data is used. The system first organizes and stores the data in a Firebase database. It can then handle user operations such as searching, browsing, and filtering heritage sites. Location-based features recognize local locations, and an AI feature suggests locations and offers recommended tours. The system is also interfaced with map services to give directions and routes. User feedback is also collected and archived to aid system improvement. 
+Output: This stage displays the system's output. Users can browse heritage sites, view detailed information, explore available suggestions, generate itineraries, and receive directions on maps. They may also inquire via the chatbot and leave comments after using the system. A dashboard provides administrators with management information and feedback from the site. These outputs enhance the user experience and promote heritage sites in Metro Cebu.  
+3.2 Research Design
+A Developmental Research Design is used in this study. This design was considered because the study's primary objective is to design and test a web-based system. For Handumanan, the researchers are not just identifying a problem; they also developed a solution through a cultural heritage site information system for Metro Cebu. 
+3.3 Data Gathering Procedures
+Data collection was conducted to identify the pain points of current methods for accessing information about cultural heritage sites. This involved: 
+Review of Related Literature and Studies – The researchers reviewed books, journals, government reports, and online articles related to cultural heritage tourism and web-based systems. These were useful in pinpointing ideas and features that might be incorporated into the system.  
+Online Research and Site Validation – The researchers gathered information from reliable online sources, including government sites, tourism pages, and trusted blogs for the heritage sites in Metro Cebu. Where possible, selected heritage sites were visited to validate their existence, collect images, and verify information.  
+Interviews and Surveys – Informal interviews with the tourism officers, local residents, and possible users (students, tourists) were conducted. These assisted the researchers in gaining insight into their needs and the issues that they encounter when searching for information about heritage sites. A brief online survey was also distributed to gather user opinions on features they found useful, such as search tools, maps, itinerary planning, and the chatbot. 
+Observation – Observation was used to see how people usually search for heritage information on websites and social media. This helped the researchers notice common problems, such as outdated information and the lack of location-based features. 
+3.3.1 Ethical Considerations
+In compliance with the Data Privacy Act of 2012 (Republic Act No. 10173), the researchers adhered to ethical practices when developing and testing the Handumanan system. Since the system involves user accounts, location-based features, feedback, and information about cultural heritage sites, the researchers ensured that the rights and privacy of all participants and users are protected.
+Informed Consent
+Before the participants use the system or answer the questionnaire, the researchers explained what the study is about. They were told that joining the study was their choice  and that their answers will only be used for school/research purposes. The researchers also informed them  about the data that may be collected, such as their ratings, comments, and basic account information if they register in the system.
+User Privacy and Data Protection
+Any information received by the system was collected only when required for its functions, namely user account details, feedback, saved itineraries, and location input (only in case the location-based feature is used). The information was not shared with anyone else or used for anything other than the study. To ensure data security, only authorized users will have access to the admin machine. 
+Location Data Privacy
+Handumanan also comes with location-oriented capabilities: Users were informed  that their location data could be processed to recommend nearby heritage sites and generate travel routes. Only the user's location was used for this purpose. Users can grant or deny permission for location access based on their preference. 
+Accuracy of Cultural Heritage Information
+The researchers ensured  that information about the cultural heritage site added to the system is sourced from trusted sources such as government websites and tourist offices. This is critical to not provide false or misleading information. The researchers will carefully examine the information before adding it to the system. 
+Proper Use of Images and Content
+Images and content for the system will be sourced from existing sources or, where possible, collected by the researchers. The researchers will not use any copyrighted materials without permission or citation. All information related to the heritage sites will also be presented well, as these are now part of Metro Cebu's history and culture. 
+Confidentiality of Feedback and Survey Responses
+The answers from surveys, interviews, and online feedback forms were kept private. The names and personal information of the respondents will not be shown in the final paper unless they allow it. The responses will only be used to check and improve the Handumanan system. 
+3.4 System Development Methodology
+The project adopts the Agile Software Development Life Cycle (SDLC) framework and implements the Scrum framework. Scrum was selected because it serves the researchers well, allowing them to develop the system step by step rather than building it all at once. It is appropriate for Handumanan as the system has certain features that require incremental iteration and refinement.
+Figure 2: Agile Model for Handumanan
+Phase 1: Requirement Analysis & Product Backlog Creation
+During this phase, the researchers identified what the Handumanan system should be able to do based on its users' needs. The researchers considered the problems identified in the study, particularly the scattered, incomplete, and unreliable cultural heritage information available online. Based on these needs, the researchers identified the main features to be included in the system: allowing users to search for and browse heritage sites, view detailed site information, use location-based features, ask questions via the chatbot, create travel plans with the itinerary planner, and submit feedback. These tasks were then organized into a product backlog, which served as a guide for the development process.
+Phase 2: Sprint Planning
+During sprint planning, items from the product backlog were prioritized and divided into smaller development tasks. This helped the researchers work on the system step by step rather than develop all features at once. The researchers first focused on the system's core components, including the heritage site database, user authentication, search and browse functions, and admin content management. Other features, such as map integration, route directions, chatbot support, feedback, and itinerary planning, were also planned into the succeeding development tasks. Each feature was expected to be working, tested, and aligned with the study's objectives before being considered complete.
+Phase 3: System Design & UI/UX Prototyping
+This phase focused on designing the Handumanan system's look and functionality before actual development began. The researchers planned the website's layout, user action flow, and information presentation. The design included the system's main pages and modules, such as the homepage, heritage site list, detailed site information page, map and route section, chatbot interface, itinerary planner, feedback section, login and registration page, and admin management page. The design was prepared to make the system usable on both mobile phones and computers.
+Phase 4: Iterative Development
+During this phase, the Handumanan system was developed in steps using the Scrum approach. The researchers worked on smaller parts of the system rather than building everything at once. This helped the researchers focus on properly developing and testing each feature before moving to the next. The development included the user interface, heritage site database, search and browse functions, location-based features, review submission, admin heritage site record management, chatbot support, map and route features, and itinerary planning, which were tested.
+Phase 5: Sprint Review and Testing
+At the end of every sprint, the researchers checked the features that were already completed. This was done to see if each part of Handumanan was working correctly and matched the goals of the study. The tested features included user registration, search and browse, heritage site details, map and route directions, chatbot, feedback, admin management, and itinerary planning. If errors or problems were found, the researchers fixed them first before continuing to the next part of the system. 
+Phase 6: Deployment
+After the main features were completed and tested, the final version of Handumanan was prepared for presentation and use. Since the system is web-based, it can be accessed through a web browser using mobile phones and computers. This phase focused on ensuring the system was ready to demonstrate and that its main functions were working properly before being evaluated by selected users.
+Phase 7: Maintenance
+During the maintenance phase, heritage site information may be updated when new details or corrections are available. User feedback may also be checked to identify parts of the system that can still be improved. If errors or bugs are found, they may be fixed to keep the system working properly. 
+3.5 Planning Phase
+The planning phase was done before the actual coding of the Handumanan system. In this phase, the researchers identified the main problems in accessing cultural heritage site information in Metro Cebu and listed the system features needed to address them. These include user registration and login, search and browsing, detailed heritage site information, location-based suggestions, map and route directions, chatbot support, feedback, admin management, and the AI-powered itinerary planner. The researchers also organized the product backlog, planned the sprint activities, selected the needed tools, and prepared the system design before starting the development process. 
+3.6 Analysis Phase
+The analysis phase focused on identifying and organizing the requirements needed for the Handumanan system. In this phase, the researchers examined the needs of the target users and the main functions that the system should provide. This includes defining the user roles, functional requirements, non-functional requirements, and system diagrams such as the Use Case Diagram, Data Flow Diagram, and Class Diagram. This phase helped the researchers understand how users will interact with the system and how the system should process and manage information about cultural heritage sites.
+3.6.1 User Requirements Specification (URS)
+The system is designed to serve guests/visitors, registered users, and administrators. Tourism offices and LGUs are considered beneficiaries of the system because they may use the organized heritage site information for tourism promotion and cultural awareness. However, they do not have a separate system role unless they are given an administrator account.
+URS
+Description
+Guest/Visitors
+They can search, browse, and view information about heritage sites. They can also use location-based features, view routes, ask questions through the chatbot, and generate suggested itineraries.
+Registered Users
+They can access the same features as guests, but they can also save their favorite heritage sites, save itineraries, and submit reviews or ratings.
+Administrators
+They are responsible for managing heritage site records. They can add, edit, hide, or delete heritage site information and manage image URLs used in the system.
+Table 1: User Requirements Specifications (URS)
+3.6.2 Functional Requirements
+Requirement
+Description
+User Authentication
+Guests can browse the system, while registered users can log in through Firebase Authentication to access features such as saving favorites, saving itineraries, and submitting reviews.
+Search and Browse Module
+Users can search for heritage sites by name, category, or location. They can also browse heritage sites from organized lists. 
+Detailed Site Information
+Each heritage site page displays important details such as the site name, description, category, images, address, coordinates, location, and visiting information. 
+Location-Based Features
+The system uses browser geolocation, with user permission, to show nearby sites and support route planning.
+AI-Powered Itinerary Planner
+The system can generate suggested travel plans based on the user’s location, available time, and preferences.
+Admin Module
+Administrators can add, edit, hide/delete, and manage heritage site records. They can update site names, descriptions, categories, locations, coordinates, visiting information, status, and image URLs.
+Feedback System
+Registered users can submit ratings and comments on heritage site pages. These reviews can be viewed on the related site page.
+Chatbot Feature
+The chatbot is limited to questions related to Metro Cebu heritage sites and the Handumanan system. If the user asks unrelated questions, the chatbot is designed to avoid answering outside the system scope and should redirect the user back to heritage-related topics. 
+Table 2: Functional Requirement
+3.6.3 Use Case Diagram
+These diagrams show how the Guest/Visitor, Registered User, and Administrator interact with the Handumanan system.
+Figure 3: Guest/Visitor Use Case Diagram
+Figure 3 shows the actions that a guest or visitor can do in the Handumanan system without logging in. The guest/visitor can search heritage sites, browse the available list of sites, and view detailed information about each heritage site. They can also use location-based features to find nearby heritage sites and view a map or route directions for easier navigation. The chatbot is also available to answer questions about heritage sites, such as their history, location, and nearby stops. The guest/visitor can also generate an itinerary to help plan a possible visit. However, since they are not logged in, they cannot submit reviews or save their data in the system. 
+Figure 3.1: Registered User Use Case Diagram
+Figure 3.1 shows the actions available to registered users in the Handumanan system. A registered user can create an account and log in to access more system features. Like a guest/visitor, they can search and browse heritage sites, view site details, use location-based features, view map and route directions, ask the chatbot, and generate an itinerary. The main difference is that registered users can submit reviews or comments on heritage site pages. This allows them to share their experience or feedback about a specific heritage site. Their account also allows the system to connect their activities, such as reviews and saved travel plans, to their user profile. 
+Figure 3.2: Administrator Use Case Diagram
+Figure 3.2 shows the administrator's actions in the Handumanan system. The administrator must log in as admin to access the system's admin side. After logging in, the admin can view dashboard summaries to check the available heritage site records. The administrator can add new heritage sites, edit existing heritage site information, and hide or delete heritage site records when needed. The admin can also manage image URLs, status, and coordinates of the heritage sites. These functions help keep the heritage site information organized, updated, and properly displayed in the system. 
+3.6.4 Data Flow Diagram
+The Data Flow Diagram shows how data moves between the users, administrator, system processes, Firebase services, and external services. It includes login and registration through Firebase Authentication, heritage site records, user-related records such as favorites and itineraries, and external services for maps, routes, chatbot responses, and itinerary suggestions. 
+Figure 4: Level 0 Context Diagram
+Figure 4 shows the Level 0 Data Flow Diagram of the Handumanan system. The diagram presents the system as a single main process that interacts with external entities such as the user, administrator, Firebase database, Google Maps API, and Gemini AI API. The user provides search queries, location data, itinerary requests, and chatbot questions to the system. In return, the system provides heritage site information, route suggestions, estimated travel time and distance, itinerary recommendations, and chatbot responses. The administrator manages heritage site records, while Firebase stores and retrieves system data. Google Maps API supports mapping and routing functions, while Gemini AI API supports the chatbot responses within the scope of Metro Cebu heritage tourism.
+Figure 4.1: Level 1 Data Flow Diagram
+Figure 4.1 shows the Level 1 Data Flow Diagram of the Handumanan system. This diagram expands the main Handumanan process into its major functional components. The user may search and filter heritage sites, view site details and status, request itinerary generation, and ask questions through the chatbot. The system retrieves heritage site records from the database and applies city and category filters before displaying results. For route generation, the system sends route requests to the Google Maps API and receives route paths, estimated distance, and estimated travel time. For chatbot processing, the system retrieves relevant heritage data before generating a response through the Gemini AI API. The administrator manages heritage site records through the admin module, and updates are stored in Firebase.  
+3.6.5 Class Diagram
+It shows the main parts of the Handumanan system, such as UserAuth, UserProfile, AdminRole, HeritageSite, Review, Favorite, Itinerary, ChatbotService, ItineraryPlanner, and RoutingService. It shows how users, admins, heritage sites, reviews, favorites, itineraries, chatbot support, and route services are connected in the system.  
+Figure 5: Class Diagram
+Figure 5 shows the main classes and relationships used in the Handumanan system. The diagram includes the user account, heritage site records, reviews, favorites, itineraries, and service features such as chatbot, itinerary planning, and routing. 
+The UserAuth class handles the user’s login and registration details, such as user ID, email, password hash, and account creation date. It is connected to UserProfile, which stores the user’s profile information, including display name, photo URL, role, and creation date. The AdminRole class is connected to the user profile and is used to identify if a user has administrator access.
+The HeritageSite class stores the main information about each heritage site, such as site ID, name, description, category, location, coordinates, visiting information, status, image URLs, and date records. This class is connected to Review, Favorite, and ItineraryItem because users can review a specific heritage site, save it as a favorite, or include it in an itinerary.
+The Review class stores ratings and comments submitted by registered users for a specific heritage site. The Favorite class stores the heritage sites saved by a user. The Itinerary class stores the user’s saved or generated travel plan, while ItineraryItem represents the specific heritage sites included in that itinerary.
+The ChatbotService answers user questions using heritage site information as context, but it does not store chatbot records. The ItineraryPlanner generates itinerary suggestions based on user preferences, location, time, and heritage site data. The RoutingService supports route and direction features by using an external map or routing API. Overall, the class diagram shows how the main parts of Handumanan work together to support users, administrators, heritage site records, reviews, favorites, itineraries, chatbot assistance, and route planning.
+3.6.6 Non-Functional Requirements
+Non-Functional
+Requirement
+Description
+Usability
+The system should have a clear layout and navigation so users can understand and use its features properly.
+Performance
+The system should respond well when users search, browse, use maps, ask the chatbot, or generate itineraries.
+Reliability
+The information shown in the system should be accurate and based on trusted sources.
+Responsiveness
+The system should display properly on different devices, such as computers and mobile phones.
+Security
+The system should protect user information and allow only authorized users to access admin functions.
+Table 3:Non-Functional Requirement
+3.7 Design Phase
+The design phase focused on planning how the Handumanan system would look and work before development started. In this phase, the researchers prepared the main modules, page layout, and database structure of the system. This helped make sure that the system could support its features, such as browsing heritage sites, viewing site details, using maps and routes, interacting with the chatbot, creating itineraries, giving feedback, and managing content through the admin side.
+3.7.1 Interface Design(Main Modules)
+The system interface was designed to enable users to navigate heritage sites, get details, utilize maps, interact with the chatbot, and create itineraries. The design was adapted to be mobile- and desktop-friendly. 
+Main Modules:
+User Authentication Module: This allows users to register and log in to access features such as saving itineraries and giving feedback.
+Heritage Site Browsing Module: This allows users to search and browse cultural heritage sites by name, category, or location.
+Detailed Heritage Site Information Module: Displays descriptions, historical backgrounds, images, addresses, locations, and other important details for each heritage site.
+Map and Route Module: This allows users to view heritage site locations, nearby suggestions, and directions using map services.
+Chatbot Module: This allows users to ask questions about cultural heritage sites, locations, and basic visitor information.
+Itinerary Planner Module: This allows users to generate suggested travel plans based on their location, available time, and preferences.
+Feedback Module: This allows registered users to submit and view ratings/comments on heritage site pages.
+Admin Management Module: This allows administrators to manage heritage site records, including adding, editing, hiding/deleting records, and updating image URLs, coordinates, categories, and public status.
+User UI: 
+Figure 6.0: Home Page, Login Page, User Profile
+The figure shows the main user interfaces of the Handumanan system, including the Home Page, Login Page, and User Profile Page. These screens allow users to explore heritage sites, log in to their account, and manage saved favorites or trips.
+Figure 6.1: Browse, Search , View Site Details
+The Browse screen allows users to explore the available heritage sites through the site directory. The Search screen shows how users can find a specific heritage site by entering keywords and using filters. The View Site Details screen displays complete information about the selected site, including images, address, visiting hours, and other important details. 
+Figure 6.2: Map, AI Planner, Live Navigation/Route, Chatbot
+Users can explore heritage site locations, auto-generate a trip plan, and view route details such as distance and estimated time. It also shows the chatbot feature, which assists users by answering heritage-related questions and suggesting nearby or recommended sites. 
+Figure 6.3: Feedback
+Registered users can rate a heritage site, write a comment about their experience, and submit their review. The submitted feedback is displayed under the selected heritage site and helps other users learn from visitor insights
+Admin UI: .
+Figure 6.4: Admin Panel
+It includes the dashboard, heritage site records, and categories page where the administrator can view summaries, manage heritage site data, check record status, and organize site categories. This helps keep the system’s heritage information updated and properly arranged. 
+3.7.2 Database Design
+The database design for Handumanan was made to store and organize the records needed by the system. Firebase Authentication is used for user login and registration. Firebase Firestore stores user-related records and admin-managed records, while the system also uses built-in heritage site data bundled in the application as the default site directory. 
+Database Collections:
+/heritageSites – Stores admin-created or admin-updated heritage site records, including site name, description, category, location, coordinates, visiting information, status, and image URLs.
+/heritageSites/{siteId}/reviews – Stores ratings and comments submitted by registered users for a specific heritage site.
+/users/{userId}/favorites – Stores the heritage sites saved by a user as favorites.
+/users/{userId}/itineraries – Stores the saved travel plans or generated itineraries of a user.
+/roles_admin or user role field – Used to identify accounts with administrator access.
+Built-in Heritage Site Data – Contains the default heritage site directory used by the application.
+3.8 System Architecture
+Figure 7: System Architecture
+Handumanan is organized in a web-based system structure with three main parts: 
+Presentation Layer: This is the portion that the user can see, including website pages, maps, the chat window, forms, and the trip planner.
+Application Layer: This manages the system's primary functions, such as searching, filtering, chatbot conversations, suggesting heritage sites, and creating itineraries.
+Data Layer: Firebase Firestore stores heritage site records, user reviews, favorites, itineraries, and admin-managed site information. The AI chatbot and itinerary planner use the available heritage site data as context when generating responses and recommendations. This helps the system provide answers and suggested travel plans that are related to Metro Cebu heritage sites instead of generating random or unrelated information. 
+3.9 Development Phase
+The development phase focused on building the Handumanan system in accordance with the planned requirements and design. In this phase, the researchers used the selected tools and technologies to create the user interface, connect the system to the database, add map and route features, and develop the chatbot and itinerary planner. This phase turned the system design into a working web-based platform that allows users to access information about cultural heritage sites, use location-based features, submit feedback, and manage content on the admin side.
+3.9.1 Technology Stack 
+The Handumanan system was developed using modern web development tools and cloud-based services to support its main features. These technologies were selected to build a responsive user interface, manage user accounts and heritage site records, provide map-based location and route services, and support Ai-assisted features such as the chatbot and itinerary planner.
+Technology/Tool
+Category
+Description
+Next.js, React, TypeScript, and Tailwind CSS
+Frontend
+used to develop the user   interface, responsive layouts, navigation, map pages, admin dashboard, and interactive system components. 
+Firebase
+Backend
+Used as the backend service of the system. It connects the user interface to the database and supports system operations such as record management, user data handling, reviews, favorites, and saved itineraries.
+Firebase Firestore, Firebase Authentication
+Database and Authentication
+Used as the database for storing heritage site records, user profiles, reviews, favorites, and itineraries. Firebase Authentication was used for user login, registration, and admin access control. 
+Google Maps Platform, Google Routes API
+Maps and Location Services
+Used to display heritage site locations, map markers, user location, and route visualization. Google Routes API was used when available to generate route paths, estimated distance, estimated travel time, travel mode-based routing, and traffic-aware driving estimates. The system also includes a backup route estimate when the routing API is unavailable, so users can still receive basic guidance.
+Genkit and Gemini
+AI Features
+Used to support the chatbot and AI-assisted itinerary planner. The chatbot uses the system’s heritage site data as context and is restricted to Metro Cebu heritage tourism and Handumanan-related questions. The itinerary planner uses available site data, location, time, travel mode, and site availability to recommend relevant heritage stops.
+Antigravity
+IDEs & Tools
+Used as the development environment for building and managing the project. 
+Table 4: Technology Stack
+3.10 Implementation And Testing Phase
+The implementation and testing phase focused on putting the completed parts of the Handumanan system together and checking if they worked properly. In this phase, the researchers tested the main features such as user registration and login, search and browsing, heritage site details, location-based suggestions, map and route directions, chatbot responses, itinerary planning, feedback submission, and admin management. This phase helped the researchers find errors, check the system’s performance, and make sure that the features matched the objectives of the study before the final evaluation. 
+3.10.1 Test Plan
+Test Cases
+Objectives
+Expected Outcome
+1
+To check if the users can register and log in to the system. 
+Users can successfully create an account and log in 
+2
+To check whether users can search for heritage sites. 
+It displays heritage sites related to the user’s search query. 
+3
+To test if the users can browse heritage sites by category or list. 
+Users can view organized heritage site lists and categories properly. 
+4
+To check if it is detailed heritage site information is displayed. 
+It shows the site name, description, images, location, and visiting information. 
+5
+To test if the location-based feature can show nearby heritage sites. 
+It displays nearby heritage sites based on the user’s location input. 
+6
+To check if the map and route feature is working. 
+It displays the heritage site location and provides route directions. 
+7
+To test if the AI-powered itinerary planner generates travel plans. 
+It generates a suggested itinerary based on the user’s location, time, and preferences. 
+8
+To check if the chatbot answers user questions about heritage sites. 
+The chatbot provides responses about heritage site details, location, and visiting information. 
+9
+To test if registered users can submit ratings and comments on heritage site pages. 
+The submitted review appears under the selected heritage site.
+10
+To check if administrators can add, update, hide/delete, and manage heritage site records using image URLs.
+The heritage site record is updated and reflected in the public directory/map when active.
+Table 5: Test Plan
+Test Cases
+Test Case 1: User Registration and Login 
+Before:
+After:
+Remarks: The registration and login feature was tested using valid user credentials. Results showed that users were able to create accounts and access the system successfully. The authentication process functioned properly and protected user access.  
+Test Case 2: Search Heritage Sites 
+Before:
+After:
+Remarks: The search feature was tested using different keywords related to heritage sites. The system successfully displayed relevant results based on the user's search query, making it easier to locate specific heritage sites. 
+Test Case 3: Browse Heritage Sites 
+Before:
+After:
+Remarks: The browsing feature allowed users to view heritage sites through the site directory and available categories. The displayed information was organized and easy to navigate, helping users explore available destinations. 
+Test Case 4: View Site Details
+Before:
+After:
+Remarks: The site details feature successfully displayed complete information about each heritage site, including descriptions, images, location, category, and visiting information. This helped users better understand each destination before planning a visit. 
+Test Case 5: Location-Based Suggestions
+Before:
+After:
+Remarks: The location-based feature was tested using the user's current location. The system successfully identified and displayed nearby heritage sites, helping users discover destinations that were accessible from their area.
+Test Case 6: Map and Route Directions 
+Before:
+After:
+Remarks: The map and route feature successfully displayed heritage site locations and generated directions to selected destinations. Users were provided with estimated travel time, distance, and route information to assist with navigation. 
+Test Case 7: AI-Powered Itinerary Planner
+Before:
+After:
+Remarks: The AI-Powered Itinerary Planner was tested using its three itinerary generation modes. The system successfully generated suggested travel plans based on the user's preferences, available time, selected destinations, and location. The generated itineraries helped users organize their visits more efficiently. 
+Test Case 8: Chatbot Feature
+Before: 
+After:
+Remarks: The chatbot was tested using questions related to Metro Cebu heritage sites, locations, visiting hours, and site information. Results showed that the chatbot provided relevant responses based on available heritage data and assisted users in finding information within the system.
+Test Case 9: Feedback System 
+Before:
+After:
+Remarks: The feedback feature allowed registered users to submit ratings and comments successfully. Submitted reviews were properly stored and displayed on the corresponding heritage site page, allowing users to share their experiences. 
+Test Case 10: Admin Heritage Site Management
+Before:
+After:
+Remarks: The administrative module was tested to ensure that authorized administrators could manage heritage site records. Results showed that administrators were able to add, update, and manage site information successfully while restricting unauthorized access. 
+Table 6: Test Cases
+Participants and Sampling
+Purposive sampling was used to select the study participants. This approach was chosen because the researchers needed individuals who were familiar with tourism and cultural heritage and who could serve as potential users of the system. The selected participants provided feedback regarding the platform’s features, usability, and functionality.
+A total of sixty (60) will be involved in this study. These are divided into these groups: 
+Tourism Office Personnel – Five (5) participantsThese participants can be from tourism offices or local government offices in Metro Cebu. They can provide feedback on cultural heritage, promote tourism, and disseminate information about the system's value to the public. 
+Students – Twenty-five (25) participantsStudents are included because they are among the system's target users. They frequently use digital tools at school, in the learning process, and to learn about their local history. The feedback would be used to test the system for academic and general use. 
+Local Residents – Twenty (20) participantsResidents from Metro Cebu are included because they are also potential users of the platform. They can provide feedback on the system's usefulness and relevance in real-world applications.
+Tourists / Travelers – Ten (10) participantsPeople who visit Metro Cebu or travel within Metro Cebu are involved in a test to see how much it helps them locate heritage sites, find directions for viewing, and plan visits.All selected participants will be asked to use the system and answer evaluation questionnaires. They will respond using the platform to gauge acceptability and performance. 
+Setting of the Study
+The study was conducted in MetroCebu, which comprises the cities of Cebu City, Lapu-Lapu City, Mandaue City, and Talisay City. The areas were selected because they are rich in cultural heritage places like museums, monuments, churches, and ancestral houses. 
+Metro Cebu is also busy and urban, making it ideal for testing, implementing, and assessing a web-based cultural heritage information system for residents and visitors. The study was conducted in Metro Cebu because the area contains numerous historical and cultural heritage sites that require proper digital documentation and promotion, which is the spectrum of proposed system applications. The study in Metro Cebu enables researchers to collect relevant data and feedback from the target users, as it focuses on the protection of heritage locations in these cities. The system was designed primarily for Metro Cebu, but it can be adapted to create systems for other cities or provinces with cultural heritage sites. 
+REFERENCES
+[1] D. J. Timothy and S. W. Boyd, Heritage Tourism, 2nd ed., Routledge, 2015.
+[2] P. L. Pearce, Tourism and Heritage Interpretation, Channel View Publications, 2018.
+[3] Department of Tourism Philippines, National Tourism Development Plan 2023–2028, 2023.
+[4] J. Nielsen, Usability Engineering, Morgan Kaufmann, 1994.
+[5] R. Buhalis, “Information Technology in Tourism,” Tourism Management, 1998.
+[6] B. Wang and X. Zhang, “Web-Based Tourism Information Systems,” Journal of IT & Tourism, 2011.
+[7] A. Sigala, “Social Media and Tourism,” Tourism Management, 2010.
+[8] C. Cooper et al., Tourism: Principles and Practice, 5th ed., Pearson, 2016.
+[9] UNESCO, World Heritage and Sustainable Tourism Programs, 2019.
+[10] NCCA, Cultural Heritage Framework, 2021.
+[11] UNWTO, Tourism and Culture Synergies, 2018.
+[12] A. Leask, Managing Visitor Attractions, Routledge, 2010.
+[13] S. McKercher and H. du Cros, Cultural Tourism, Routledge, 2002.
+[14] R. Pressman and B. Maxim, Software Engineering, 8th ed., McGraw-Hill, 2015.
+[15] I. Sommerville, Software Engineering, 10th ed., Pearson, 2016.
+[16] A. Dennis et al., Systems Analysis and Design, Wiley, 2015.
+[17] Cebu City Government, Tourism Development Plan, 2022.
+[18] B. Shneiderman et al., Designing the User Interface, 6th ed., Pearson, 2016.
+[19] H. A. Karimi, Advanced Location-Based Technologies, CRC Press, 2015.
+[20] P. Longley et al., Geographic Information Systems and Science, Wiley, 2015.
+[21] U. Gretzel et al., “Smart Tourism,” Electronic Markets, 2015.
+[22] K. Yoo et al., “Information Systems in Tourism,” Tourism Management, 2017.
+[23] I. Tussyadiah, “Technology in Tourism,” Journal of Travel Research, 2020.
+[24] D. Xiang et al., “Online Tourism Systems,” Annals of Tourism Research, 2015.
+[25] M. Fesenmaier et al., “Tourism Decision Support Systems,” 2013.
+[26] ISO 9241, Human-System Interaction Standards, 2018.
+[27] W3C, Web Accessibility Guidelines, 2018.
+[28] Google Developers, Maps API Documentation, 2023.
+[29] Firebase, Web App Development Guide, 2023.
+[30] Philippine DOT, Tourism Digitalization Report, 2022.
+[31] NCCA, Cultural Heritage Digitization, 2022.
+[32] J. Urry and J. Larsen, The Tourist Gaze 3.0, Sage Publications, 2011.
+[33] D. Buhalis and R. Law, “Progress in Information Technology and Tourism Management,” Tourism Management, vol. 29, no. 4, pp. 609–623, 2008.
+[34] A. K. Baggio, “Information Technology and Tourism: A Challenging Relationship,” Information Technology & Tourism, vol. 13, no. 2, pp. 103–109, 2012.
+[35] M. Sigala, E. Christou, and U. Gretzel, Social Media in Travel, Tourism and Hospitality, Ashgate Publishing, 2012.
+[36] J. Swarbrooke, Sustainable Tourism Management, CABI Publishing, 1999.
+[37] Mozilla Developer Network (MDN), “Web Development Documentation,” 2023.
+[38] K. Timothy, Contemporary Cultural Heritage and Tourism: Development Issue and Emerging Trends, 2014.
+[39] N. Ismail et al., “Cultural Heritage Tourism in Malaysia: Issues and Challenges,” SHS Web of Conferences, 2014.
+[40] F. Higgins-Desbiolles, “Sustainable Tourism: Sustaining Tourism or Something More?,” Worldwide Hospitality and Tourism Themes, 2017.
+[41] E. Dela Santa and S. A. Tiatco, “Tourism, Heritage, and Cultural Performance: Developing a Modality of Heritage Tourism,” Tourism Management Perspectives, 2019.
+[42] T. Lussetyowati, “Preservation and Conservation through Cultural Heritage Tourism: Case Study of Musi Riverside Palembang,” Procedia - Social and Behavioral Sciences, 2015.
+[43] T. Genzorova et al., “Comparing the Use of Digital Platforms in Tourism,” 2018.
+[44] J. E. L. Cordova, “Digital Platforms and the Demand for International Tourism Services,” 2020.
+[45] A. Zequiri, “The Role of Digital Platforms in Advancing Sustainable Development Goals in the Industry 4.0 Era,” Sustainability, vol. 17, no. 8, 2025.
+[46] J. Emadi, “The Development of a Design Theory for Web-Based Information Systems,” Journal of Research Studies, 2023.
+[47] A. Oztekin, “UWIS: An Assessment Methodology for the Usability of Web-Based Information Systems,” Decision Support Systems, 2010.
+[48] M. Zviran, “User Satisfaction from Commercial Web Sites: The Effect of Design and Use,” Information & Management, 2005. 
+[49] Google Developers. (2025). Google Maps Platform Documentation.
+[50] Google Developers. (2025). Google Routes API Documentation. 
+[51] Google. (2025). Gemini API Documentation. 
+[52] Firebase. (2025). Firebase Documentation. 
+[53] Google. (2025). Genkit Documentation. 
+APPENDICES
+APPENDIX A - CERTIFICATE OF APPROVAL
+APPENDIX A - CONSULTATION FORM
+APPENDIX A - COMMITMENT FORM
+APPENDIX B – REQUIREMENTS GATHERING DOCUMENTS
+APPENDIX C – DESIGN AND DEVELOPMENT DOCUMENTS
+               Home page                                                         Login/Signup Page
+               Profile Page                                                        Site Directory Page
+      Search and Filter Page                                      Heritage Site Details Page
+  Map and Route Page                        AI Itinerary Planner Page
+              Chatbot Page                                                   Feedback Page
+ADMIN PAGES
+      Admin Dashboard Page                                   Heritage Site Record Page
+           Categories Page
+APPENDIX D – RESEARCH ETHICS
+APPENDIX E– GRAMMARLY RESULTS
+APPENDIX F – CURRICULUM VITAE

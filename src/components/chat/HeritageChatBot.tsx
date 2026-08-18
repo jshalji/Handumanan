@@ -16,7 +16,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { HERITAGE_SITES } from '@/lib/heritage-data';
 import { getCurrentLocation } from '@/lib/location-utils';
 import { SafeImage } from '@/components/ui/safe-image';
-import { getSiteImageFallback } from '@/lib/site-images';
+import { getSiteImageSources } from '@/lib/site-images';
 
 interface Message {
   role: 'user' | 'model';
@@ -518,14 +518,15 @@ export function HeritageChatBot() {
                       {msg.siteIds.map(siteId => {
                         const site = directorySites.find((s: any) => s.id === siteId);
                         if (!site) return null;
+                        const imageSources = getSiteImageSources(site);
                         return (
                           <Card key={siteId} className="w-full rounded-[1.5rem] overflow-hidden border-none shadow-md bg-white ring-1 ring-black/5">
                             <div className="relative h-32 w-full">
                               <SafeImage
-                                src={site.imageUrl || '/logo.png'}
+                                src={imageSources[0]}
                                 alt={site.name || 'Handumanan heritage site'}
                                 className="h-full w-full object-cover"
-                                fallbackSrc={getSiteImageFallback(site)}
+                                fallbackSrc={imageSources.slice(1)}
                                 fallbackClassName="object-cover"
                                 onLoad={() => scrollToLatestMessage('smooth')}
                               />

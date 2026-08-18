@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Compass, MapPin, ArrowRight, Search, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { SafeImage } from '@/components/ui/safe-image';
-import { getSiteImageFallback } from '@/lib/site-images';
+import { getSiteImageSources } from '@/lib/site-images';
 
 export default function Home() {
   const featuredSites = HERITAGE_SITES.filter(s => s.isMustVisit).slice(0, 3);
@@ -67,14 +67,17 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10">
-            {featuredSites.map((site) => (
+            {featuredSites.map((site) => {
+              const imageSources = getSiteImageSources(site);
+
+              return (
               <Card key={site.id} className="group overflow-hidden border-none shadow-2xl hover:shadow-primary/10 transition-all duration-500 flex flex-col h-full bg-white rounded-3xl">
                 <div className="relative h-72 overflow-hidden">
                   <SafeImage
-                    src={site.imageUrl}
+                    src={imageSources[0]}
                     alt={site.name}
                     fill
-                    fallbackSrc={getSiteImageFallback(site)}
+                    fallbackSrc={imageSources.slice(1)}
                     fallbackClassName="object-cover"
                     className="object-cover group-hover:scale-110 transition-transform duration-700"
                   />
@@ -102,7 +105,8 @@ export default function Home() {
                   </Button>
                 </CardFooter>
               </Card>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

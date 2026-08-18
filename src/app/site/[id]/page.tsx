@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { SafeImage } from '@/components/ui/safe-image';
-import { getSiteImageFallback } from '@/lib/site-images';
+import { getSiteImageFallback, getSiteImageSources } from '@/lib/site-images';
 import { getDailyVisitingTime, WEEKLY_VISITING_DAYS } from '@/lib/visiting-hours';
 
 function mergeSiteRecord(baseSite: HeritageSite | undefined, overrideSite: any): HeritageSite | null {
@@ -39,7 +39,7 @@ function mergeSiteRecord(baseSite: HeritageSite | undefined, overrideSite: any):
     location: merged.location || 'Location requires verification',
     city: merged.city || 'Cebu City',
     visitingHours: merged.visitingHours || 'Open hours require verification',
-    imageUrl: merged.imageUrl || 'https://picsum.photos/seed/handumanan-site/900/600',
+    imageUrl: merged.imageUrl || '',
     galleryImages: Array.isArray(merged.galleryImages) ? merged.galleryImages : [],
     rating: Number.isFinite(Number(merged.rating)) ? Number(merged.rating) : 4.5,
     tags: Array.isArray(merged.tags) ? merged.tags : [],
@@ -79,8 +79,14 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   const [isFavoriteUpdating, setIsFavoriteUpdating] = useState(false);
 
   // Combine main image and gallery images
-  const allImages = site ? [site.imageUrl, ...(site.galleryImages || [])].filter(Boolean) : ["https://picsum.photos/seed/placeholder/800/600"];
   const imageFallback = getSiteImageFallback(site);
+  const siteImageSources = site ? getSiteImageSources(site) : [];
+  const allImages = siteImageSources.length > 0 ? siteImageSources : [imageFallback];
+  const getImageFallbackSources = (index: number) => [
+    ...allImages.slice(index + 1),
+    ...allImages.slice(0, index),
+    imageFallback,
+  ];
 
   const goToImage = (direction: 'previous' | 'next') => {
     setActiveImageIndex(current => {
@@ -283,7 +289,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                     alt={`${site.name} photo ${activeImageIndex + 1}`}
                     fill 
                     loading="eager"
-                    fallbackSrc={imageFallback}
+                    fallbackSrc={getImageFallbackSources(activeImageIndex)}
                     fallbackClassName="object-cover"
                     className="object-cover transition-all duration-500 group-hover:scale-105"
                   />
@@ -346,7 +352,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                           )}
                           aria-label={`Show ${site.name} photo ${idx + 1}`}
                         >
-                          <SafeImage src={img} alt={`${site.name} gallery photo ${idx + 1}`} fill fallbackSrc={imageFallback} fallbackClassName="object-cover" className="object-cover transition-transform group-hover/thumb:scale-110" />
+                          <SafeImage src={img} alt={`${site.name} gallery photo ${idx + 1}`} fill fallbackSrc={getImageFallbackSources(idx)} fallbackClassName="object-cover" className="object-cover transition-transform group-hover/thumb:scale-110" />
                           <span className="absolute bottom-1 left-1 rounded-full bg-slate-950/70 px-2 py-0.5 text-[8px] font-black text-white">
                             {idx + 1}
                           </span>
@@ -587,7 +593,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
             alt=""
             fill
             loading="eager"
-            fallbackSrc={imageFallback}
+            fallbackSrc={getImageFallbackSources(activeImageIndex)}
             fallbackClassName="object-cover"
             className="scale-125 object-cover blur-3xl saturate-110"
             aria-hidden="true"
@@ -619,7 +625,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                 alt=""
                 fill
                 loading="eager"
-                fallbackSrc={imageFallback}
+                fallbackSrc={getImageFallbackSources(activeImageIndex)}
                 fallbackClassName="object-cover"
                 className="scale-110 object-cover blur-2xl"
                 aria-hidden="true"
@@ -629,7 +635,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                 alt={`${site.name} expanded photo ${activeImageIndex + 1}`}
                 fill
                 loading="eager"
-                fallbackSrc={imageFallback}
+                fallbackSrc={getImageFallbackSources(activeImageIndex)}
                 fallbackClassName="object-contain"
                 className="object-contain drop-shadow-2xl"
               />
@@ -676,7 +682,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                       )}
                       aria-label={`Open photo ${idx + 1}`}
                     >
-                      <SafeImage src={img} alt={`${site.name} thumbnail ${idx + 1}`} fill fallbackSrc={imageFallback} fallbackClassName="object-cover" className="object-cover" />
+                      <SafeImage src={img} alt={`${site.name} thumbnail ${idx + 1}`} fill fallbackSrc={getImageFallbackSources(idx)} fallbackClassName="object-cover" className="object-cover" />
                     </button>
                   ))}
                 </div>

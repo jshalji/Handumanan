@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SafeImage } from '@/components/ui/safe-image';
-import { getSiteImageFallback } from '@/lib/site-images';
+import { getSiteImageSources } from '@/lib/site-images';
 import { Search, MapPin, X, ExternalLink, Star, Archive, Layers, MapPinned, ChevronDown } from 'lucide-react';
 
 const cityBackgrounds: Record<string, { image: string; position: string; header: string }> = {
@@ -41,15 +41,17 @@ const cityBackgrounds: Record<string, { image: string; position: string; header:
 };
 
 function SiteCard({ site }: { site: HeritageSite }) {
+  const imageSources = getSiteImageSources(site);
+
   return (
     <Card className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl">
       <Link href={`/site/${site.id}`} className="relative block h-56 w-full shrink-0 overflow-hidden bg-slate-100">
         <SafeImage
-          src={site.imageUrl || "https://picsum.photos/seed/placeholder/800/600"}
+          src={imageSources[0]}
           alt={site.name}
           fill
           loading="lazy"
-          fallbackSrc={getSiteImageFallback(site)}
+          fallbackSrc={imageSources.slice(1)}
           fallbackClassName="object-cover"
           className="object-cover transition-transform duration-700 group-hover:scale-105"
         />
@@ -66,7 +68,7 @@ function SiteCard({ site }: { site: HeritageSite }) {
           <MapPin size={12} className="text-primary" /> {site.city}
         </div>
       </Link>
-      
+
       <div className="flex flex-1 flex-col p-5">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
@@ -82,17 +84,17 @@ function SiteCard({ site }: { site: HeritageSite }) {
             {site.name}
           </CardTitle>
         </Link>
-        
+
         <div className="flex-1">
           <p className="mb-5 line-clamp-2 text-sm leading-relaxed text-slate-500">
             {site.description}
           </p>
         </div>
-        
+
         <div className="mt-auto pt-2">
-          <Button 
+          <Button
             asChild
-            variant="outline" 
+            variant="outline"
             className="h-11 w-full rounded-xl border-slate-200 bg-slate-50 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700 shadow-none transition-all duration-300 hover:border-primary hover:bg-primary hover:text-white group/btn"
           >
             <Link href={`/site/${site.id}`}>
@@ -239,7 +241,7 @@ export default function ExplorePage() {
                 </Button>
               )}
             </div>
-            
+
             <div>
               <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">City</label>
               <div className="relative">
