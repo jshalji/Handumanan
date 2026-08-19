@@ -9,11 +9,11 @@ import { MessageCircle, Send, Sparkles, MapPin, Heart, Minimize2, Loader2, Navig
 import { chatWithHeritageBot } from '@/ai/flows/heritage-chat-flow';
 import type { HeritageChatInput } from '@/ai/flows/heritage-chat-flow';
 import { cn } from '@/lib/utils';
-import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+import { collection, doc, query, orderBy, limit } from 'firebase/firestore';
 import { usePathname, useRouter } from 'next/navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { HERITAGE_SITES } from '@/lib/heritage-data';
+import { HERITAGE_SITES, isSiteVisibleToUser } from '@/lib/heritage-data';
 import { getCurrentLocation } from '@/lib/location-utils';
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageSources } from '@/lib/site-images';
@@ -299,6 +299,10 @@ export function HeritageChatBot() {
   const router = useRouter();
   const isMobile = useIsMobile();
 
+  const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: userData } = useDoc(userDocRef);
+  const userRole = userData?.role;
+
   // READ DATA FROM DATABASE (Firestore)
   const favoritesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -340,11 +344,20 @@ export function HeritageChatBot() {
       });
     });
 
-    return Array.from(sitesById.values());
-  }, [dbSites]);
+    return Array.from(sitesById.values())
+      .map(site => ({
+        ...site,
+        verificationStatus: site.verificationStatus || 'Pending Verification',
+      }))
+      .filter(site => (
+        site.isActive !== false &&
+        site.status !== 'Inactive' &&
+        isSiteVisibleToUser(site, userRole)
+      ));
+  }, [dbSites, userRole]);
 
   const directorySitesForChat = useMemo(() => (
-    (dbSites || [])
+    (directorySites || [])
       .filter((site: any) => site?.id)
       .map(compactSiteForChat)
       .filter((site): site is ChatDirectorySite => Boolean(site))

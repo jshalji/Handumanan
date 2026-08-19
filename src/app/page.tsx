@@ -1,18 +1,64 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Navbar } from '@/components/layout/Navbar';
-import { HERITAGE_SITES } from '@/lib/heritage-data';
+import { HERITAGE_SITES, DEPRECATED_HERITAGE_SITE_IDS, isSiteVisibleToUser } from '@/lib/heritage-data';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Compass, MapPin, ArrowRight, Search, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageSources } from '@/lib/site-images';
+import { useFirestore, useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { collection, doc, query, orderBy } from 'firebase/firestore';
 
 export default function Home() {
-  const featuredSites = HERITAGE_SITES.filter(s => s.isMustVisit).slice(0, 3);
+  const { user } = useUser();
+  const db = useFirestore();
+
+  const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: userData } = useDoc(userDocRef);
+  const userRole = userData?.role;
+
+  const sitesQuery = useMemoFirebase(() => db ? query(collection(db, 'heritageSites'), orderBy('name')) : null, [db]);
+  const { data: dbSites } = useCollection(sitesQuery);
+
+  const featuredSites = useMemo(() => {
+    const deprecatedIds = new Set(DEPRECATED_HERITAGE_SITE_IDS);
+    const sitesById = new Map(HERITAGE_SITES.map(site => [site.id, site as any]));
+
+    dbSites?.forEach(dbSite => {
+      if (!dbSite?.id || deprecatedIds.has(dbSite.id)) return;
+      const existingSite = sitesById.get(dbSite.id) || {};
+      const coordinates = dbSite.coordinates || (
+        dbSite.latitude !== undefined && dbSite.longitude !== undefined
+          ? { lat: dbSite.latitude, lng: dbSite.longitude }
+          : existingSite.coordinates
+      );
+      sitesById.set(dbSite.id, {
+        ...existingSite,
+        ...dbSite,
+        coordinates,
+        tags: Array.isArray(dbSite.tags) ? dbSite.tags : (Array.isArray(existingSite.tags) ? existingSite.tags : []),
+      } as any);
+    });
+
+    return Array.from(sitesById.values())
+      .map(site => ({
+        ...site,
+        verificationStatus: site.verificationStatus || 'Pending Verification',
+      }))
+      .filter(site => (
+        !deprecatedIds.has(site.id) &&
+        site.isActive !== false &&
+        site.status !== 'Inactive' &&
+        isSiteVisibleToUser(site, userRole) &&
+        site.isMustVisit
+      ))
+      .slice(0, 3);
+  }, [dbSites, userRole]);
 
   return (
     <div className="flex min-h-screen w-full flex-col overflow-x-clip">

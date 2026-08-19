@@ -16,18 +16,7 @@ service cloud.firestore {
      * - Cultural data (Heritage Sites, Categories) are top-level and publicly readable.
      * - Feedback (Reviews) are nested under Heritage Sites to support site-specific listing.
      * - Administrative roles are managed via the existence of documents in the /roles_admin collection.
-     *
-     * Key Security Decisions:
-     * 1. Authorization Independence: We use UIDs in the path (e.g., /users/{userId}) to verify 
-     *    ownership without extra database reads.
-     * 2. Denormalization for Security: Ownership fields (userId) are required on documents 
-     *    like Reviews to ensure that even if the document path is shared, only the 
-     *    original author can modify the content.
-     * 3. Prototyping Flexibility: These rules focus on "Who can access what" (Authorization) 
-     *    rather than "What does the data look like" (Schema validation), facilitating 
-     *    rapid iteration of the Handumanan features.
-     * 4. Admin Role: Administrative privileges for managing heritage sites are determined 
-     *    by the presence of a user's UID in the 'roles_admin' collection.
+     * - LGU roles are managed via the 'lgu' role field in /users/{userId}.
      */
 
     // --- Helper Functions ---
@@ -62,10 +51,31 @@ service cloud.firestore {
       );
     }
 
-    /** @description Prevents regular users from assigning themselves an admin role. */
+    /** @description Checks if the user has LGU officer privileges via user profile role field. */
+    function hasLguProfile() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'lgu';
+    }
+
+    /** @description Checks if the write operation only affects allowed LGU verification fields with valid status values. */
+    function isLguVerificationOnlyWrite() {
+      let allowedFields = ['verificationStatus', 'verifiedBy', 'verifiedByUid', 'verifiedAt', 'verificationNotes'];
+      let hasValidStatus = request.resource.data.verificationStatus == 'LGU Verified'
+        || request.resource.data.verificationStatus == 'Needs Revision'
+        || request.resource.data.verificationStatus == 'Rejected';
+      let isAllowedKeys = resource == null 
+        ? request.resource.data.keys().hasOnly(allowedFields)
+        : request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedFields);
+
+      return isAllowedKeys && hasValidStatus;
+    }
+
+    /** @description Prevents regular users from assigning themselves an admin or LGU role. */
     function hasSafeSelfAssignedRole() {
       return !request.resource.data.keys().hasAny(['role'])
-        || request.resource.data.role in ['explorer', 'user'];
+        || request.resource.data.role == 'explorer'
+        || request.resource.data.role == 'user';
     }
 
     /** @description Prevents regular users from changing their own role field. */
@@ -78,12 +88,11 @@ service cloud.firestore {
     /**
      * @description Root user profiles. Access restricted to the user themselves.
      * @path /users/{userId}
-     * @allow (get) If the user is viewing their own profile.
+     * @allow (get) If the user is viewing their own profile or is an admin.
      * @deny (list) Prevent public listing of all users.
-     * @principle Restricts access to a user's own data tree.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
+      allow get: if isOwner(userId) || isAdmin() || hasLguProfile();
       allow list: if isAdmin();
       allow create: if isOwner(userId) && hasSafeSelfAssignedRole();
       allow update: if (isExistingOwner(userId) && doesNotChangeRole()) || isAdmin();
@@ -92,9 +101,6 @@ service cloud.firestore {
       /**
        * @description User's favorited heritage sites.
        * @path /users/{userId}/favorites/{favoriteId}
-       * @allow (create) User adding a site to their favorites.
-       * @deny (write) Users modifying favorites belonging to someone else.
-       * @principle Path-based authorization for user-owned subcollections.
        */
       match /favorites/{favoriteId} {
         allow get, list: if isOwner(userId);
@@ -106,9 +112,6 @@ service cloud.firestore {
       /**
        * @description Personalized AI itineraries for the user.
        * @path /users/{userId}/itineraries/{itineraryId}
-       * @allow (list) User viewing their trip history.
-       * @deny (get) Unauthenticated access to private itineraries.
-       * @principle Enforces strict ownership of personalized generated content.
        */
       match /itineraries/{itineraryId} {
         allow get, list: if isOwner(userId);
@@ -121,9 +124,6 @@ service cloud.firestore {
     /**
      * @description Heritage site categories (e.g., Churches, Museums).
      * @path /categories/{categoryId}
-     * @allow (get, list) Public access for discovery.
-     * @deny (write) Non-admin users attempting to modify categories.
-     * @principle Publicly readable with admin-only write access.
      */
     match /categories/{categoryId} {
       allow get, list: if true;
@@ -134,19 +134,17 @@ service cloud.firestore {
      * @description Cultural heritage sites in Metro Cebu.
      * @path /heritageSites/{siteId}
      * @allow (get, list) Public access for all visitors.
-     * @deny (delete) Deletion by non-admin users.
-     * @principle Publicly readable with admin-only write access.
+     * @allow (create, update) Admins (all fields) or LGU officers (sparse verification fields only).
+     * @allow (delete) Admins only.
      */
     match /heritageSites/{siteId} {
       allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+      allow create, update: if isAdmin() || (hasLguProfile() && isLguVerificationOnlyWrite());
+      allow delete: if isAdmin();
 
       /**
        * @description User reviews for specific heritage sites.
        * @path /heritageSites/{siteId}/reviews/{reviewId}
-       * @allow (create) Authenticated user submitting feedback.
-       * @deny (update) User trying to edit someone else's review.
-       * @principle Public feedback with owner-validated writes via denormalized userId.
        */
       match /reviews/{reviewId} {
         allow get, list: if true;
@@ -159,8 +157,6 @@ service cloud.firestore {
     /**
      * @description Administrative role registry.
      * @path /roles_admin/{adminUid}
-     * @allow (none) Directly managed via Cloud Functions or Admin SDK for security.
-     * @principle Administrative access control must be immutable from the client.
      */
     match /roles_admin/{adminUid} {
       allow read, write: if false; 

@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
-import { getSiteById, type HeritageSite } from '@/lib/heritage-data';
+import { getSiteById, isSiteVisibleToUser, type HeritageSite } from '@/lib/heritage-data';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, query, where, serverTimestamp, doc, orderBy, setDoc, deleteDoc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Route, Heart, Loader2, ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react';
+import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Route, Heart, Loader2, ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight, Maximize2, X, CheckCircle2, AlertCircle } from 'lucide-react';
 import NextImage from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -49,6 +49,11 @@ function mergeSiteRecord(baseSite: HeritageSite | undefined, overrideSite: any):
     },
     isMustVisit: Boolean(merged.isMustVisit),
     needsVerification: Boolean(merged.needsVerification),
+    verificationStatus: merged.verificationStatus || 'Pending Verification',
+    verifiedBy: merged.verifiedBy || undefined,
+    verifiedByUid: merged.verifiedByUid || undefined,
+    verifiedAt: merged.verifiedAt || undefined,
+    verificationNotes: merged.verificationNotes || undefined,
     isActive: merged.isActive !== false,
     status: merged.status === 'Inactive' ? 'Inactive' : 'Active',
     demolitionStatus: merged.demolitionStatus || 'Non-Demolished',
@@ -65,9 +70,15 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   const staticSite = getSiteById(id);
   const siteDocRef = useMemoFirebase(() => db ? doc(db, 'heritageSites', id) : null, [db, id]);
   const { data: dbSite, isLoading: isSiteRecordLoading } = useDoc(siteDocRef);
+
+  const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: userData, isLoading: isUserDataLoading } = useDoc(userDocRef);
+  const userRole = userData?.role;
+
   const mergedSite = mergeSiteRecord(staticSite, dbSite);
   const site = mergedSite?.isActive === false || mergedSite?.status === 'Inactive' ? null : mergedSite;
-  const isResolvingSite = !staticSite && isSiteRecordLoading;
+  const isResolvingSite = (!staticSite && isSiteRecordLoading) || (Boolean(user) && isUserDataLoading);
+  const isVisibleToUser = site ? isSiteVisibleToUser(site, userRole) : false;
 
   const [comment, setComment] = useState('');
   const [rating, setRating] = useState(5);
@@ -155,9 +166,39 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
     );
   }
 
+  if (!isVisibleToUser) {
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-50 font-body">
+        <Navbar />
+        <div className="flex-1 flex flex-col items-center justify-center px-4 text-center py-16">
+          <div className="bg-amber-50 p-6 rounded-full text-amber-600 mb-6 shadow-sm border border-amber-200/60">
+            <AlertCircle size={48} />
+          </div>
+          <Badge variant="outline" className="bg-amber-100/80 text-amber-800 border-amber-300 font-black uppercase text-[10px] tracking-widest px-4 py-1.5 mb-4">
+            {site.verificationStatus === 'Rejected' ? 'Site Verification Rejected' : 'Under LGU Review'}
+          </Badge>
+          <h2 className="text-3xl md:text-4xl font-headline font-bold mb-3 text-slate-900">
+            Site Unavailable
+          </h2>
+          <p className="text-slate-600 max-w-md mb-8 text-sm md:text-base leading-relaxed">
+            {site.name} is currently {site.verificationStatus === 'Rejected' ? 'rejected' : 'under review'} by the Local Government Unit (LGU) and is not available for public viewing.
+          </p>
+          <div className="flex flex-wrap gap-4 justify-center">
+            <Button asChild className="rounded-2xl h-12 px-8 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20">
+              <Link href="/explore">Back to Directory</Link>
+            </Button>
+            <Button asChild variant="outline" className="rounded-2xl h-12 px-8 font-black uppercase text-[10px] tracking-widest border-2">
+              <Link href="/discover">Explore Interactive Map</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const averageRating = reviews && reviews.length > 0 
     ? (reviews.reduce((acc, rev) => acc + (rev.rating || 0), 0) / reviews.length).toFixed(1)
-    : site.rating.toFixed(1);
+    : (Number.isFinite(Number(site?.rating)) ? Number(site.rating).toFixed(1) : 'N/A');
   const siteLatitude = Number(site.coordinates?.lat);
   const siteLongitude = Number(site.coordinates?.lng);
   const hasExactCoordinates = Number.isFinite(siteLatitude) && Number.isFinite(siteLongitude) && siteLatitude !== 0 && siteLongitude !== 0;
@@ -272,6 +313,21 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   </div>
                   {site.isMustVisit && (
                     <Badge variant="secondary" className="bg-accent text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1">Must Visit</Badge>
+                  )}
+                  {site.verificationStatus === 'LGU Verified' && (
+                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1 flex items-center gap-1 shadow-sm">
+                      <CheckCircle2 size={12} /> LGU Verified
+                    </Badge>
+                  )}
+                  {site.verificationStatus === 'Rejected' && (
+                    <Badge className="bg-red-600 text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1 flex items-center gap-1 shadow-sm">
+                      <AlertCircle size={12} /> Rejected
+                    </Badge>
+                  )}
+                  {site.verificationStatus === 'Needs Revision' && (
+                    <Badge className="bg-amber-600 text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1 flex items-center gap-1 shadow-sm">
+                      <AlertCircle size={12} /> Needs Revision
+                    </Badge>
                   )}
                 </div>
                 <h1 className="font-headline text-3xl sm:text-4xl md:text-5xl font-bold text-slate-900 leading-tight">

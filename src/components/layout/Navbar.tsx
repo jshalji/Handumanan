@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { MapPin, User as UserIcon, LogOut, Search, Menu, Settings, Shield, Home } from 'lucide-react';
+import { MapPin, User as UserIcon, LogOut, Search, Menu, Settings, Shield, ShieldCheck, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
@@ -43,6 +43,18 @@ export function Navbar() {
   const handleLogout = () => {
     signOut(auth);
     router.push('/');
+  };
+
+  const getRoleLabel = () => {
+    if (userData?.role === 'admin') return 'Administrator';
+    if (userData?.role === 'lgu') return 'LGU Official';
+    return 'Explorer';
+  };
+
+  const getRoleIcon = () => {
+    if (userData?.role === 'admin') return <Shield size={20} />;
+    if (userData?.role === 'lgu') return <ShieldCheck size={20} />;
+    return <UserIcon size={20} />;
   };
 
   return (
@@ -89,14 +101,14 @@ export function Navbar() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="rounded-2xl gap-3 px-3 h-12 hover:bg-slate-100">
                       <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-sm">
-                        {userData?.role === 'admin' ? <Shield size={20} /> : <UserIcon size={20} />}
+                        {getRoleIcon()}
                       </div>
                       <div className="flex flex-col items-start text-left">
                         <span className="text-xs font-black truncate max-w-[100px] leading-tight text-slate-900">
                           {user.displayName || user.email?.split('@')[0]}
                         </span>
                         <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
-                          {userData?.role === 'admin' ? 'Administrator' : 'Explorer'}
+                          {getRoleLabel()}
                         </span>
                       </div>
                     </Button>
@@ -113,6 +125,13 @@ export function Navbar() {
                       <DropdownMenuItem asChild className="rounded-xl h-11 px-3">
                         <Link href="/admin-dashboard" className="cursor-pointer font-bold">
                           <Shield size={18} className="mr-3 text-primary" /> Admin Panel
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                    {userData?.role === 'lgu' && (
+                      <DropdownMenuItem asChild className="rounded-xl h-11 px-3">
+                        <Link href="/lgu-dashboard" className="cursor-pointer font-bold">
+                          <ShieldCheck size={18} className="mr-3 text-primary" /> LGU Portal
                         </Link>
                       </DropdownMenuItem>
                     )}
@@ -158,6 +177,11 @@ export function Navbar() {
                       {userData?.role === 'admin' && (
                          <Link href="/admin-dashboard" className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
                            <Shield size={18} className="text-primary" /> Admin Panel
+                         </Link>
+                      )}
+                      {userData?.role === 'lgu' && (
+                         <Link href="/lgu-dashboard" className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
+                           <ShieldCheck size={18} className="text-primary" /> LGU Portal
                          </Link>
                       )}
                       <Button onClick={handleLogout} variant="outline" className="w-full h-12 rounded-xl font-black uppercase text-[10px] tracking-widest border-2">

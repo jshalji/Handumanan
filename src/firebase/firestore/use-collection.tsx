@@ -41,7 +41,6 @@ export interface InternalQuery extends Query<DocumentData> {
  * React hook to subscribe to a Firestore collection or query in real-time.
  * Handles nullable references/queries.
  * 
- *
  * IMPORTANT! YOU MUST MEMOIZE the inputted memoizedTargetRefOrQuery or BAD THINGS WILL HAPPEN
  * use useMemo to memoize it per React guidence.  Also make sure that it's dependencies are stable
  * references
@@ -60,19 +59,20 @@ export function useCollection<T = any>(
   const [data, setData] = useState<StateDataType>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
+  const [loadedRef, setLoadedRef] = useState<any>(undefined);
 
   useEffect(() => {
     if (!memoizedTargetRefOrQuery) {
       setData(null);
       setIsLoading(false);
       setError(null);
+      setLoadedRef(null);
       return;
     }
 
     setIsLoading(true);
     setError(null);
 
-    // Directly use memoizedTargetRefOrQuery as it's assumed to be the final query
     const unsubscribe = onSnapshot(
       memoizedTargetRefOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
@@ -83,38 +83,42 @@ export function useCollection<T = any>(
         setData(results);
         setError(null);
         setIsLoading(false);
+        setLoadedRef(memoizedTargetRefOrQuery);
       },
       (error: FirestoreError) => {
-        setData(null)
-        setIsLoading(false)
+        setData(null);
+        setIsLoading(false);
+        setLoadedRef(memoizedTargetRefOrQuery);
 
         if (error.code !== 'permission-denied') {
-          setError(error)
-          return
+          setError(error);
+          return;
         }
 
-        // This logic extracts the path from either a ref or a query
         const path: string =
           memoizedTargetRefOrQuery.type === 'collection'
             ? (memoizedTargetRefOrQuery as CollectionReference).path
-            : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString()
+            : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
 
         const contextualError = new FirestorePermissionError({
           operation: 'list',
           path,
-        })
+        });
 
-        setError(contextualError)
+        setError(contextualError);
 
-        // trigger global error propagation
         errorEmitter.emit('permission-error', contextualError);
       }
     );
 
     return () => unsubscribe();
-  }, [memoizedTargetRefOrQuery]); // Re-run if the target query/reference changes.
-  if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
+  }, [memoizedTargetRefOrQuery]);
+
+  if (memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
     throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');
   }
-  return { data, isLoading, error };
+
+  const effectiveIsLoading = memoizedTargetRefOrQuery ? (isLoading || loadedRef !== memoizedTargetRefOrQuery) : false;
+
+  return { data, isLoading: effectiveIsLoading, error };
 }

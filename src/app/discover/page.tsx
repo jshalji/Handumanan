@@ -1,11 +1,12 @@
 'use client';
+'use client';
 
 import Image from 'next/image';
 
 import { useState, useEffect, useMemo, useCallback, Suspense, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { DEPRECATED_HERITAGE_SITE_IDS, HeritageSite, HERITAGE_SITES } from '@/lib/heritage-data';
+import { DEPRECATED_HERITAGE_SITE_IDS, HeritageSite, HERITAGE_SITES, isSiteVisibleToUser } from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation, watchCurrentLocation } from '@/lib/location-utils';
 import { getRouteMulti, RouteStep, getRoute, type TravelMode } from '@/lib/routing-service';
 import { getSiteAvailability, isSiteOpenForVisit } from '@/lib/site-availability';
@@ -128,6 +129,10 @@ function ExploreRouteContent() {
   const searchParams = useSearchParams();
   const db = useFirestore();
   
+  const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: userData } = useDoc(userDocRef);
+  const userRole = userData?.role;
+  
   const orsKey = process.env.NEXT_PUBLIC_ORS_API_KEY || '';
 
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -198,12 +203,18 @@ function ExploreRouteContent() {
       } as any);
     });
 
-    return Array.from(sitesById.values()).filter(site => (
-      !deprecatedIds.has(site.id) &&
-      site.isActive !== false &&
-      site.status !== 'Inactive'
-    ));
-  }, [dbSites]);
+    return Array.from(sitesById.values())
+      .map(site => ({
+        ...site,
+        verificationStatus: site.verificationStatus || 'Pending Verification',
+      }))
+      .filter(site => (
+        !deprecatedIds.has(site.id) &&
+        site.isActive !== false &&
+        site.status !== 'Inactive' &&
+        isSiteVisibleToUser(site, userRole)
+      ));
+  }, [dbSites, userRole]);
 
   const availableSites = useMemo(() => allSites.filter(site => isSiteOpenForVisit(site)), [allSites]);
 

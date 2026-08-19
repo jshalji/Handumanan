@@ -10,7 +10,7 @@ import {
   useMapsLibrary,
 } from '@vis.gl/react-google-maps';
 import { Button } from '@/components/ui/button';
-import { Plus, Check, Navigation, AlertCircle, Clock, MapPin, Star } from 'lucide-react';
+import { Plus, Check, Navigation, AlertCircle, Clock, MapPin, Star, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -434,7 +434,24 @@ export default function HeritageMap({
                   )}
                   <div className="space-y-3.5 p-4 pt-3">
                     <div className="space-y-2">
-                      <p className="w-fit rounded-full bg-primary/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-primary">{selectedPopupSite.category.split(' & ')[0]}</p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="w-fit rounded-full bg-primary/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-primary">{selectedPopupSite.category.split(' & ')[0]}</p>
+                        {selectedPopupSite.verificationStatus === 'LGU Verified' && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[8px] font-black uppercase tracking-widest text-emerald-800">
+                            <CheckCircle2 size={10} /> LGU Verified
+                          </span>
+                        )}
+                        {selectedPopupSite.verificationStatus === 'Rejected' && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-[8px] font-black uppercase tracking-widest text-red-800">
+                            <AlertCircle size={10} /> Rejected
+                          </span>
+                        )}
+                        {selectedPopupSite.verificationStatus === 'Needs Revision' && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[8px] font-black uppercase tracking-widest text-amber-800">
+                            <AlertCircle size={10} /> Needs Revision
+                          </span>
+                        )}
+                      </div>
                       <h3 className="text-[17px] font-black leading-[1.1] text-slate-950">{selectedPopupSite.name}</h3>
                       <div className="flex items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-[10px] font-bold leading-snug text-slate-500">
                         <MapPin size={13} className="mt-0.5 shrink-0 text-primary" />

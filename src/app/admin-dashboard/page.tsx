@@ -221,10 +221,15 @@ export default function AdminDashboardPage() {
   const { data: userData, isLoading: isCheckingRole } = useDoc(userDocRef);
 
   useEffect(() => {
-    if (!isUserLoading && !user) router.push('/admin-login');
-    if (!isCheckingRole && userData && userData.role !== 'admin') {
-      toast({ title: 'Unauthorized', description: 'Administrator access is required.', variant: 'destructive' });
-      router.push('/explore');
+    if (!isUserLoading && !user) {
+      router.push('/admin-login');
+      return;
+    }
+    if (!isUserLoading && !isCheckingRole && user) {
+      if (!userData || userData.role !== 'admin') {
+        toast({ title: 'Unauthorized', description: 'Administrator access is required.', variant: 'destructive' });
+        router.push('/explore');
+      }
     }
   }, [user, isUserLoading, userData, isCheckingRole, router, toast]);
 

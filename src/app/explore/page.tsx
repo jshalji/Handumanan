@@ -1,16 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
-import { searchSites, HeritageSite } from '@/lib/heritage-data';
+import { searchSites, HeritageSite, HERITAGE_SITES, DEPRECATED_HERITAGE_SITE_IDS, isSiteVisibleToUser } from '@/lib/heritage-data';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageSources } from '@/lib/site-images';
-import { Search, MapPin, X, ExternalLink, Star, Archive, Layers, MapPinned, ChevronDown } from 'lucide-react';
+import { Search, MapPin, X, ExternalLink, Star, Archive, Layers, MapPinned, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { useFirestore, useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { collection, doc, query, orderBy } from 'firebase/firestore';
 
 const cityBackgrounds: Record<string, { image: string; position: string; header: string }> = {
   All: {
@@ -42,6 +44,8 @@ const cityBackgrounds: Record<string, { image: string; position: string; header:
 
 function SiteCard({ site }: { site: HeritageSite }) {
   const imageSources = getSiteImageSources(site);
+  const hasRating = Number.isFinite(Number(site?.rating));
+  const ratingDisplay = hasRating ? Number(site.rating).toFixed(1) : 'N/A';
 
   return (
     <Card className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl">
@@ -57,15 +61,22 @@ function SiteCard({ site }: { site: HeritageSite }) {
         />
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
         <Badge variant="secondary" className="absolute left-4 top-4 border-none bg-white/95 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-primary shadow-sm backdrop-blur-md">
-          {site.category.split(' & ')[0]}
+          {(site.category || 'Heritage Site').split(' & ')[0]}
         </Badge>
-        {site.isMustVisit && (
-          <Badge className="absolute right-4 top-4 border-none bg-amber-400 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-slate-950 shadow-md">
-            Must Visit
-          </Badge>
-        )}
+        <div className="absolute right-4 top-4 flex flex-col items-end gap-1.5">
+          {site.verificationStatus === 'LGU Verified' && (
+            <Badge className="border-none bg-emerald-600 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-white shadow-md flex items-center gap-1">
+              <CheckCircle2 size={12} /> LGU Verified
+            </Badge>
+          )}
+          {site.isMustVisit && (
+            <Badge className="border-none bg-amber-400 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-slate-950 shadow-md">
+              Must Visit
+            </Badge>
+          )}
+        </div>
         <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 shadow-sm backdrop-blur-md">
-          <MapPin size={12} className="text-primary" /> {site.city}
+          <MapPin size={12} className="text-primary" /> {site.city || 'Cebu'}
         </div>
       </Link>
 
@@ -75,7 +86,7 @@ function SiteCard({ site }: { site: HeritageSite }) {
             Heritage Site
           </span>
           <div className="flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-600">
-            <Star size={12} fill="currentColor" /> {site.rating.toFixed(1)}
+            <Star size={12} fill="currentColor" /> {ratingDisplay}
           </div>
         </div>
 
@@ -108,16 +119,70 @@ function SiteCard({ site }: { site: HeritageSite }) {
 }
 
 export default function ExplorePage() {
-  const [query, setQuery] = useState('');
+  const { user } = useUser();
+  const db = useFirestore();
+
+  const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: userData } = useDoc(userDocRef);
+  const userRole = userData?.role;
+
+  const sitesQuery = useMemoFirebase(() => db ? query(collection(db, 'heritageSites'), orderBy('name')) : null, [db]);
+  const { data: dbSites } = useCollection(sitesQuery);
+
+  const [searchQuery, setSearchQuery] = useState('');
   const [city, setCity] = useState('All');
   const [category, setCategory] = useState('All');
   const [isFiltering, setIsFiltering] = useState(false);
   const hasMounted = useRef(false);
 
-  const filteredSites = searchSites(query, city, category);
-  const totalSites = searchSites('', 'All', 'All').length;
+  const mergedSites = useMemo(() => {
+    const deprecatedIds = new Set(DEPRECATED_HERITAGE_SITE_IDS);
+    const sitesById = new Map(HERITAGE_SITES.map(site => [site.id, site as any]));
+
+    dbSites?.forEach(dbSite => {
+      if (!dbSite?.id || deprecatedIds.has(dbSite.id)) return;
+      const existingSite = sitesById.get(dbSite.id) || {};
+      const coordinates = dbSite.coordinates || (
+        dbSite.latitude !== undefined && dbSite.longitude !== undefined
+          ? { lat: dbSite.latitude, lng: dbSite.longitude }
+          : existingSite.coordinates
+      );
+      const rating = Number.isFinite(Number(dbSite.rating))
+        ? Number(dbSite.rating)
+        : (Number.isFinite(Number(existingSite.rating)) ? Number(existingSite.rating) : undefined);
+
+      sitesById.set(dbSite.id, {
+        ...existingSite,
+        ...dbSite,
+        rating,
+        coordinates,
+        tags: Array.isArray(dbSite.tags) ? dbSite.tags : (Array.isArray(existingSite.tags) ? existingSite.tags : []),
+      } as any);
+    });
+
+    return Array.from(sitesById.values())
+      .map(site => ({
+        ...site,
+        verificationStatus: site.verificationStatus || 'Pending Verification',
+      }))
+      .filter(site => (
+        !deprecatedIds.has(site.id) &&
+        site.isActive !== false &&
+        site.status !== 'Inactive' &&
+        isSiteVisibleToUser(site, userRole)
+      ));
+  }, [dbSites, userRole]);
+
+  const filteredSites = useMemo(() => {
+    return searchSites(searchQuery, city, category, userRole, mergedSites);
+  }, [searchQuery, city, category, userRole, mergedSites]);
+
+  const totalSites = useMemo(() => {
+    return searchSites('', 'All', 'All', userRole, mergedSites).length;
+  }, [userRole, mergedSites]);
+
   const cityBackground = cityBackgrounds[city] || cityBackgrounds.All;
-  const hasActiveFilters = Boolean(query || city !== 'All' || category !== 'All');
+  const hasActiveFilters = Boolean(searchQuery || city !== 'All' || category !== 'All');
   const pageBackgroundStyle = {
     backgroundImage: `linear-gradient(180deg, rgba(248,250,252,0.46) 0%, rgba(248,250,252,0.62) 42%, rgba(255,255,255,0.88) 100%), url("${cityBackground.image}")`,
     backgroundPosition: cityBackground.position,
@@ -140,7 +205,7 @@ export default function ExplorePage() {
 
   const resetFilters = () => {
     if (hasActiveFilters) setIsFiltering(true);
-    setQuery('');
+    setSearchQuery('');
     setCity('All');
     setCategory('All');
   };
@@ -163,7 +228,7 @@ export default function ExplorePage() {
 
     const timeout = window.setTimeout(() => setIsFiltering(false), 180);
     return () => window.clearTimeout(timeout);
-  }, [query, city, category]);
+  }, [searchQuery, city, category]);
 
   return (
     <div className="relative isolate min-h-screen overflow-x-hidden bg-slate-50 font-body pb-20 transition-colors duration-500">
@@ -223,10 +288,10 @@ export default function ExplorePage() {
               <Input
                 placeholder="Search sites, history, landmarks..."
                 className="h-12 rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-12 text-base font-bold shadow-none focus-visible:ring-primary/20 sm:pr-24"
-                value={query}
+                value={searchQuery}
                 onChange={(e) => {
                   setIsFiltering(true);
-                  setQuery(e.target.value);
+                  setSearchQuery(e.target.value);
                 }}
               />
               {hasActiveFilters && (

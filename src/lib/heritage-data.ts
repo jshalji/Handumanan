@@ -1,3 +1,5 @@
+export type VerificationStatus = 'Pending Verification' | 'LGU Verified' | 'Needs Revision' | 'Rejected';
+
 export interface HeritageSite {
   id: string;
   name: string;
@@ -25,6 +27,11 @@ export interface HeritageSite {
   };
   isMustVisit: boolean;
   needsVerification?: boolean;
+  verificationStatus?: VerificationStatus;
+  verifiedBy?: string;
+  verifiedByUid?: string;
+  verifiedAt?: string;
+  verificationNotes?: string;
   isActive: boolean;
   status: 'Active' | 'Inactive';
   demolitionStatus: 'Non-Demolished' | 'Demolished' | 'Partially Demolished';
@@ -1218,18 +1225,45 @@ export function getSiteById(id: string) {
   return HERITAGE_SITES.find(site => site.id === id);
 }
 
-export function searchSites(query: string, city?: string, category?: string) {
-  return HERITAGE_SITES.filter(site => {
-    const matchesQuery = query ? (
-      site.name.toLowerCase().includes(query.toLowerCase()) ||
-      site.description.toLowerCase().includes(query.toLowerCase()) ||
-      site.overview.toLowerCase().includes(query.toLowerCase()) ||
-      site.significance.toLowerCase().includes(query.toLowerCase()) ||
-      site.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
-    ) : true;
+export function isSiteVisibleToUser(
+  site: Partial<HeritageSite> | null | undefined,
+  userRole?: string | null
+): boolean {
+  if (!site) return false;
+  if (userRole === 'admin' || userRole === 'lgu') return true;
+  const status = site.verificationStatus || 'Pending Verification';
+  return status !== 'Rejected' && status !== 'Needs Revision';
+}
 
-    const matchesCity = city && city !== 'All' ? site.city === city : true;
-    const matchesCategory = category && category !== 'All' ? site.category === category : true;
+export function searchSites(
+  query: string,
+  city?: string,
+  category?: string,
+  userRole?: string | null,
+  customSites?: HeritageSite[]
+) {
+  const sitesToSearch = customSites || HERITAGE_SITES;
+  const q = (query || '').trim().toLowerCase();
+
+  return sitesToSearch.filter(site => {
+    if (!isSiteVisibleToUser(site, userRole)) return false;
+
+    const name = (site?.name || '').toLowerCase();
+    const description = (site?.description || '').toLowerCase();
+    const overview = (site?.overview || '').toLowerCase();
+    const significance = (site?.significance || '').toLowerCase();
+    const tags = Array.isArray(site?.tags) ? site.tags : [];
+
+    const matchesQuery = !q || (
+      name.includes(q) ||
+      description.includes(q) ||
+      overview.includes(q) ||
+      significance.includes(q) ||
+      tags.some(tag => String(tag || '').toLowerCase().includes(q))
+    );
+
+    const matchesCity = city && city !== 'All' ? site?.city === city : true;
+    const matchesCategory = category && category !== 'All' ? site?.category === category : true;
 
     return matchesQuery && matchesCity && matchesCategory;
   });
