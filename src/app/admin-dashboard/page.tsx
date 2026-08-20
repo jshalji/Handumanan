@@ -589,7 +589,7 @@ export default function AdminDashboardPage() {
                     { label: 'Active Public', value: stats.activePublic, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
                     { label: 'LGU Verified', value: stats.verified, icon: ShieldCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
                     { label: 'Pending Review', value: stats.pending, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-                    { label: 'Needs Revision', value: stats.revision, icon: FileEdit, color: 'text-amber-600', bg: 'bg-amber-50' },
+                    { label: 'Needs Revision', value: stats.revision, icon: FileEdit, color: 'text-orange-600', bg: 'bg-orange-50' },
                     { label: 'Rejected', value: stats.rejected, icon: XCircle, color: 'text-red-600', bg: 'bg-red-50' },
                   ].map(stat => (
                     <Card key={stat.label} className="rounded-lg border-slate-200 bg-white">
@@ -604,6 +604,14 @@ export default function AdminDashboardPage() {
                       </CardContent>
                     </Card>
                   ))}
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3.5 text-xs text-slate-600 flex flex-wrap items-center gap-x-6 gap-y-2">
+                  <span className="font-black text-slate-800 uppercase tracking-widest text-[10px]">Verification Legend:</span>
+                  <span className="flex items-center gap-1.5"><span className="text-emerald-600 font-bold">🟢 LGU Verified</span> — Reviewed & approved by LGU</span>
+                  <span className="flex items-center gap-1.5"><span className="text-amber-700 font-bold">🟡 Pending</span> — Awaiting LGU review</span>
+                  <span className="flex items-center gap-1.5"><span className="text-orange-600 font-bold">🟠 Needs Revision</span> — Changes required</span>
+                  <span className="flex items-center gap-1.5"><span className="text-red-600 font-bold">🔴 Rejected</span> — Not approved for public listing</span>
                 </div>
 
                 <Card className="rounded-lg border-slate-200 bg-white">
@@ -906,7 +914,7 @@ function getVerificationBadge(status?: VerificationStatus) {
       );
     case 'Needs Revision':
       return (
-        <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-none flex items-center gap-1 font-bold text-[10px] uppercase">
+        <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-none flex items-center gap-1 font-bold text-[10px] uppercase">
           <FileEdit size={11} /> Needs Revision
         </Badge>
       );

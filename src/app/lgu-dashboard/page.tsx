@@ -255,26 +255,26 @@ export default function LguDashboardPage() {
     switch (status) {
       case 'LGU Verified':
         return (
-          <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-none flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
+          <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-none flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider shadow-sm">
             <CheckCircle2 size={12} /> LGU Verified
           </Badge>
         );
       case 'Needs Revision':
         return (
-          <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-none flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
+          <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-none flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider shadow-sm">
             <FileEdit size={12} /> Needs Revision
           </Badge>
         );
       case 'Rejected':
         return (
-          <Badge className="bg-red-600 hover:bg-red-700 text-white border-none flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
+          <Badge className="bg-red-600 hover:bg-red-700 text-white border-none flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider shadow-sm">
             <XCircle size={12} /> Rejected
           </Badge>
         );
       case 'Pending Verification':
       default:
         return (
-          <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
+          <Badge variant="outline" className="border-amber-400 text-amber-800 bg-amber-50 flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider shadow-sm">
             <Clock size={12} /> Pending Verification
           </Badge>
         );
@@ -287,47 +287,70 @@ export default function LguDashboardPage() {
 
       <div className="flex min-h-0 flex-1">
         {/* Sidebar */}
-        <aside className="hidden w-72 shrink-0 border-r border-slate-200 bg-white p-5 md:flex md:flex-col">
-          <div className="mb-6">
-            <div className="flex items-center gap-2 text-emerald-600">
-              <ShieldCheck size={22} />
-              <p className="text-[10px] font-black uppercase tracking-[0.2em]">Official LGU Portal</p>
+        <aside className="hidden w-72 shrink-0 border-r border-slate-200 bg-white p-5 md:flex md:flex-col justify-between">
+          <div>
+            <div className="mb-6">
+              <div className="flex items-center gap-2 text-emerald-600">
+                <ShieldCheck size={22} />
+                <p className="text-[10px] font-black uppercase tracking-[0.2em]">Official LGU Portal</p>
+              </div>
+              <h2 className="mt-2 text-lg font-black text-slate-950">Site Verification</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Review and validate Metro Cebu cultural heritage site information.
+              </p>
             </div>
-            <h2 className="mt-2 text-lg font-black text-slate-950">Site Verification</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Review and validate Metro Cebu cultural heritage site information.
-            </p>
-          </div>
 
-          <div className="space-y-1">
-            {(['All', 'Pending Verification', 'LGU Verified', 'Needs Revision', 'Rejected'] as FilterTab[]).map(tab => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                className={cn(
-                  'flex h-10 w-full items-center justify-between rounded-md px-3 text-left text-xs font-bold transition-colors',
-                  activeTab === tab
-                    ? 'bg-emerald-600 text-white'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
-                )}
-              >
-                <span>{tab}</span>
-                <Badge variant="secondary" className={cn('text-[9px]', activeTab === tab ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700')}>
-                  {tab === 'All' && stats.total}
-                  {tab === 'Pending Verification' && stats.pending}
-                  {tab === 'LGU Verified' && stats.verified}
-                  {tab === 'Needs Revision' && stats.revision}
-                  {tab === 'Rejected' && stats.rejected}
-                </Badge>
-              </button>
-            ))}
+            <div className="space-y-1 mb-6">
+              {(['All', 'Pending Verification', 'LGU Verified', 'Needs Revision', 'Rejected'] as FilterTab[]).map(tab => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    'flex h-10 w-full items-center justify-between rounded-md px-3 text-left text-xs font-bold transition-colors',
+                    activeTab === tab
+                      ? 'bg-emerald-600 text-white'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+                  )}
+                >
+                  <span>{tab}</span>
+                  <Badge variant="secondary" className={cn('text-[9px]', activeTab === tab ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700')}>
+                    {tab === 'All' && stats.total}
+                    {tab === 'Pending Verification' && stats.pending}
+                    {tab === 'LGU Verified' && stats.verified}
+                    {tab === 'Needs Revision' && stats.revision}
+                    {tab === 'Rejected' && stats.rejected}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+
+            {/* Status Explanation Legend */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 text-[11px] text-slate-600 space-y-2">
+              <p className="font-black text-slate-700 uppercase tracking-widest text-[9px]">Verification Guide</p>
+              <div className="flex items-start gap-2">
+                <span className="shrink-0 text-emerald-600 font-bold">🟢</span>
+                <span><strong className="text-slate-900 font-bold">LGU Verified</strong> — Reviewed & approved by LGU.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="shrink-0 text-amber-500 font-bold">🟡</span>
+                <span><strong className="text-slate-900 font-bold">Pending</strong> — Awaiting LGU review.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="shrink-0 text-orange-500 font-bold">🟠</span>
+                <span><strong className="text-slate-900 font-bold">Needs Revision</strong> — Corrections required before approval.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="shrink-0 text-red-600 font-bold">🔴</span>
+                <span><strong className="text-slate-900 font-bold">Rejected</strong> — Not approved for public listing.</span>
+              </div>
+            </div>
           </div>
 
           <button
             type="button"
             onClick={handleLogout}
-            className="mt-auto flex h-10 items-center gap-3 rounded-md px-3 text-sm font-bold text-red-600 hover:bg-red-50"
+            className="mt-4 flex h-10 items-center gap-3 rounded-md px-3 text-sm font-bold text-red-600 hover:bg-red-50 transition-colors"
           >
             <LogOut size={17} />
             Logout Portal

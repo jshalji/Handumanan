@@ -1,11 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, Send, Sparkles, MapPin, Heart, Minimize2, Loader2, Navigation, Compass, ExternalLink } from 'lucide-react';
+import { MessageCircle, Send, Sparkles, MapPin, Heart, Minimize2, Loader2, Navigation, Compass, ExternalLink, Info } from 'lucide-react';
 import { chatWithHeritageBot } from '@/ai/flows/heritage-chat-flow';
 import type { HeritageChatInput } from '@/ai/flows/heritage-chat-flow';
 import { cn } from '@/lib/utils';
@@ -22,14 +23,16 @@ interface Message {
   role: 'user' | 'model';
   text: string;
   siteIds?: string[];
+  requiresAuth?: boolean;
 }
 
 type ChatDirectorySite = NonNullable<HeritageChatInput['directorySites']>[number];
 
 const QUICK_REPLIES = [
-  { label: 'My Favorites', icon: Heart },
-  { label: 'Top Sites', icon: Sparkles },
-  { label: 'Next Stop?', icon: MapPin },
+  { label: 'Find heritage sites', icon: Sparkles, prompt: 'Find heritage sites in Metro Cebu' },
+  { label: "What's near me?", icon: MapPin, prompt: "What's near me?" },
+  { label: 'Plan a trip', icon: Compass, prompt: 'Plan a trip to top heritage sites' },
+  { label: 'Tell me about a site', icon: Info, prompt: 'Tell me about Casa Gorordo Museum' },
 ];
 
 function compactSiteForChat(site: any): ChatDirectorySite | null {
@@ -352,9 +355,9 @@ export function HeritageChatBot() {
       .filter(site => (
         site.isActive !== false &&
         site.status !== 'Inactive' &&
-        isSiteVisibleToUser(site, userRole)
+        isSiteVisibleToUser(site, null)
       ));
-  }, [dbSites, userRole]);
+  }, [dbSites]);
 
   const directorySitesForChat = useMemo(() => (
     (directorySites || [])
@@ -408,6 +411,20 @@ export function HeritageChatBot() {
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
+
+    if (!user) {
+      setMessages(prev => [
+        ...prev,
+        { role: 'user', text },
+        {
+          role: 'model',
+          text: 'Please log in to use the Handumanan AI Guide.',
+          requiresAuth: true,
+        }
+      ]);
+      setInput('');
+      return;
+    }
 
     const newMessages: Message[] = [...messages, { role: 'user', text }];
     setMessages(newMessages);
@@ -540,6 +557,17 @@ export function HeritageChatBot() {
                       : "bg-white text-slate-800 rounded-tl-none ring-1 ring-black/5"
                   )}>
                     {msg.text}
+                    {msg.requiresAuth && (
+                      <div className="mt-3">
+                        <Button
+                          asChild
+                          size="sm"
+                          className="rounded-xl font-bold bg-primary text-white hover:bg-primary/90 shadow-md"
+                        >
+                          <Link href="/auth">Log In to Continue</Link>
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
                   {msg.siteIds && msg.siteIds.length > 0 && (
@@ -604,7 +632,6 @@ export function HeritageChatBot() {
               <div ref={messagesEndRef} aria-hidden="true" />
             </div>
           </ScrollArea>
-
           <div className="px-4 pb-3 overflow-x-auto scrollbar-hide shrink-0">
             <div className="flex gap-2">
               {QUICK_REPLIES.map((reply, i) => (
@@ -612,10 +639,10 @@ export function HeritageChatBot() {
                   key={i}
                   variant="outline"
                   size="sm"
-                  className="h-8 rounded-full bg-white text-[10px] font-black uppercase tracking-wider gap-2 px-4 shadow-sm border-slate-100 hover:bg-slate-50 transition-colors"
-                  onClick={() => handleSendMessage(`Tell me about ${reply.label.toLowerCase()}`)}
+                  className="h-8 shrink-0 rounded-full bg-white text-[10px] font-bold tracking-wide gap-1.5 px-3.5 shadow-sm border-slate-200 hover:bg-slate-100 hover:text-primary transition-colors"
+                  onClick={() => handleSendMessage(reply.prompt || reply.label)}
                 >
-                  <reply.icon size={12} /> {reply.label}
+                  <reply.icon size={12} className="text-primary shrink-0" /> {reply.label}
                 </Button>
               ))}
             </div>

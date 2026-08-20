@@ -325,7 +325,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                     </Badge>
                   )}
                   {site.verificationStatus === 'Needs Revision' && (
-                    <Badge className="bg-amber-600 text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1 flex items-center gap-1 shadow-sm">
+                    <Badge className="bg-orange-500 text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1 flex items-center gap-1 shadow-sm">
                       <AlertCircle size={12} /> Needs Revision
                     </Badge>
                   )}

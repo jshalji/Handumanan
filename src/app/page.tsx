@@ -85,14 +85,14 @@ export default function Home() {
             Rediscover the historical landmarks and cultural treasures of Metro Cebu with AI-powered trip planning and live navigation.
           </p>
           <div className="flex w-full flex-col sm:w-auto sm:flex-row items-center justify-center gap-4 sm:gap-6">
-            <Button size="lg" asChild className="w-full max-w-xs sm:w-auto bg-primary hover:bg-primary/90 rounded-full px-8 sm:px-10 h-14 sm:h-16 text-base sm:text-lg shadow-2xl shadow-primary/40">
-              <Link href="/discover">
-                <Compass className="mr-2 h-6 w-6" /> Explore & Route
+            <Button size="lg" asChild className="w-full max-w-xs sm:w-auto bg-primary hover:bg-primary/90 text-white rounded-full px-8 sm:px-10 h-14 sm:h-16 text-base sm:text-lg font-bold shadow-2xl shadow-primary/40">
+              <Link href="/explore">
+                <Search className="mr-2 h-6 w-6" /> Explore Heritage Sites
               </Link>
             </Button>
-            <Button size="lg" variant="outline" asChild className="w-full max-w-xs sm:w-auto bg-white/10 backdrop-blur-lg border-white/20 text-white hover:bg-white/20 rounded-full px-8 sm:px-10 h-14 sm:h-16 text-base sm:text-lg">
-              <Link href="/explore">
-                <Search className="mr-2 h-6 w-6" /> Search Directory
+            <Button size="lg" variant="outline" asChild className="w-full max-w-xs sm:w-auto bg-white/10 backdrop-blur-lg border-white/30 text-white hover:bg-white/20 rounded-full px-8 sm:px-10 h-14 sm:h-16 text-base sm:text-lg font-bold">
+              <Link href="/discover">
+                <Compass className="mr-2 h-6 w-6" /> Live Map & Expeditions
               </Link>
             </Button>
           </div>
@@ -117,18 +117,27 @@ export default function Home() {
               const imageSources = getSiteImageSources(site);
 
               return (
-              <Card key={site.id} className="group overflow-hidden border-none shadow-2xl hover:shadow-primary/10 transition-all duration-500 flex flex-col h-full bg-white rounded-3xl">
-                <div className="relative h-72 overflow-hidden">
+              <Card key={site.id} className="group overflow-hidden border border-slate-200/80 shadow-lg hover:shadow-2xl hover:border-primary/30 transition-all duration-500 flex flex-col h-full bg-white rounded-3xl">
+                <div className="relative h-72 overflow-hidden bg-slate-100">
                   <SafeImage
                     src={imageSources[0]}
                     alt={site.name}
                     fill
                     fallbackSrc={imageSources.slice(1)}
                     fallbackClassName="object-cover"
-                    className="object-cover group-hover:scale-110 transition-transform duration-700"
+                    className="object-cover group-hover:scale-105 transition-transform duration-700"
                   />
-                  <div className="absolute top-6 right-6 bg-white/95 backdrop-blur px-4 py-1.5 rounded-full text-xs font-black text-primary shadow-xl">
-                    {site.category.split(' & ')[0]}
+                  <div className="absolute top-4 left-4">
+                    <Badge variant="secondary" className="border-none bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-primary shadow-sm backdrop-blur-md">
+                      {site.category.split(' & ')[0]}
+                    </Badge>
+                  </div>
+                  <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5">
+                    {site.verificationStatus === 'LGU Verified' && (
+                      <Badge className="border-none bg-emerald-600 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-white shadow-md flex items-center gap-1">
+                        LGU Verified
+                      </Badge>
+                    )}
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
@@ -136,7 +145,7 @@ export default function Home() {
                   <div className="flex items-center gap-2 text-primary text-xs font-black mb-2 uppercase tracking-widest">
                     <MapPin size={14} /> {site.city}
                   </div>
-                  <CardTitle className="font-headline text-3xl group-hover:text-primary transition-colors">
+                  <CardTitle className="font-headline text-2xl font-bold group-hover:text-primary transition-colors">
                     {site.name}
                   </CardTitle>
                 </CardHeader>
@@ -145,9 +154,9 @@ export default function Home() {
                     {site.description}
                   </p>
                 </CardContent>
-                <CardFooter className="pt-6 border-t border-slate-100">
-                  <Button variant="link" asChild className="p-0 h-auto text-primary font-black group-hover:translate-x-2 transition-transform text-base">
-                    <Link href={`/site/${site.id}`}>Learn more <ArrowRight size={18} className="ml-2" /></Link>
+                <CardFooter className="pt-4 border-t border-slate-100">
+                  <Button variant="link" asChild className="p-0 h-auto text-primary font-black group-hover:translate-x-1 transition-transform text-sm">
+                    <Link href={`/site/${site.id}`}>Learn more <ArrowRight size={16} className="ml-1.5" /></Link>
                   </Button>
                 </CardFooter>
               </Card>
