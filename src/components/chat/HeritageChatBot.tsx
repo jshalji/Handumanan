@@ -317,7 +317,7 @@ export function HeritageChatBot() {
   const { data: itineraries } = useCollection(itinerariesQuery);
 
   const sitesQuery = useMemoFirebase(() => (
-    db ? query(collection(db, 'heritageSites'), orderBy('name')) : null
+    db ? collection(db, 'heritageSites') : null
   ), [db]);
   const { data: dbSites } = useCollection(sitesQuery);
 
@@ -361,7 +361,23 @@ export function HeritageChatBot() {
       .filter((site: any) => site?.id)
       .map(compactSiteForChat)
       .filter((site): site is ChatDirectorySite => Boolean(site))
-  ), [dbSites]);
+  ), [directorySites]);
+
+  const availableCount = directorySites.length;
+
+  useEffect(() => {
+    if (availableCount > 0) {
+      setMessages(prev => {
+        if (prev.length === 1 && prev[0].role === 'model') {
+          return [{
+            role: 'model',
+            text: `Maayong adlaw! I'm the Handumanan Guide. I can help you explore the ${availableCount} heritage sites currently available on Handumanan, learn about their history, compare places, find nearby heritage sites, check visiting information, and plan routes or trips around Metro Cebu.`
+          }];
+        }
+        return prev;
+      });
+    }
+  }, [availableCount]);
 
   useEffect(() => {
     setMounted(true);

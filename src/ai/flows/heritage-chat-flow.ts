@@ -143,22 +143,25 @@ function normalizeDirectorySite(site: DirectorySiteInput): HeritageSiteRecord | 
 }
 
 function getSiteCorpus(input?: HeritageChatInput): HeritageSiteRecord[] {
-  const sitesById = new Map<string, HeritageSiteRecord>();
+  if (input?.directorySites && input.directorySites.length > 0) {
+    const sites: HeritageSiteRecord[] = [];
+    input.directorySites.forEach(site => {
+      const normalizedSite = normalizeDirectorySite(site);
+      if (normalizedSite && normalizedSite.isActive !== false && normalizedSite.status !== 'Inactive') {
+        sites.push(normalizedSite);
+      }
+    });
+    return sites;
+  }
 
-  HERITAGE_SITES.forEach(site => {
-    if (!DEPRECATED_HERITAGE_SITE_IDS.includes(site.id)) {
-      sitesById.set(site.id, site);
-    }
-  });
-
-  input?.directorySites?.forEach(site => {
-    const normalizedSite = normalizeDirectorySite(site);
-    if (normalizedSite) {
-      sitesById.set(normalizedSite.id, normalizedSite);
-    }
-  });
-
-  return Array.from(sitesById.values()).filter(site => site.isActive !== false && site.status !== 'Inactive');
+  // Fallback for direct server calls without client payload: filter by public visibility
+  return HERITAGE_SITES.filter(site => (
+    !DEPRECATED_HERITAGE_SITE_IDS.includes(site.id) &&
+    site.isActive !== false &&
+    site.status !== 'Inactive' &&
+    site.verificationStatus !== 'Needs Revision' &&
+    site.verificationStatus !== 'Rejected'
+  ));
 }
 
 function parseAvailableHours(query: string): number {

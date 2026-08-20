@@ -4,13 +4,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { Navbar } from '@/components/layout/Navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Loader2, Lock } from 'lucide-react';
+import { ShieldCheck, Loader2, Lock, UserCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function LguLoginPage() {
@@ -29,29 +29,46 @@ export default function LguLoginPage() {
     return doc(db, 'users', user.uid);
   }, [db, user]);
 
-  const { data: userData, isLoading: isCheckingRole } = useDoc(lguDocRef);
+  const { data: userData } = useDoc(lguDocRef);
 
   useEffect(() => {
-    if (user && !isCheckingRole) {
-      if (userData?.role === 'lgu') {
-        router.push('/lgu-dashboard');
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Access Denied",
-          description: "You do not have LGU officer privileges.",
-        });
-        signOut(auth);
-      }
+    if (user && userData?.role === 'lgu') {
+      router.push('/lgu-dashboard');
     }
-  }, [user, userData, isCheckingRole, router, auth, toast]);
+  }, [user, userData, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const newUid = userCredential.user.uid;
+
+      if (db) {
+        const userDoc = await getDoc(doc(db, 'users', newUid));
+        const role = userDoc.data()?.role;
+
+        if (role === 'lgu') {
+          toast({
+            title: "LGU Access Granted",
+            description: "Authenticated successfully as LGU Officer.",
+          });
+          router.push('/lgu-dashboard');
+          return;
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Access Denied",
+            description: "The specified account does not have LGU Officer privileges.",
+          });
+          await signOut(auth);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      router.push('/lgu-dashboard');
     } catch (error: any) {
       setIsSubmitting(false);
       toast({
@@ -79,6 +96,18 @@ export default function LguLoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {user && userData?.role !== 'lgu' && (
+              <div className="mb-6 rounded-xl bg-emerald-50 border border-emerald-200 p-3 flex items-start gap-3 text-xs text-emerald-800">
+                <UserCheck size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-bold">Currently signed in as {user.email}</p>
+                  <p className="text-[11px] text-emerald-700 mt-0.5">
+                    Role: <span className="font-semibold capitalize">{userData?.role || 'Explorer'}</span>. Enter credentials below to switch to an LGU Officer account.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="email">LGU Account Email</Label>
@@ -109,8 +138,8 @@ export default function LguLoginPage() {
                   <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                 </div>
               </div>
-              <Button type="submit" className="w-full h-12 rounded-xl font-black uppercase tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isSubmitting || isCheckingRole}>
-                {isSubmitting || isCheckingRole ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
+              <Button type="submit" className="w-full h-12 rounded-xl font-black uppercase tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
                 Authenticate LGU Access
               </Button>
             </form>

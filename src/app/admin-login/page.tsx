@@ -5,20 +5,20 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { Navbar } from '@/components/layout/Navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldAlert, Loader2, Lock } from 'lucide-react';
+import { ShieldAlert, Loader2, Lock, UserCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const auth = useAuth();
   const { user } = useUser();
   const db = useFirestore();
@@ -30,35 +30,52 @@ export default function AdminLoginPage() {
     return doc(db, 'users', user.uid);
   }, [db, user]);
 
-  const { data: userData, isLoading: isCheckingRole } = useDoc(adminDocRef);
+  const { data: userData } = useDoc(adminDocRef);
 
   useEffect(() => {
-    if (user && !isCheckingRole) {
-      if (userData?.role === 'admin') {
-        router.push('/admin-dashboard');
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Access Denied",
-          description: "You do not have administrative privileges."
-        });
-        signOut(auth);
-      }
+    if (user && userData?.role === 'admin') {
+      router.push('/admin-dashboard');
     }
-  }, [user, userData, isCheckingRole, router, auth, toast]);
+  }, [user, userData, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const newUid = userCredential.user.uid;
+
+      if (db) {
+        const userDoc = await getDoc(doc(db, 'users', newUid));
+        const role = userDoc.data()?.role;
+
+        if (role === 'admin') {
+          toast({
+            title: "Admin Access Granted",
+            description: "Authenticated successfully as Administrator.",
+          });
+          router.push('/admin-dashboard');
+          return;
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Access Denied",
+            description: "The specified account does not have administrative privileges.",
+          });
+          await signOut(auth);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      router.push('/admin-dashboard');
     } catch (error: any) {
       setIsSubmitting(false);
       toast({
         variant: "destructive",
         title: "Login Failed",
-        description: "Invalid credentials or unauthorized access."
+        description: error.message || "Invalid credentials or unauthorized access.",
       });
     }
   };
@@ -80,17 +97,29 @@ export default function AdminLoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {user && userData?.role !== 'admin' && (
+              <div className="mb-6 rounded-xl bg-amber-50 border border-amber-200 p-3 flex items-start gap-3 text-xs text-amber-800">
+                <UserCheck size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-bold">Currently signed in as {user.email}</p>
+                  <p className="text-[11px] text-amber-700 mt-0.5">
+                    Role: <span className="font-semibold capitalize">{userData?.role || 'Explorer'}</span>. Enter credentials below to switch to an Admin account.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="email">Admin Email</Label>
                 <div className="relative">
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="admin@handumanan.com" 
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="admin@handumanan.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    required 
+                    required
                     className="h-12"
                   />
                 </div>
@@ -98,20 +127,20 @@ export default function AdminLoginPage() {
               <div className="space-y-2">
                 <Label htmlFor="password">Security Key</Label>
                 <div className="relative">
-                  <Input 
-                    id="password" 
-                    type="password" 
+                  <Input
+                    id="password"
+                    type="password"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    required 
+                    required
                     className="h-12"
                   />
                   <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                 </div>
               </div>
-              <Button type="submit" className="w-full h-12 rounded-xl font-black uppercase tracking-widest bg-slate-900 hover:bg-slate-800" disabled={isSubmitting || isCheckingRole}>
-                {isSubmitting || isCheckingRole ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
+              <Button type="submit" className="w-full h-12 rounded-xl font-black uppercase tracking-widest bg-slate-900 hover:bg-slate-800" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
                 Authorize Access
               </Button>
             </form>

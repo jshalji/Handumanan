@@ -126,7 +126,7 @@ export default function ExplorePage() {
   const { data: userData } = useDoc(userDocRef);
   const userRole = userData?.role;
 
-  const sitesQuery = useMemoFirebase(() => db ? query(collection(db, 'heritageSites'), orderBy('name')) : null, [db]);
+  const sitesQuery = useMemoFirebase(() => db ? collection(db, 'heritageSites') : null, [db]);
   const { data: dbSites } = useCollection(sitesQuery);
 
   const [searchQuery, setSearchQuery] = useState('');

@@ -180,7 +180,7 @@ function ExploreRouteContent() {
   const routeRequestIdRef = useRef(0);
 
   // LOAD DYNAMIC SITES FROM FIRESTORE
-  const sitesQuery = useMemoFirebase(() => db ? query(collection(db, 'heritageSites'), orderBy('name')) : null, [db]);
+  const sitesQuery = useMemoFirebase(() => db ? collection(db, 'heritageSites') : null, [db]);
   const { data: dbSites } = useCollection(sitesQuery);
 
   const allSites = useMemo(() => {

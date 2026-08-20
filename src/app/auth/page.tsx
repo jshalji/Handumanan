@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser } from '@/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
@@ -20,28 +20,25 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const auth = useAuth();
   const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (user) {
-      router.push('/profile');
-    }
-  }, [user, router]);
-
-  if (user) {
-    return null;
-  }
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     if (isLogin) {
       signInWithEmailAndPassword(auth, email, password)
+        .then(() => {
+          toast({
+            title: "Signed In",
+            description: "Successfully authenticated.",
+          });
+          router.push('/profile');
+        })
         .catch((error: any) => {
           setIsSubmitting(false);
           toast({
@@ -58,6 +55,11 @@ export default function AuthPage() {
               displayName: name
             });
           }
+          toast({
+            title: "Account Created",
+            description: "Welcome to Handumanan!",
+          });
+          router.push('/profile');
         })
         .catch((error: any) => {
           setIsSubmitting(false);
@@ -83,47 +85,58 @@ export default function AuthPage() {
               {isLogin ? 'Welcome Back' : 'Create Account'}
             </CardTitle>
             <CardDescription>
-              {isLogin 
-                ? 'Login to access your saved itineraries and reviews.' 
+              {isLogin
+                ? 'Login to access your saved itineraries and reviews.'
                 : 'Join the Handumanan community to explore and preserve Cebuano heritage.'}
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {user && (
+              <div className="mb-6 rounded-xl bg-blue-50 border border-blue-200 p-3 flex items-start gap-3 text-xs text-blue-800">
+                <div>
+                  <p className="font-bold">Currently signed in as {user.email}</p>
+                  <p className="text-[11px] text-blue-700 mt-0.5">
+                    Enter credentials below to switch accounts.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               {!isLogin && (
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
-                  <Input 
-                    id="name" 
-                    placeholder="Juan Dela Cruz" 
+                  <Input
+                    id="name"
+                    placeholder="Juan Dela Cruz"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    required 
+                    required
                   />
                 </div>
               )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="juan@example.com" 
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="juan@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required 
+                  required
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
-                  <Input 
-                    id="password" 
-                    type={showPassword ? 'text' : 'password'} 
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="********"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pr-12"
-                    required 
+                    required
                   />
                   <button
                     type="button"
@@ -140,11 +153,11 @@ export default function AuthPage() {
                 {isLogin ? 'Login' : 'Sign Up'}
               </Button>
             </form>
-            
+
             <div className="mt-6 text-center text-sm">
               <p className="text-muted-foreground">
                 {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
-                <button 
+                <button
                   onClick={() => setIsLogin(!isLogin)}
                   className="text-primary font-bold hover:underline"
                 >

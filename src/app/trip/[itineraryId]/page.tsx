@@ -35,7 +35,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ itinerary
   
   const { data: trip, isLoading: isTripLoading } = useDoc(itineraryRef);
 
-  const sitesQuery = useMemoFirebase(() => db ? query(collection(db, 'heritageSites'), orderBy('name')) : null, [db]);
+  const sitesQuery = useMemoFirebase(() => db ? collection(db, 'heritageSites') : null, [db]);
   const { data: dbSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
 
   const directorySites = useMemo(() => {

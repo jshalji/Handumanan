@@ -18,8 +18,10 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   AlertCircle,
   CheckCircle2,
+  Clock,
   Database,
   Edit2,
+  FileEdit,
   Image as ImageIcon,
   LayoutDashboard,
   Loader2,
@@ -33,10 +35,11 @@ import {
   ShieldCheck,
   Trash2,
   Users,
+  XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { HERITAGE_SITES } from '@/lib/heritage-data';
+import { HERITAGE_SITES, VerificationStatus, isSiteVisibleToUser } from '@/lib/heritage-data';
 import { SafeImage } from '@/components/ui/safe-image';
 
 type AdminTab = 'dashboard' | 'sites' | 'categories' | 'feedback' | 'users' | 'settings';
@@ -62,6 +65,8 @@ type SiteFormState = {
   isActive: boolean;
   isMustVisit: boolean;
   needsVerification: boolean;
+  verificationStatus: VerificationStatus;
+  verificationNotes: string;
 };
 
 const ADMIN_NAV_ITEMS = [
@@ -106,6 +111,8 @@ const EMPTY_SITE_FORM: SiteFormState = {
   isActive: true,
   isMustVisit: false,
   needsVerification: false,
+  verificationStatus: 'Pending Verification',
+  verificationNotes: '',
 };
 
 function getSiteCoords(site: any) {
@@ -113,7 +120,8 @@ function getSiteCoords(site: any) {
 }
 
 function normalizeSiteRecord(site: any, existingSite?: any) {
-  const coords = getSiteCoords(site);
+  const merged = { ...(existingSite || {}), ...(site || {}) };
+  const coords = getSiteCoords(merged);
   const latitude = Number(coords?.lat);
   const longitude = Number(coords?.lng);
   const coordinates = Number.isFinite(latitude) && Number.isFinite(longitude)
@@ -121,10 +129,14 @@ function normalizeSiteRecord(site: any, existingSite?: any) {
     : existingSite?.coordinates;
 
   return {
-    ...(existingSite || {}),
-    ...site,
+    ...merged,
     coordinates,
-    tags: Array.isArray(site.tags) ? site.tags : (Array.isArray(existingSite?.tags) ? existingSite.tags : []),
+    verificationStatus: (merged.verificationStatus as VerificationStatus) || 'Pending Verification',
+    verifiedBy: merged.verifiedBy || undefined,
+    verifiedByUid: merged.verifiedByUid || undefined,
+    verifiedAt: merged.verifiedAt || undefined,
+    verificationNotes: merged.verificationNotes || undefined,
+    tags: Array.isArray(merged.tags) ? merged.tags : (Array.isArray(existingSite?.tags) ? existingSite.tags : []),
   };
 }
 
@@ -170,6 +182,8 @@ function getInitialFormState(site?: any): SiteFormState {
     isActive: site.isActive !== false,
     isMustVisit: Boolean(site.isMustVisit),
     needsVerification: Boolean(site.needsVerification),
+    verificationStatus: (site.verificationStatus as VerificationStatus) || 'Pending Verification',
+    verificationNotes: site.verificationNotes || '',
   };
 }
 
@@ -214,6 +228,7 @@ export default function AdminDashboardPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [cityFilter, setCityFilter] = useState('All');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState<string>('All');
   const [isSaving, setIsSaving] = useState(false);
   const [deletingSiteId, setDeletingSiteId] = useState<string | null>(null);
 
@@ -233,7 +248,7 @@ export default function AdminDashboardPage() {
     }
   }, [user, isUserLoading, userData, isCheckingRole, router, toast]);
 
-  const sitesQuery = useMemoFirebase(() => db ? query(collection(db, 'heritageSites'), orderBy('name')) : null, [db]);
+  const sitesQuery = useMemoFirebase(() => db ? collection(db, 'heritageSites') : null, [db]);
   const { data: dbSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
 
   const directorySites = useMemo(() => {
@@ -265,21 +280,45 @@ export default function AdminDashboardPage() {
         ...(site.tags || []),
       ].join(' ').toLowerCase();
 
-      return (
-        (!queryText || searchable.includes(queryText)) &&
-        (cityFilter === 'All' || site.city === cityFilter) &&
-        (categoryFilter === 'All' || site.category === categoryFilter)
-      );
+      const matchesSearch = !queryText || searchable.includes(queryText);
+      const matchesCity = cityFilter === 'All' || site.city === cityFilter;
+      const matchesCategory = categoryFilter === 'All' || site.category === categoryFilter;
+      const matchesStatus = statusFilter === 'All' || site.verificationStatus === statusFilter;
+
+      return matchesSearch && matchesCity && matchesCategory && matchesStatus;
     });
-  }, [categoryFilter, cityFilter, directorySites, searchQuery]);
+  }, [categoryFilter, cityFilter, directorySites, searchQuery, statusFilter]);
 
   const stats = useMemo(() => {
     const allSites = directorySites;
+    const pending = allSites.filter(s => (s.verificationStatus || 'Pending Verification') === 'Pending Verification').length;
+    const verified = allSites.filter(s => s.verificationStatus === 'LGU Verified').length;
+    const revision = allSites.filter(s => s.verificationStatus === 'Needs Revision').length;
+    const rejected = allSites.filter(s => s.verificationStatus === 'Rejected').length;
+
+    // Active Public: active in admin AND visible to public (verificationStatus !== 'Needs Revision' && verificationStatus !== 'Rejected')
+    const activePublic = allSites.filter(s =>
+      s.isActive !== false &&
+      s.status !== 'Inactive' &&
+      isSiteVisibleToUser(s, null)
+    ).length;
+
+    const needsReview = allSites.filter(s =>
+      s.needsVerification ||
+      (s.verificationStatus || 'Pending Verification') === 'Pending Verification' ||
+      s.verificationStatus === 'Needs Revision' ||
+      getCompleteness(s) < 100
+    ).length;
+
     return {
       total: allSites.length,
-      active: allSites.filter(site => site.isActive !== false && site.status !== 'Inactive').length,
-      needsReview: allSites.filter(site => site.needsVerification || getCompleteness(site) < 100).length,
-      images: allSites.filter(site => isValidHttpUrl(site.imageUrl || '')).length,
+      activePublic,
+      pending,
+      verified,
+      revision,
+      rejected,
+      needsReview,
+      images: allSites.filter(s => isValidHttpUrl(s.imageUrl || '')).length,
     };
   }, [directorySites]);
 
@@ -396,6 +435,11 @@ export default function AdminDashboardPage() {
       isActive,
       isMustVisit: formState.isMustVisit,
       needsVerification: formState.needsVerification,
+      verificationStatus: formState.verificationStatus || editingSite?.verificationStatus || 'Pending Verification',
+      verificationNotes: formState.verificationNotes.trim() || editingSite?.verificationNotes || undefined,
+      verifiedBy: editingSite?.verifiedBy || undefined,
+      verifiedByUid: editingSite?.verifiedByUid || undefined,
+      verifiedAt: editingSite?.verifiedAt || undefined,
       demolitionStatus: formState.demolitionStatus,
       updatedAt: serverTimestamp(),
       createdAt: editingSite?.createdAt || serverTimestamp(),
@@ -539,20 +583,22 @@ export default function AdminDashboardPage() {
 
             {activeTab === 'dashboard' && (
               <div className="space-y-5">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
                   {[
-                    { label: 'Directory Sites', value: stats.total, icon: Database, color: 'text-blue-600' },
-                    { label: 'Active Public', value: stats.active, icon: CheckCircle2, color: 'text-green-600' },
-                    { label: 'Needs Review', value: stats.needsReview, icon: AlertCircle, color: 'text-amber-600' },
-                    { label: 'Image URLs', value: stats.images, icon: ImageIcon, color: 'text-violet-600' },
+                    { label: 'Directory Sites', value: stats.total, icon: Database, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { label: 'Active Public', value: stats.activePublic, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'LGU Verified', value: stats.verified, icon: ShieldCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'Pending Review', value: stats.pending, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+                    { label: 'Needs Revision', value: stats.revision, icon: FileEdit, color: 'text-amber-600', bg: 'bg-amber-50' },
+                    { label: 'Rejected', value: stats.rejected, icon: XCircle, color: 'text-red-600', bg: 'bg-red-50' },
                   ].map(stat => (
                     <Card key={stat.label} className="rounded-lg border-slate-200 bg-white">
-                      <CardContent className="flex items-center gap-4 p-5">
-                        <div className={cn('flex h-10 w-10 items-center justify-center rounded-md bg-slate-100', stat.color)}>
+                      <CardContent className="flex items-center gap-3 p-4">
+                        <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-md', stat.bg, stat.color)}>
                           <stat.icon size={20} />
                         </div>
-                        <div>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{stat.label}</p>
+                        <div className="min-w-0">
+                          <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">{stat.label}</p>
                           <p className="text-2xl font-black text-slate-950">{stat.value}</p>
                         </div>
                       </CardContent>
@@ -583,7 +629,7 @@ export default function AdminDashboardPage() {
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <CardTitle className="text-base font-black">Manage Landmark Data</CardTitle>
                     <div className="flex flex-col gap-2 md:flex-row">
-                      <div className="relative min-w-[260px]">
+                      <div className="relative min-w-[240px]">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                         <Input
                           value={searchQuery}
@@ -599,6 +645,13 @@ export default function AdminDashboardPage() {
                       <select value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium">
                         <option value="All">All Categories</option>
                         {CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
+                      </select>
+                      <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium">
+                        <option value="All">All Verification Statuses</option>
+                        <option value="Pending Verification">Pending Verification</option>
+                        <option value="LGU Verified">LGU Verified</option>
+                        <option value="Needs Revision">Needs Revision</option>
+                        <option value="Rejected">Rejected</option>
                       </select>
                     </div>
                   </div>
@@ -749,8 +802,30 @@ export default function AdminDashboardPage() {
                   </FormField>
                 </FormSection>
 
-                <FormSection title="Classification">
+                <FormSection title="Classification & Verification">
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1">
+                    <FormField label="LGU Verification Status">
+                      <select
+                        value={formState.verificationStatus}
+                        onChange={event => updateForm('verificationStatus', event.target.value as VerificationStatus)}
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-bold text-slate-800"
+                      >
+                        <option value="Pending Verification">Pending Verification</option>
+                        <option value="LGU Verified">LGU Verified</option>
+                        <option value="Needs Revision">Needs Revision</option>
+                        <option value="Rejected">Rejected</option>
+                      </select>
+                    </FormField>
+                    {formState.verificationNotes && (
+                      <FormField label="Reviewer Notes">
+                        <Textarea
+                          value={formState.verificationNotes}
+                          onChange={event => updateForm('verificationNotes', event.target.value)}
+                          className="min-h-[70px] text-xs bg-amber-50/60 border-amber-200"
+                          placeholder="LGU review notes or revision request..."
+                        />
+                      </FormField>
+                    )}
                     <FormField label="Public Status">
                       <select value={formState.status} onChange={event => updateForm('status', event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
                         <option value="Active">Active</option>
@@ -821,6 +896,36 @@ function ToggleField({ label, checked, onChange }: { label: string; checked: boo
   );
 }
 
+function getVerificationBadge(status?: VerificationStatus) {
+  switch (status) {
+    case 'LGU Verified':
+      return (
+        <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-none flex items-center gap-1 font-bold text-[10px] uppercase">
+          <CheckCircle2 size={11} /> LGU Verified
+        </Badge>
+      );
+    case 'Needs Revision':
+      return (
+        <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-none flex items-center gap-1 font-bold text-[10px] uppercase">
+          <FileEdit size={11} /> Needs Revision
+        </Badge>
+      );
+    case 'Rejected':
+      return (
+        <Badge className="bg-red-600 hover:bg-red-700 text-white border-none flex items-center gap-1 font-bold text-[10px] uppercase">
+          <XCircle size={11} /> Rejected
+        </Badge>
+      );
+    case 'Pending Verification':
+    default:
+      return (
+        <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50 flex items-center gap-1 font-bold text-[10px] uppercase">
+          <Clock size={11} /> Pending Verification
+        </Badge>
+      );
+  }
+}
+
 function SiteTable({
   sites,
   isLoading,
@@ -841,9 +946,9 @@ function SiteTable({
           <TableRow className="bg-slate-50">
             <TableHead className="min-w-[280px]">Site</TableHead>
             <TableHead>City</TableHead>
-            <TableHead className="min-w-[240px]">Category</TableHead>
+            <TableHead className="min-w-[220px]">Category</TableHead>
             <TableHead>Visitor Info</TableHead>
-            <TableHead>Health</TableHead>
+            <TableHead className="min-w-[230px]">Verification & Health</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -897,7 +1002,8 @@ function SiteTable({
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {getVerificationBadge(site.verificationStatus)}
                     <Badge variant={site.isActive === false || site.status === 'Inactive' ? 'secondary' : 'default'} className={site.isActive === false || site.status === 'Inactive' ? '' : 'bg-green-600'}>
                       {site.isActive === false || site.status === 'Inactive' ? 'Inactive' : 'Active'}
                     </Badge>
@@ -905,8 +1011,12 @@ function SiteTable({
                     <Badge variant={completeness === 100 ? 'outline' : 'destructive'}>
                       {completeness}% complete
                     </Badge>
-                    {site.needsVerification && <Badge variant="secondary">Review</Badge>}
                   </div>
+                  {site.verifiedBy && (
+                    <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                      Reviewed by {site.verifiedBy}
+                    </p>
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">

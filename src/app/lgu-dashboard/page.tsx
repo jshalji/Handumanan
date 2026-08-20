@@ -116,7 +116,7 @@ export default function LguDashboardPage() {
   }, [user, isUserLoading, userData, isCheckingRole, router, toast]);
 
   // Hybrid Data Integration: Query Firestore heritageSites collection
-  const sitesQuery = useMemoFirebase(() => db ? query(collection(db, 'heritageSites'), orderBy('name')) : null, [db]);
+  const sitesQuery = useMemoFirebase(() => db ? collection(db, 'heritageSites') : null, [db]);
   const { data: dbSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
 
   // Combine static HERITAGE_SITES + live Firestore overrides
