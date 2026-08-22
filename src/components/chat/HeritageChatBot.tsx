@@ -14,7 +14,7 @@ import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@
 import { collection, doc, query, orderBy, limit } from 'firebase/firestore';
 import { usePathname, useRouter } from 'next/navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { HERITAGE_SITES, isSiteVisibleToUser } from '@/lib/heritage-data';
+import { HERITAGE_SITES, isSiteVisibleToUser, hasExplicitHeritageIntent } from '@/lib/heritage-data';
 import { getCurrentLocation } from '@/lib/location-utils';
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageSources } from '@/lib/site-images';
@@ -67,6 +67,7 @@ function compactSiteForChat(site: any): ChatDirectorySite | null {
     status: site?.status ? String(site.status) : undefined,
     demolitionStatus: site?.demolitionStatus ? String(site.demolitionStatus) : undefined,
     accessibilityStatus: site?.accessibilityStatus ? String(site.accessibilityStatus) : undefined,
+    entranceFee: site?.entranceFee ? String(site.entranceFee) : undefined,
   };
 
   const compactPayload = payload as Record<string, unknown>;
@@ -139,6 +140,17 @@ const CHAT_NON_LOCATION_SCOPE_WORDS = new Set([
   'religious',
   'cultural',
   'historical',
+  'basilica',
+  'cathedral',
+  'shrine',
+  'cross',
+  'fort',
+  'mansion',
+  'residence',
+  'residences',
+  'library',
+  'libraries',
+  'memorial',
 ]);
 
 function isOutsideHandumananScope(text: string) {
@@ -217,6 +229,8 @@ function getClientFallbackResponse(text: string, sites: any[]): { text: string; 
       suggestedSiteIds: [],
     };
   }
+
+
 
   const city = ['cebu city', 'mandaue city', 'talisay city', 'lapu-lapu city']
     .find(cityName => query.includes(cityName));
@@ -450,10 +464,14 @@ export function HeritageChatBot() {
       // Pass Database Context to AI
       const response = await chatWithHeritageBot({
         history,
-        userId: user?.uid,
-        favorites: favorites?.map(f => f.siteName),
-        lastItinerary: itineraries?.[0]?.summary,
-        userLocation: locationForRequest ?? undefined,
+        userId: user?.uid ? String(user.uid) : undefined,
+        favorites: Array.isArray(favorites)
+          ? favorites.map(f => String(f.siteName || f.id || '')).filter(Boolean)
+          : undefined,
+        lastItinerary: itineraries?.[0]?.summary ? String(itineraries[0].summary) : undefined,
+        userLocation: locationForRequest
+          ? { lat: Number(locationForRequest.lat), lng: Number(locationForRequest.lng) }
+          : undefined,
         directorySites: directorySitesForChat,
       });
       const suggestedSiteIds = response.suggestedSiteIds?.filter(Boolean) ?? [];
@@ -489,6 +507,10 @@ export function HeritageChatBot() {
   };
 
   const handleViewOnMap = (siteId: string) => {
+    const site = directorySites.find((s: any) => s.id === siteId);
+    if (site?.name) {
+      setMessages(prev => [...prev, { role: 'user', text: `Selected site: ${site.name}` }]);
+    }
     setIsOpen(false);
     router.push(`/discover?siteId=${siteId}`);
   };
@@ -595,6 +617,11 @@ export function HeritageChatBot() {
                               <div>
                                 <h4 className="font-black text-xs text-slate-900 leading-tight">{site.name || 'Heritage Site'}</h4>
                                 <p className="text-[10px] text-slate-500 line-clamp-2 mt-1 leading-relaxed">{site.description}</p>
+                                {site.entranceFee && (
+                                  <p className="text-[10px] font-bold text-amber-800 mt-1 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/80 inline-block">
+                                    {site.entranceFee}
+                                  </p>
+                                )}
                               </div>
                               <div className="flex gap-2">
                                 <Button 

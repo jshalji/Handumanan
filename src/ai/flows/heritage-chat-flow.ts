@@ -5,7 +5,7 @@
 
 import { ai, hasGoogleAiApiKey } from '@/ai/genkit';
 import { z } from 'genkit';
-import { DEPRECATED_HERITAGE_SITE_IDS, HERITAGE_SITES } from '@/lib/heritage-data';
+import { DEPRECATED_HERITAGE_SITE_IDS, HERITAGE_SITES, hasExplicitHeritageIntent } from '@/lib/heritage-data';
 import { getSiteAvailability, isSiteOpenForVisit } from '@/lib/site-availability';
 
 const MessageSchema = z.object({
@@ -38,6 +38,7 @@ const DirectorySiteSchema = z.object({
   status: z.string().optional(),
   demolitionStatus: z.string().optional(),
   accessibilityStatus: z.string().optional(),
+  entranceFee: z.string().optional(),
 }).passthrough();
 
 const HeritageChatInputSchema = z.object({
@@ -139,6 +140,7 @@ function normalizeDirectorySite(site: DirectorySiteInput): HeritageSiteRecord | 
       ? site.demolitionStatus
       : 'Non-Demolished',
     accessibilityStatus: site.accessibilityStatus || 'Accessibility details are not yet available.',
+    entranceFee: site.entranceFee || undefined,
   };
 }
 
@@ -262,8 +264,6 @@ const CHAT_SEARCH_STOP_WORDS = new Set([
   'site',
   'sites',
   'heritage',
-  'cebu',
-  'city',
   'here',
   'open',
   'opened',
@@ -303,6 +303,9 @@ function isHelpQuery(query: string) {
 
 function isSystemQuestion(query: string) {
   const normalizedQuery = normalizeSearchText(query);
+  if (/\b(how many|total|number of)\b.*\b(sites|heritage|places|entries|directory)\b/.test(normalizedQuery) || /\bhow many sites\b/.test(normalizedQuery)) {
+    return true;
+  }
   const mentionsHandumanan = /\b(handumanan|this app|this system|this website|this platform|this chatbot|your chatbot|your ai|heritage guide)\b/.test(normalizedQuery);
   const asksAppCapability = /\b(what can you do|what can i ask|how to use|how do i use|features|feature|about handumanan|what is handumanan|how does handumanan work)\b/.test(normalizedQuery);
   const asksHandumananFeature =
@@ -338,9 +341,15 @@ const CATEGORY_ALIASES: Record<string, (typeof HERITAGE_SITES)[number]['category
   churches: 'Churches & Religious Heritage Sites',
   catholic: 'Churches & Religious Heritage Sites',
   shrine: 'Churches & Religious Heritage Sites',
+  basilica: 'Churches & Religious Heritage Sites',
+  cathedral: 'Churches & Religious Heritage Sites',
   museum: 'Museums & Cultural Institutions',
   museums: 'Museums & Cultural Institutions',
   cultural: 'Museums & Cultural Institutions',
+  library: 'Historical Landmarks & Monuments',
+  libraries: 'Historical Landmarks & Monuments',
+  'public library': 'Historical Landmarks & Monuments',
+  'memorial library': 'Historical Landmarks & Monuments',
   ancestral: 'Ancestral Houses & Heritage Residences',
   house: 'Ancestral Houses & Heritage Residences',
   houses: 'Ancestral Houses & Heritage Residences',
@@ -389,6 +398,8 @@ function getCategoryFromQuery(query: string) {
 
 function isDirectoryListQuery(query: string) {
   const normalizedQuery = normalizeSearchText(query);
+  if (!hasExplicitHeritageIntent(query)) return false;
+
   return (
     /\b(all|any|list|show|which|where|find|directory|locations|places|sites)\b/.test(normalizedQuery) ||
     Boolean(getCityFromQuery(query)) ||
@@ -911,6 +922,17 @@ const NON_LOCATION_SCOPE_WORDS = new Set([
   'religious',
   'cultural',
   'historical',
+  'basilica',
+  'cathedral',
+  'shrine',
+  'cross',
+  'fort',
+  'mansion',
+  'residence',
+  'residences',
+  'library',
+  'libraries',
+  'memorial',
 ]);
 
 function isComplexHeritageQuery(query: string) {
@@ -954,35 +976,70 @@ function scoreSiteMatch(site: HeritageSiteRecord, query: string) {
     site.description,
     site.overview,
     site.significance,
-    site.city,
     site.category,
     site.location,
     site.visitingHours,
     ...site.tags,
   ].join(' '));
   const terms = getSearchTerms(query);
+  const cityTerms = new Set(['cebu', 'city', 'mandaue', 'talisay', 'lapu', 'lapulapu']);
 
   let score = 0;
-  if (normalizedQuery.includes(normalizedName)) score += 100;
-  if (normalizedName.includes(normalizedQuery)) score += 80;
+  if (normalizedQuery.includes(normalizedName)) score += 200;
+  if (normalizedName.includes(normalizedQuery)) score += 150;
+
+  let searchedSpecificKeyword = false;
+  let matchedSpecificKeyword = false;
 
   for (const term of terms) {
-    if (normalizedName.includes(term)) score += 25;
-    else if (site.tags.some(tag => normalizeSearchText(tag).includes(term))) score += 15;
-    else if (searchableText.includes(term)) score += 5;
+    if (cityTerms.has(term)) continue;
+
+    if (term === 'library' || term === 'libraries') {
+      searchedSpecificKeyword = true;
+      if (searchableText.includes('library')) matchedSpecificKeyword = true;
+    }
+
+    if (normalizedName.includes(term)) score += 60;
+    else if (site.tags.some(tag => normalizeSearchText(tag).includes(term))) score += 40;
+    else if (searchableText.includes(term)) score += 10;
+  }
+
+  if (searchedSpecificKeyword && !matchedSpecificKeyword) {
+    return 0;
   }
 
   return score;
 }
 
 function findMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
-  return sites
-    .filter(site => isSiteOpenForVisit(site))
+  const city = getCityFromQuery(query);
+  const category = getCategoryFromQuery(query);
+
+  let candidates = sites.filter(site => site.status !== 'Inactive' && site.demolitionStatus !== 'Demolished');
+  if (city) candidates = candidates.filter(site => site.city === city);
+
+  const cityMatches = candidates
+    .map(site => ({ site, score: scoreSiteMatch(site, query) }))
+    .filter(result => result.score > 0)
+    .sort((a, b) => b.score - a.score || b.site.rating - a.site.rating)
+    .map(result => result.site);
+
+  if (cityMatches.length > 0) {
+    return cityMatches.slice(0, limit);
+  }
+
+  if (category) {
+    candidates = candidates.filter(site => site.category === category);
+  }
+
+  const scopedMatches = candidates
     .map(site => ({ site, score: scoreSiteMatch(site, query) }))
     .filter(result => result.score > 0)
     .sort((a, b) => b.score - a.score || b.site.rating - a.site.rating)
     .slice(0, limit)
     .map(result => result.site);
+
+  return scopedMatches;
 }
 
 function getStrongMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[] = HERITAGE_SITES, requireOpen = true) {
@@ -1036,7 +1093,10 @@ function isHandumananFocusedQuery(query: string, sites: HeritageSiteRecord[] = H
     isTripPlanningQuery(normalizedQuery) ||
     (hasHandumananFocusKeyword(normalizedQuery) && HANDUMANAN_DOMAIN_REGEX.test(normalizedQuery)) ||
     isRecommendationQuery(normalizedQuery) ||
-    /\b(favorite|favorites|top site|top sites|best site|best sites|must visit|must see|recommend.*site|next stop|nearby site|nearby sites)\b/.test(normalizedQuery)
+    /\b(favorite|favorites|top site|top sites|best site|best sites|must visit|must see|recommend.*site|next stop|nearby site|nearby sites)\b/.test(normalizedQuery) ||
+    /\b(it|there|that place|the library|that library|the basilica|this site|this place|that site)\b/.test(normalizedQuery) ||
+    /\b(which one|which site|which|which of these|cheaper|cheapest|oldest|newest|free site|free sites|free)\b/.test(normalizedQuery) ||
+    /^(is it|what are the|how do i|take me|can i|how to|where is it|how much|what time|when can|can i visit|which one|which is)/.test(normalizedQuery)
   );
 }
 
@@ -1052,6 +1112,13 @@ function getSystemQuestionResponse(query: string, sites: HeritageSiteRecord[]): 
   const totalSiteCount = sites.length;
   const openSiteCount = sites.filter(site => isSiteOpenForVisit(site)).length;
   const closedSiteCount = Math.max(0, totalSiteCount - openSiteCount);
+
+  if (/\b(how many|total|number of)\b.*\b(sites|heritage|places|entries|directory)\b/.test(normalizedQuery) || /\bhow many sites\b/.test(normalizedQuery)) {
+    return {
+      text: `The Handumanan directory currently has ${totalSiteCount} active heritage site record${totalSiteCount === 1 ? '' : 's'} across Metro Cebu (${openSiteCount} currently open/available based on listed status and visiting hours).`,
+      suggestedSiteIds: [],
+    };
+  }
 
   if (/\b(why only|why just|only)\b.*\b(\d+\s*)?(site|sites|places|directory|entries)\b/.test(normalizedQuery)) {
     return {
@@ -1124,6 +1191,27 @@ function getSiteFactResponse(query: string, site: HeritageSiteRecord, sites: Her
     ? ` Since it is unavailable, nearby open alternatives in ${site.city} include ${alternativeSites.map(candidate => candidate.name).join(', ')}.`
     : '';
 
+  if (/\b(fee|fees|entrance|admission|ticket|tickets|price|prices|cost|pay|free|how much)\b/.test(normalizedQuery)) {
+    const rawFee = site.entranceFee?.trim();
+    const isEstimate = rawFee ? (rawFee.toLowerCase().includes('estimate') || rawFee.toLowerCase().includes('estimated')) : false;
+
+    let feeText = '';
+    if (rawFee && isEstimate) {
+      feeText = `Handumanan lists an estimated fee of "${rawFee}" for ${site.name}. Since this is an estimate, please confirm current prices with the site or local government unit before visiting.`;
+    } else if (rawFee === 'Free Admission') {
+      feeText = `${site.name} offers Free Admission to visitors.`;
+    } else if (rawFee) {
+      feeText = `The listed entrance fee for ${site.name} is ${rawFee}.`;
+    } else {
+      feeText = `Handumanan currently does not have a confirmed entrance fee for ${site.name} in the directory. Admission details should be confirmed directly with the site or local government unit.`;
+    }
+
+    return {
+      text: `${site.name} (${site.city}): ${feeText}`,
+      suggestedSiteIds: [site.id, ...alternativeSites.map(candidate => candidate.id)],
+    };
+  }
+
   if (/\b(open|closed|available|hours|time|schedule|when)\b/.test(normalizedQuery)) {
     return {
       text: `${site.name} is ${availability}. Listed visiting hours: ${site.visitingHours}.${alternativeText} Please verify with the site or local office before visiting if timing is critical.`,
@@ -1167,7 +1255,7 @@ function getSiteFactResponse(query: string, site: HeritageSiteRecord, sites: Her
   }
 
   return {
-    text: `${site.name} is in ${site.city}, under ${site.category}, and is ${availability}. ${site.description} Visiting hours: ${site.visitingHours}.${alternativeText}`,
+    text: `${site.name} is in ${site.city}, under ${site.category}, and is ${availability}. ${site.description} Visiting hours: ${site.visitingHours}.${site.entranceFee ? ` Entrance fee: ${site.entranceFee}.` : ''}${alternativeText}`,
     suggestedSiteIds: [site.id, ...alternativeSites.map(candidate => candidate.id)],
   };
 }
@@ -1221,20 +1309,282 @@ function getNearbyChatResponse(input: HeritageChatInput, query: string, sites: H
   };
 }
 
+const KNOWN_REFERENCE_POINTS: Record<string, GeoPoint & { name: string; city: string }> = {
+  'cebu city hall': { lat: 10.2931, lng: 123.9015, name: 'Cebu City Hall', city: 'Cebu City' },
+  'capitol': { lat: 10.3157, lng: 123.8906, name: 'Cebu Provincial Capitol', city: 'Cebu City' },
+  'cebu provincial capitol': { lat: 10.3157, lng: 123.8906, name: 'Cebu Provincial Capitol', city: 'Cebu City' },
+  'fuente osmena': { lat: 10.3116, lng: 123.8914, name: 'Fuente Osmeña Circle', city: 'Cebu City' },
+  'fuente': { lat: 10.3116, lng: 123.8914, name: 'Fuente Osmeña Circle', city: 'Cebu City' },
+};
+
+function isGeneralCityQuestion(query: string): { isCityQuestion: boolean; city?: string } {
+  const normalized = normalizeSearchText(query);
+  const cityMatch = getCityFromQuery(query);
+  if (!cityMatch) return { isCityQuestion: false };
+
+  const isWhereQuestion = /^(where is|where s|location of|what is|tell me about|where located is|about)\s+([a-z\s-]+)$/.test(normalized);
+  const asksForHeritageSites = /\b(site|sites|heritage|landmark|landmarks|museum|museums|church|churches|places|place|tourist|visit|recommend|attractions|directory|list)\b/.test(normalized);
+
+  if (isWhereQuestion && !asksForHeritageSites) {
+    return { isCityQuestion: true, city: cityMatch };
+  }
+  return { isCityQuestion: false };
+}
+
+function findReferencePoint(query: string, sites: HeritageSiteRecord[]): { targetSite?: HeritageSiteRecord; referencePoint?: GeoPoint & { name: string; city: string }; unknownLocation?: string } {
+  const normalized = normalizeSearchText(query);
+
+  for (const site of sites) {
+    const siteName = normalizeSearchText(site.name);
+    if (normalized.includes(siteName)) {
+      return { targetSite: site };
+    }
+  }
+
+  if (/\b(basilica|santo nino)\b/.test(normalized)) {
+    const b = sites.find(s => s.id === 'cebu-basilica');
+    if (b) return { targetSite: b };
+  }
+  if (/\b(cross|magellan)\b/.test(normalized)) {
+    const c = sites.find(s => s.id === 'cebu-cross');
+    if (c) return { targetSite: c };
+  }
+
+  for (const [key, point] of Object.entries(KNOWN_REFERENCE_POINTS)) {
+    if (normalized.includes(key)) {
+      return { referencePoint: point };
+    }
+  }
+
+  const nearMatch = query.match(/\b(?:near|around|close to|next to)\s+([A-Za-z0-9\s-]{3,35})/i);
+  if (nearMatch) {
+    const rawLoc = nearMatch[1].trim();
+    const normalizedLoc = normalizeSearchText(rawLoc);
+    const pureCities = new Set(['cebu', 'cebu city', 'mandaue', 'mandaue city', 'talisay', 'talisay city', 'lapu lapu', 'lapu lapu city', 'me', 'here', 'my location', 'current location']);
+
+    if (!pureCities.has(normalizedLoc)) {
+      return { unknownLocation: rawLoc };
+    }
+  }
+
+  return {};
+}
+
+function getComparisonResponse(query: string, sites: HeritageSiteRecord[], context: ConversationContext): HeritageChatOutput {
+  const normalizedQuery = normalizeSearchText(query);
+  let comparedSites = sites.filter(s => {
+    const name = normalizeSearchText(s.name);
+    return normalizedQuery.includes(name) || (name.length > 5 && normalizedQuery.includes(name.slice(0, 10)));
+  });
+
+  if (comparedSites.length < 2 && /\b(basilica|magellan|cross)\b/.test(normalizedQuery)) {
+    const b = sites.find(s => s.id === 'cebu-basilica');
+    const m = sites.find(s => s.id === 'cebu-cross');
+    if (b && m) comparedSites = [b, m];
+  }
+
+  if (comparedSites.length < 2 && context.lastSearchResults.length >= 2) {
+    comparedSites = context.lastSearchResults.slice(0, 2);
+  }
+
+  if (comparedSites.length < 2) {
+    return {
+      text: "To compare heritage sites, specify two sites (e.g., Compare Basilica and Magellan's Cross) or ask a comparison question after viewing search results.",
+      suggestedSiteIds: [],
+    };
+  }
+
+  const [siteA, siteB] = comparedSites;
+
+  if (/\b(older|oldest|age|established|built|founded)\b/.test(normalizedQuery)) {
+    return {
+      text: `Comparing **${siteA.name}** (${siteA.city}) and **${siteB.name}** (${siteB.city}):\n\nHandumanan does not currently list exact historical founding dates for comparison. Both are verified heritage entries in Metro Cebu.`,
+      suggestedSiteIds: [siteA.id, siteB.id],
+    };
+  }
+
+  if (/\b(cheaper|cheapest|free|price|fee|admission)\b/.test(normalizedQuery)) {
+    const feeA = siteA.entranceFee || 'Unspecified fee';
+    const feeB = siteB.entranceFee || 'Unspecified fee';
+    return {
+      text: `Admission comparison:\n\n- **${siteA.name}**: ${feeA}\n- **${siteB.name}**: ${feeB}\n\nBoth sites are listed in the Handumanan directory.`,
+      suggestedSiteIds: [siteA.id, siteB.id],
+    };
+  }
+
+  if (/\b(rating|rated|higher rating|best rated)\b/.test(normalizedQuery)) {
+    return {
+      text: `Rating comparison:\n\n- **${siteA.name}**: ⭐ ${siteA.rating}/5\n- **${siteB.name}**: ⭐ ${siteB.rating}/5`,
+      suggestedSiteIds: [siteA.id, siteB.id],
+    };
+  }
+
+  return {
+    text: `Comparison between **${siteA.name}** and **${siteB.name}**:\n\n- **${siteA.name}**: ${siteA.city} · ${siteA.category} · ⭐ ${siteA.rating}/5 · Admission: ${siteA.entranceFee || 'Free/Unspecified'}\n- **${siteB.name}**: ${siteB.city} · ${siteB.category} · ⭐ ${siteB.rating}/5 · Admission: ${siteB.entranceFee || 'Free/Unspecified'}\n\nVisiting Hours:\n- ${siteA.name}: ${siteA.visitingHours}\n- ${siteB.name}: ${siteB.visitingHours}`,
+    suggestedSiteIds: [siteA.id, siteB.id],
+  };
+}
+
+interface ConversationContext {
+  lastReferencedSite: HeritageSiteRecord | null;
+  lastSearchResults: HeritageSiteRecord[];
+  lastCity: string | null;
+  lastCategory: string | null;
+}
+
+function getConversationContext(history: HeritageChatInput['history'], sites: HeritageSiteRecord[]): ConversationContext {
+  let lastReferencedSite: HeritageSiteRecord | null = null;
+  let lastSearchResults: HeritageSiteRecord[] = [];
+  let lastCity: string | null = null;
+  let lastCategory: string | null = null;
+
+  if (!history || history.length === 0) {
+    return { lastReferencedSite, lastSearchResults, lastCity, lastCategory };
+  }
+
+  for (let i = history.length - 1; i >= 0; i--) {
+    const turn = history[i];
+    const text = turn?.content?.[0]?.text ?? '';
+    const normalized = normalizeSearchText(text);
+
+    if (!lastCity) {
+      const city = getCityFromQuery(text);
+      if (city) lastCity = city;
+    }
+
+    if (!lastCategory) {
+      const category = getCategoryFromQuery(text);
+      if (category) lastCategory = category;
+    }
+
+    if (lastSearchResults.length === 0) {
+      const matches = findMatchingSites(text, 5, sites);
+      if (matches.length > 1) {
+        lastSearchResults = matches;
+      }
+    }
+
+    if (!lastReferencedSite) {
+      if (turn.role === 'user') {
+        const matches = findMatchingSites(text, 1, sites);
+        if (matches.length > 0 && scoreSiteMatch(matches[0], text) >= 30) {
+          lastReferencedSite = matches[0];
+        }
+
+        if (!lastReferencedSite) {
+          if (/\b(basilica|santo nino)\b/.test(normalized)) {
+            lastReferencedSite = sites.find(s => s.id === 'cebu-basilica') || null;
+          } else if (/\b(library|public library|rizal memorial)\b/.test(normalized)) {
+            lastReferencedSite = sites.find(s => s.id === 'cebu-rizal-memorial-library') || null;
+          } else if (/\b(cross|magellan)\b/.test(normalized)) {
+            lastReferencedSite = sites.find(s => s.id === 'cebu-cross') || null;
+          } else if (/\b(cathedral)\b/.test(normalized)) {
+            lastReferencedSite = sites.find(s => s.id === 'cebu-cathedral') || null;
+          } else if (/\b(fort|san pedro)\b/.test(normalized)) {
+            lastReferencedSite = sites.find(s => s.id === 'cebu-fort-san-pedro') || null;
+          } else if (/\b(casa gorordo)\b/.test(normalized)) {
+            lastReferencedSite = sites.find(s => s.id === 'cebu-casa-gorordo') || null;
+          } else if (/\b(mactan shrine|lapu lapu shrine)\b/.test(normalized)) {
+            lastReferencedSite = sites.find(s => s.id === 'lapu-mactan-shrine') || null;
+          }
+        }
+      }
+
+      if (!lastReferencedSite && turn.role === 'model') {
+        for (const site of sites) {
+          const siteName = normalizeSearchText(site.name);
+          if (
+            normalized.startsWith(siteName) ||
+            normalized.includes(`**${siteName}**`) ||
+            normalized.includes(`${siteName} is `) ||
+            normalized.includes(`${siteName} (${site.city})`)
+          ) {
+            lastReferencedSite = site;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return { lastReferencedSite, lastSearchResults, lastCity, lastCategory };
+}
+
+function getNearbySitesForReference(targetSite: HeritageSiteRecord, sites: HeritageSiteRecord[], limit = 4): HeritageChatOutput {
+  if (!targetSite.coordinates || !isValidGeoPoint(targetSite.coordinates)) {
+    return {
+      text: `I don't have exact GPS coordinates in the Handumanan directory for ${targetSite.name} to calculate distance, but it is located in ${targetSite.city}.`,
+      suggestedSiteIds: [targetSite.id],
+    };
+  }
+
+  const nearbyList = sites
+    .filter(site => site.id !== targetSite.id && isSiteOpenForVisit(site) && isValidGeoPoint(site.coordinates))
+    .map(site => ({
+      site,
+      distanceKm: calculateStraightLineDistanceKm(targetSite.coordinates, site.coordinates),
+    }))
+    .sort((a, b) => a.distanceKm - b.distanceKm || b.site.rating - a.site.rating)
+    .slice(0, limit);
+
+  if (nearbyList.length === 0) {
+    return {
+      text: `I couldn't find other open heritage sites near ${targetSite.name} in the Handumanan directory.`,
+      suggestedSiteIds: [targetSite.id],
+    };
+  }
+
+  const listItems = nearbyList
+    .map((item, index) => `${index + 1}. **${item.site.name}** (${item.site.city}) — approximately ${formatDistance(item.distanceKm)} away`)
+    .join('\n');
+
+  return {
+    text: `Here are some Handumanan heritage sites near ${targetSite.name}:\n\n${listItems}\n\nYou can open any site on the map or view its details.`,
+    suggestedSiteIds: nearbyList.map(item => item.site.id),
+  };
+}
+
+function getNearbySitesForPoint(point: GeoPoint & { name: string; city: string }, sites: HeritageSiteRecord[], limit = 4): HeritageChatOutput {
+  const nearbyList = sites
+    .filter(site => isSiteOpenForVisit(site) && isValidGeoPoint(site.coordinates))
+    .map(site => ({
+      site,
+      distanceKm: calculateStraightLineDistanceKm(point, site.coordinates),
+    }))
+    .sort((a, b) => a.distanceKm - b.distanceKm || b.site.rating - a.site.rating)
+    .slice(0, limit);
+
+  if (nearbyList.length === 0) {
+    return {
+      text: `I couldn't find open heritage sites near ${point.name} in the Handumanan directory.`,
+      suggestedSiteIds: [],
+    };
+  }
+
+  const listItems = nearbyList
+    .map((item, index) => `${index + 1}. **${item.site.name}** (${item.site.city}) — approximately ${formatDistance(item.distanceKm)} away`)
+    .join('\n');
+
+  return {
+    text: `Here are Handumanan heritage sites near ${point.name} (${point.city}):\n\n${listItems}\n\nYou can open any site on the map or view its details.`,
+    suggestedSiteIds: nearbyList.map(item => item.site.id),
+  };
+}
+
 async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageChatOutput> {
   const lastMessage = input.history[input.history.length - 1]?.content[0]?.text ?? '';
   const query = lastMessage.toLowerCase();
   const normalizedQuery = normalizeSearchText(lastMessage);
   const sites = getSiteCorpus(input);
+
+  const context = getConversationContext(input.history.slice(0, -1), sites);
   const activeSites = sites.filter(site => isSiteOpenForVisit(site));
   const mustVisitSites = activeSites
     .filter(site => site.isMustVisit)
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 3);
 
-  const matchingSites = getStrongMatchingSites(lastMessage, 3, sites, false);
-  const directoryMatches = getDirectoryMatches(lastMessage, 8, sites);
-
+  // Friendly greetings
   if (isSimpleGreetingQuery(lastMessage)) {
     return {
       text: "Hello! Maayong adlaw. I am your Handumanan Guide, ready to help with Metro Cebu heritage sites, routes, and stories.",
@@ -1244,21 +1594,37 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
 
   if (isWellbeingQuery(lastMessage)) {
     return {
-      text: "I am doing well, thank you for asking. I am here and ready to help you explore Cebu's heritage, one landmark at a time.",
+      text: "I am doing well, thank you for asking. How can I help you explore Cebu's heritage today?",
       suggestedSiteIds: [],
     };
   }
 
   if (isThanksQuery(lastMessage)) {
     return {
-      text: "You are very welcome. Ask me anytime about a site, city, category, or heritage route in Handumanan.",
+      text: "You are very welcome. Feel free to ask about any heritage site, city, or route in Metro Cebu.",
       suggestedSiteIds: [],
     };
   }
 
   if (isHelpQuery(lastMessage)) {
     return {
-      text: `I am the Handumanan Guide. I can search ${sites.length} active heritage site records, explain their history, compare places, suggest nearby open stops, and build routes when you explicitly ask for a trip plan. For recommendations, I prioritize the ${activeSites.length} sites currently available based on listed status and visiting hours.`,
+      text: `I am the Handumanan Guide. I can search ${sites.length} active heritage site records, explain their history, compare places, find nearby sites, check visiting hours, and build routes. Ask me about any site, city, or category.`,
+      suggestedSiteIds: [],
+    };
+  }
+
+  // Check for general city questions (e.g. "Where is Lapu-Lapu?", "What is Talisay City?")
+  const cityQ = isGeneralCityQuestion(lastMessage);
+  if (cityQ.isCityQuestion && cityQ.city) {
+    const cityInfo: Record<string, string> = {
+      'Cebu City': "Cebu City is the capital of Cebu province in Metro Cebu. It is known as the 'Queen City of the South' and is home to landmark heritage sites like Magellan's Cross, Basilica Minore del Santo Niño, and Fort San Pedro.",
+      'Lapu-Lapu City': "Lapu-Lapu City is a highly urbanized city in Metro Cebu located on Mactan Island. It is named after chieftain Lapu-Lapu and is famous for the Battle of Mactan.",
+      'Mandaue City': "Mandaue City is a major industrial and commercial hub in Metro Cebu with rich historic public landmarks.",
+      'Talisay City': "Talisay City is located south of Cebu City, known for historical landmarks including World War II liberation markers."
+    };
+
+    return {
+      text: `${cityInfo[cityQ.city] || `${cityQ.city} is part of Metro Cebu.`} If you would like to explore heritage sites in ${cityQ.city}, feel free to ask!`,
       suggestedSiteIds: [],
     };
   }
@@ -1275,16 +1641,8 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
     return getSystemQuestionResponse(lastMessage, sites);
   }
 
-  if (!isHandumananFocusedQuery(lastMessage, sites)) {
-    return getFocusedRedirectResponse();
-  }
-
   if (isTravelTimeQuery(lastMessage)) {
     return getTravelTimeChatResponse(lastMessage, sites);
-  }
-
-  if (isNearbyLocationQuery(lastMessage)) {
-    return getNearbyChatResponse(input, lastMessage, sites);
   }
 
   if (isClosedSitesQuery(lastMessage)) {
@@ -1295,68 +1653,147 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
     return getOpenSitesResponse(lastMessage, sites);
   }
 
-  if (matchingSites.length > 0 && (matchingSites.length === 1 || scoreSiteMatch(matchingSites[0], lastMessage) >= 50)) {
-    return getSiteFactResponse(lastMessage, matchingSites[0], sites);
+  if (isComplexHeritageQuery(lastMessage) || /\b(compare|comparison|versus|vs)\b/.test(normalizedQuery)) {
+    return getComparisonResponse(lastMessage, sites, context);
   }
 
-  if (isHeritageRecommendationQuery(lastMessage)) {
-    return getGuideRecommendationResponse(lastMessage, sites);
-  }
+  // 1. Check for site-relative or location-relative nearby query (e.g. "what heritage sites are near basilica?", "what's near Magellan's Cross?", "what's near Talisay City Hall?")
+  const isNearbySiteQuery = /\b(near|nearby|around|close to)\b/.test(normalizedQuery) &&
+    !SELF_LOCATION_SCOPE_REGEX.test(normalizedQuery);
 
-  if (isDirectoryListQuery(query) && directoryMatches.length > 0) {
-    const city = getCityFromQuery(lastMessage);
-    const category = getCategoryFromQuery(lastMessage);
-    const filteredTotal = sites.filter(site => {
-      return isSiteOpenForVisit(site) && (!city || site.city === city) && (!category || site.category === category);
-    }).length;
-    const isGenericDirectoryQuery = /\b(all|directory|locations|places|sites)\b/.test(normalizeSearchText(lastMessage));
-
-    return {
-      text: formatSiteList(directoryMatches, city || category || isGenericDirectoryQuery ? filteredTotal : directoryMatches.length),
-      suggestedSiteIds: directoryMatches.map(site => site.id),
-    };
-  }
-
-  if (isTripPlanningQuery(query)) {
-    const hours = parseAvailableHours(query);
-    const routeSites = getBalancedRouteSites(getStopCountForHours(hours), sites);
-
-    return {
-      text: `I generated a ${hours}-hour heritage route with ${routeSites.length} stops: ${routeSites.map(site => site.name).join(', ')}. Opening it on the map now so you can see the route.`,
-      suggestedSiteIds: routeSites.map(site => site.id),
-    };
-  }
-
-  if (/\b(hi|hello|hey|maayong|good\s*(day|morning|afternoon|evening))\b/.test(query)) {
-    return {
-      text: "Maayong adlaw! I can help you find Metro Cebu heritage sites, plan stops, or explain the stories behind landmarks like Magellan's Cross, Casa Gorordo, and Mactan Shrine.",
-      suggestedSiteIds: mustVisitSites.map(site => site.id),
-    };
-  }
-
-  if (query.includes('favorite')) {
-    const favoriteNames = input.favorites?.filter(Boolean) ?? [];
-    if (favoriteNames.length > 0) {
+  if (isNearbySiteQuery) {
+    const ref = findReferencePoint(lastMessage, sites);
+    if (ref.targetSite) {
+      return getNearbySitesForReference(ref.targetSite, sites);
+    }
+    if (ref.referencePoint) {
+      return getNearbySitesForPoint(ref.referencePoint, sites);
+    }
+    if (ref.unknownLocation) {
+      const city = getCityFromQuery(lastMessage) || 'Metro Cebu';
       return {
-        text: `Your saved favorites include ${favoriteNames.slice(0, 3).join(', ')}. I can help you turn them into a short heritage route.`,
-        suggestedSiteIds: matchingSites.map(site => site.id),
+        text: `I don't currently have ${ref.unknownLocation} as a mapped reference point in Handumanan. However, I can show you heritage sites in ${city} or near a documented landmark like Magellan's Cross or Talisay Landing Site.`,
+        suggestedSiteIds: [],
       };
     }
+    if (context.lastReferencedSite) {
+      return getNearbySitesForReference(context.lastReferencedSite, sites);
+    }
+  }
 
+  // 2. Check for pronoun / natural follow-up referencing contextSite (e.g. "is it free?", "what are the visiting hours?", "how do I get there?")
+  const isFollowUpPronoun = /\b(it|there|that place|the library|that library|the basilica|this site|this place|that site|the church)\b/.test(normalizedQuery) ||
+    /^(is it|what are the|how do i|take me|can i|how to|where is it|how much|what time|when can|can i visit|tell me more)/.test(normalizedQuery);
+
+  // Check if current user message explicitly mentions a DIFFERENT site
+  const explicitCurrentSiteMatches = findMatchingSites(lastMessage, 1, sites);
+  const currentMessageSite = explicitCurrentSiteMatches.length > 0 && scoreSiteMatch(explicitCurrentSiteMatches[0], lastMessage) >= 40
+    ? explicitCurrentSiteMatches[0]
+    : null;
+
+  const targetContextSite = currentMessageSite || context.lastReferencedSite;
+
+  if (targetContextSite && (isFollowUpPronoun || currentMessageSite)) {
+    if (/\b(fee|fees|entrance|admission|ticket|tickets|price|prices|cost|pay|free|how much)\b/.test(normalizedQuery)) {
+      return getSiteFactResponse(lastMessage, targetContextSite, sites);
+    }
+    if (/\b(open|closed|available|hours|time|schedule|when|today|visit)\b/.test(normalizedQuery)) {
+      return getSiteFactResponse(lastMessage, targetContextSite, sites);
+    }
+    if (/\b(where|located|location|address|city)\b/.test(normalizedQuery)) {
+      return getSiteFactResponse(lastMessage, targetContextSite, sites);
+    }
+    if (/\b(history|historical|significance|story|meaning|about|tell me more|special|why|known for|interesting)\b/.test(normalizedQuery)) {
+      return getSiteFactResponse(lastMessage, targetContextSite, sites);
+    }
+    if (/\b(accessible|accessibility|pwd|wheelchair)\b/.test(normalizedQuery)) {
+      return getSiteFactResponse(lastMessage, targetContextSite, sites);
+    }
+    if (/\b(directions|route|take me|how do i get|show.*map|map|add.*trip|plan.*trip)\b/.test(normalizedQuery)) {
+      return {
+        text: `Opening directions to ${targetContextSite.name} in ${targetContextSite.city} on the map.`,
+        suggestedSiteIds: [targetContextSite.id],
+      };
+    }
+    if (/\b(near|nearby|around)\b/.test(normalizedQuery)) {
+      return getNearbySitesForReference(targetContextSite, sites);
+    }
+    if (currentMessageSite) {
+      return getSiteFactResponse(lastMessage, currentMessageSite, sites);
+    }
+  }
+
+  // 3. Handle GPS "near me" location requests
+  if (isNearbyLocationQuery(lastMessage)) {
+    return getNearbyChatResponse(input, lastMessage, sites);
+  }
+
+  // 4. Handle relative selection / ordinal follow-up from previous search results (e.g. "the first one", "the second one", "which one is free?")
+  if (context.lastSearchResults.length > 0 && /\b(first|second|third|which|which one|which site|which of these|oldest|best|free|cheapest)\b/.test(normalizedQuery)) {
+    if (/\bfirst\b/.test(normalizedQuery) && context.lastSearchResults[0]) {
+      return getSiteFactResponse(lastMessage, context.lastSearchResults[0], sites);
+    }
+    if (/\bsecond\b/.test(normalizedQuery) && context.lastSearchResults[1]) {
+      return getSiteFactResponse(lastMessage, context.lastSearchResults[1], sites);
+    }
+    if (/\bthird\b/.test(normalizedQuery) && context.lastSearchResults[2]) {
+      return getSiteFactResponse(lastMessage, context.lastSearchResults[2], sites);
+    }
+    if (/\b(free|cheapest|no fee)\b/.test(normalizedQuery)) {
+      const freeSites = context.lastSearchResults.filter(s => s.entranceFee === 'Free Admission');
+      if (freeSites.length > 0) {
+        return {
+          text: `From the search results above, the following site(s) offer Free Admission: ${freeSites.map(s => `**${s.name}** (${s.city})`).join(', ')}.`,
+          suggestedSiteIds: freeSites.map(s => s.id),
+        };
+      }
+    }
+
+    const recommended = context.lastSearchResults[0];
     return {
-      text: "You do not have saved favorites yet. Start with a few must-visits, then tap the heart on any site you want to keep.",
-      suggestedSiteIds: mustVisitSites.map(site => site.id),
+      text: `From the search results above, **${recommended.name}** in ${recommended.city} is highly recommended. ${recommended.description}`,
+      suggestedSiteIds: context.lastSearchResults.map(s => s.id),
     };
   }
 
-  if (query.includes('top') || query.includes('best') || query.includes('must') || query.includes('recommend')) {
-    return getGuideRecommendationResponse(lastMessage, sites);
+  // 5. Direct site match or explicit search (e.g. "tell me about Magellan's Cross", "churches in cebu city", "library in cebu city")
+  const directMatches = findMatchingSites(lastMessage, 5, sites);
+  const cityExplicit = getCityFromQuery(lastMessage);
+  const categoryExplicit = getCategoryFromQuery(lastMessage);
+
+  if (directMatches.length > 0) {
+    if (directMatches.length === 1 || (scoreSiteMatch(directMatches[0], lastMessage) >= 40 && !categoryExplicit)) {
+      return getSiteFactResponse(lastMessage, directMatches[0], sites);
+    }
+
+    const scopeLabel = [categoryExplicit, cityExplicit].filter(Boolean).join(' in ');
+    const header = scopeLabel
+      ? `Here are the matching Handumanan heritage sites for ${scopeLabel}:`
+      : `Here are the matching Handumanan heritage sites:`;
+
+    const listText = directMatches
+      .map((s, i) => `${i + 1}. **${s.name}** (${s.city}) — ${s.category}${s.entranceFee ? ` · 🎟️ ${s.entranceFee}` : ''}`)
+      .join('\n');
+
+    return {
+      text: `${header}\n\n${listText}\n\nYou can open any site on the map or view its details.`,
+      suggestedSiteIds: directMatches.map(s => s.id),
+    };
   }
 
-  if (query.includes('next') || query.includes('stop')) {
+  // 6. Explicit category + city search with ZERO matches in directory (e.g. "library in Lapu-Lapu")
+  if (cityExplicit && categoryExplicit) {
     return {
-      text: "For a smooth next stop, choose nearby sites in the same heritage cluster. In Cebu City, Magellan's Cross, Basilica Minore del Santo Nino, and Cebu Cathedral work well together.",
-      suggestedSiteIds: ['cebu-cross', 'cebu-basilica', 'cebu-cathedral'],
+      text: `I couldn't find a ${categoryExplicit.toLowerCase()} heritage site in ${cityExplicit} in the current Handumanan directory. I can show you other heritage sites in ${cityExplicit} if you'd like.`,
+      suggestedSiteIds: [],
+    };
+  }
+
+  // 7. Explicit search query with NO matches in Handumanan directory (e.g. "theme park in cebu")
+  if (hasExplicitHeritageIntent(lastMessage)) {
+    return {
+      text: `Theme parks and non-heritage attractions are not currently part of the Handumanan cultural heritage directory.\n\nHandumanan focuses on Metro Cebu's historical and cultural heritage sites. You can search for churches, museums, ancestral houses, historical landmarks, or public spaces in Cebu City, Lapu-Lapu City, Mandaue City, or Talisay City.`,
+      suggestedSiteIds: [],
     };
   }
 
@@ -1386,6 +1823,7 @@ function shouldAnswerLocally(input: HeritageChatInput): boolean {
     normalizedMessage.includes('next') ||
     normalizedMessage.includes('stop') ||
     isNearbyLocationQuery(lastMessage) ||
+    /\b(near|nearby|around|close to)\b/.test(normalizedMessage) ||
     isDirectoryListQuery(lastMessage) ||
     isTripPlanningQuery(lastMessage)
   );
@@ -1444,7 +1882,8 @@ function buildDirectoryBrief(sites: HeritageSiteRecord[]) {
     .slice(0, 45)
     .map(site => {
       const tags = site.tags.length > 0 ? `; tags: ${site.tags.slice(0, 4).join(', ')}` : '';
-      return `- ${site.id}: ${site.name} (${site.city}; ${site.category}; hours: ${site.visitingHours}${tags})`;
+      const fee = site.entranceFee ? `; entrance fee: ${site.entranceFee}` : '; entrance fee: Entrance fee not specified';
+      return `- ${site.id}: ${site.name} (${site.city}; ${site.category}; hours: ${site.visitingHours}${fee}${tags})`;
     })
     .join('\n');
 }
@@ -1466,7 +1905,16 @@ function sanitizeChatOutput(output: HeritageChatOutput, sites: HeritageSiteRecor
 }
 
 export async function chatWithHeritageBot(input: HeritageChatInput): Promise<HeritageChatOutput> {
-  const lastMessage = input.history[input.history.length - 1].content[0].text;
+  const lastMessage = input?.history && input.history.length > 0
+    ? input.history[input.history.length - 1]?.content?.[0]?.text ?? ''
+    : '';
+
+  if (!lastMessage.trim()) {
+    return {
+      text: "Hello! I am your Handumanan Guide. How can I help with your Cebu heritage journey today?",
+      suggestedSiteIds: [],
+    };
+  }
   const sites = getSiteCorpus(input);
   const normalizedLastMessage = normalizeSearchText(lastMessage);
 
@@ -1492,7 +1940,13 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
       You are embedded inside the Handumanan app, so behave like a real local Cebu heritage tour guide, not a general web chatbot or random answer generator.
       Source of truth: the Handumanan directory, the user favorites/last itinerary supplied in context, and user GPS only when provided.
       Do not claim to browse Google or the open web. Do not invent places, schedules, facts, prices, or routes outside the directory.
-      Always identify the user's intent first: site fact, city/category search, open/closed check, nearby request, route/travel time, itinerary, comparison, or system feature.
+      INTENT DETECTION & FALSE-POSITIVE PREVENTION: Distinguish casual conversation from explicit heritage requests.
+      If the user makes a casual statement containing a city/place/person name alone (e.g. "My friend lives in Lapu-Lapu", "Cebu City is beautiful", "My family is from Mandaue", "I went to Lapu-Lapu yesterday"), DO NOT return site lookup cards or suggestedSiteIds. Respond naturally and conversationally within Handumanan scope, and return an empty array for suggestedSiteIds.
+      Only trigger site lookups and return suggestedSiteIds when there is an EXPLICIT heritage request (e.g. "What heritage sites are in Lapu-Lapu?", "Tell me about Mactan Shrine", "What is the entrance fee for Mactan Shrine?", "Find heritage sites near me").
+      ENTRANCE FEE AWARENESS: When asked about entrance fees or admission prices, check the site's listed entranceFee property.
+      - If the listed fee is an estimate (e.g. "Estimated Fee: ₱50" or "Estimated Fee: ₱50–₱100"), explicitly describe it as an estimate and advise confirming with the site. Never present an estimated fee as an official confirmed price.
+      - If the fee is "Free Admission", state that admission is free.
+      - If no fee is listed or if it says "Entrance fee not specified", state that the entrance fee is currently unspecified in Handumanan, and recommend checking with the site or LGU. Never fabricate prices.
       Strictly filter by requested city, category, open/closed status, and location. If the user asks for Cebu City, do not recommend Talisay, Mandaue, or Lapu-Lapu sites unless you clearly say they are alternatives.
       Never recommend a site that is inactive, closed, unavailable, demolished, or outside its listed visiting hours. If a requested site is unavailable, explain that and suggest open alternatives from the same city or nearby cluster when possible.
       You may answer questions about how the Handumanan system works, including directory search, maps, itinerary planning, live location, Firebase-backed saved data, privacy basics, and chatbot limitations.
@@ -1500,10 +1954,10 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
       Use searchSites or the directory brief whenever the user asks about a site, city, category, route theme, historical topic, or comparison.
       Before naming a site, check that it appears in the active directory snapshot below or in searchSites output. If it is not present, say it is not currently listed.
       When facts conflict or are missing, say the detail needs verification instead of guessing.
-      Keep answers grounded and useful: when recommending places, mention city, category, open/closed status, visiting hours, and a short reason why each site fits the user's request.
+      Keep answers grounded and useful: when recommending places, mention city, category, open/closed status, visiting hours, entrance fee, and a short reason why each site fits the user's request.
       If a place or topic is outside the directory, say it is not currently listed in Handumanan and offer a relevant directory search instead.
       Only create or describe an itinerary when the user explicitly asks for a route, trip, tour, plan, travel time, or stop sequence. Recommendation questions should return suggestions, not auto-routes.
-      If you mention specific sites, include their EXACT IDs in "suggestedSiteIds"; otherwise return an empty array.
+      If you mention specific sites in response to explicit requests, include their EXACT IDs in "suggestedSiteIds"; otherwise return an empty array.
       Stay conversational, calm, and practical: 2-4 helpful sentences, warm and Cebuano-proud.
 
       Active Handumanan directory snapshot:

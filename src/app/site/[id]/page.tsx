@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, query, where, serverTimestamp, doc, orderBy, setDoc, deleteDoc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Route, Heart, Loader2, ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight, Maximize2, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Route, Heart, Loader2, ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight, Maximize2, X, CheckCircle2, AlertCircle, Ticket } from 'lucide-react';
 import NextImage from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageFallback, getSiteImageSources } from '@/lib/site-images';
 import { getDailyVisitingTime, WEEKLY_VISITING_DAYS } from '@/lib/visiting-hours';
+import { VisitorPhotoSection } from '@/components/site/VisitorPhotoSection';
 
 function mergeSiteRecord(baseSite: HeritageSite | undefined, overrideSite: any): HeritageSite | null {
   if (!baseSite && !overrideSite) return null;
@@ -77,7 +78,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
 
   const mergedSite = mergeSiteRecord(staticSite, dbSite);
   const site = mergedSite?.isActive === false || mergedSite?.status === 'Inactive' ? null : mergedSite;
-  const isResolvingSite = (!staticSite && isSiteRecordLoading) || (Boolean(user) && isUserDataLoading);
+  const isResolvingSite = !staticSite && isSiteRecordLoading;
   const isVisibleToUser = site ? isSiteVisibleToUser(site, userRole) : false;
 
   const [comment, setComment] = useState('');
@@ -85,6 +86,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [isSignificanceExpanded, setIsSignificanceExpanded] = useState(false);
+  const [isScheduleExpanded, setIsScheduleExpanded] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isFavoriteUpdating, setIsFavoriteUpdating] = useState(false);
@@ -150,18 +152,24 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
 
   if (isResolvingSite) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="animate-spin text-primary" size={48} />
+      <div className="min-h-screen flex flex-col bg-slate-50 font-body">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center py-20">
+          <Loader2 className="animate-spin text-primary" size={48} />
+        </div>
       </div>
     );
   }
 
   if (!site) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-        <NextImage src="/logo.png" alt="Handumanan" width={80} height={80} className="w-20 h-20 rounded-2xl opacity-30 mb-6" />
-        <h2 className="text-2xl font-headline font-bold mb-4 text-slate-900">Site not found</h2>
-        <Button asChild className="rounded-2xl"><Link href="/explore">Back to Directory</Link></Button>
+      <div className="min-h-screen flex flex-col bg-slate-50 font-body">
+        <Navbar />
+        <div className="flex-1 flex flex-col items-center justify-center px-4 text-center py-20">
+          <NextImage src="/logo.png" alt="Handumanan" width={80} height={80} className="w-20 h-20 rounded-2xl opacity-30 mb-6" />
+          <h2 className="text-2xl font-headline font-bold mb-4 text-slate-900">Site not found</h2>
+          <Button asChild className="rounded-2xl"><Link href="/explore">Back to Directory</Link></Button>
+        </div>
       </div>
     );
   }
@@ -202,6 +210,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   const siteLatitude = Number(site.coordinates?.lat);
   const siteLongitude = Number(site.coordinates?.lng);
   const hasExactCoordinates = Number.isFinite(siteLatitude) && Number.isFinite(siteLongitude) && siteLatitude !== 0 && siteLongitude !== 0;
+  const discoverMapHref = `/discover?siteId=${encodeURIComponent(site.id)}`;
   const discoverRouteHref = `/discover?siteId=${encodeURIComponent(site.id)}&action=route`;
   const discoverAddHref = `/discover?siteId=${encodeURIComponent(site.id)}&action=add`;
   const externalMapsHref = hasExactCoordinates
@@ -469,168 +478,151 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
 
               <Separator className="opacity-50" />
 
-              {/* Reviews Section */}
+              {/* Unified Visitor Insights Section */}
               <section id="reviews">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-primary/5 rounded-xl text-primary"><MessageSquare size={20} /></div>
                     <h2 className="font-headline text-2xl font-bold">Visitor Insights</h2>
                   </div>
-                  <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest px-3">{reviews?.length || 0} Reviews</Badge>
+                  <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest px-3">Community Feed</Badge>
                 </div>
 
-                {user ? (
-                  <form onSubmit={handleSubmitReview} className="mb-12 p-5 bg-slate-50/80 rounded-[2rem] border border-slate-100 shadow-inner sm:p-8">
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Rate your visit</p>
-                    <div className="flex gap-3 mb-6">
-                      {[1, 2, 3, 4, 5].map(s => (
-                        <button key={s} type="button" onClick={() => setRating(s)} className={cn("p-1 transition-all hover:scale-110", rating >= s ? "text-yellow-500" : "text-slate-200")}>
-                          <Star fill="currentColor" size={28} />
-                        </button>
-                      ))}
-                    </div>
-                    <Textarea 
-                      placeholder="Share a historical tip or your experience at this site..." 
-                      value={comment} 
-                      onChange={(e) => setComment(e.target.value)} 
-                      required 
-                      className="mb-6 bg-white border-none rounded-2xl min-h-[120px] text-sm md:text-base focus-visible:ring-2 focus-visible:ring-primary/20 shadow-sm" 
-                    />
-                    <Button type="submit" disabled={isSubmitting} className="rounded-2xl h-14 px-10 font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-primary/20">
-                      {isSubmitting ? <Loader2 className="animate-spin mr-2" size={16} /> : null} Post Experience
-                    </Button>
-                  </form>
-                ) : (
-                  <div className="mb-12 p-10 bg-primary/5 border-2 border-dashed border-primary/20 rounded-[2rem] text-center">
-                    <p className="text-slate-600 mb-6 font-medium">Want to share your story? Sign in to leave a review.</p>
-                    <Button asChild variant="outline" className="rounded-2xl h-12 px-8 font-black uppercase text-[10px] tracking-widest border-2">
-                      <Link href="/auth">Sign In to Review</Link>
-                    </Button>
-                  </div>
-                )}
+                <p className="mb-6 text-sm font-medium leading-relaxed text-slate-500">
+                  Share your experience and memories from this heritage site.
+                </p>
 
-                <div className="space-y-6">
-                  {isReviewsLoading ? (
-                    <div className="flex justify-center p-12"><Loader2 className="animate-spin text-primary" size={32} /></div>
-                  ) : reviews?.length ? (
-                    reviews.map((rev: any) => (
-                      <div key={rev.id} className="p-6 md:p-8 bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="flex items-center gap-4">
-                             <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black uppercase text-lg shadow-sm">{rev.userName?.charAt(0)}</div>
-                             <div>
-                                <p className="font-black text-slate-900 text-sm md:text-base">{rev.userName}</p>
-                                <div className="flex gap-0.5 text-yellow-500 mt-0.5">
-                                  {Array.from({ length: 5 }).map((_, i) => <Star key={i} fill={i < rev.rating ? "currentColor" : "none"} size={12} className={i < rev.rating ? "" : "text-slate-200"} />)}
-                                </div>
-                             </div>
-                          </div>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                            {rev.createdAt?.toDate().toLocaleDateString() || 'Recent'}
-                          </p>
-                        </div>
-                        <p className="text-slate-600 leading-relaxed text-sm md:text-base italic">"{rev.comment}"</p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-20 opacity-30 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-                       <MessageSquare size={48} className="mx-auto mb-4" />
-                       <p className="text-[12px] font-black uppercase tracking-widest">Be the first to review this site</p>
-                    </div>
+                <VisitorPhotoSection
+                  siteId={site.id}
+                  siteName={site.name}
+                  reviews={reviews || []}
+                  isReviewsLoading={isReviewsLoading}
+                  reviewPrompt={(
+                    <>
+                      <p className="mb-4 font-medium text-slate-600">Want to share your story or photos? Sign in to contribute to the community feed.</p>
+                      <Button asChild variant="outline" className="h-11 rounded-2xl border-2 px-6 text-[10px] font-black uppercase tracking-widest">
+                        <Link href="/auth">Sign In to Contribute</Link>
+                      </Button>
+                    </>
                   )}
-                </div>
+                />
               </section>
             </div>
           </div>
 
           {/* Sidebar / Access Info Area */}
           <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white rounded-[2.5rem] p-8 md:p-10 shadow-xl border border-slate-100 sticky top-24 ring-1 ring-black/5">
-              <h3 className="font-headline text-2xl font-bold mb-8 text-slate-900">Plan Your Visit</h3>
+            <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 lg:sticky lg:top-24 ring-1 ring-black/5">
+              <h3 className="font-headline text-xl font-bold mb-5 text-slate-900">Plan Your Visit</h3>
               
-              <div className="space-y-8 mb-10">
-                <div className="flex items-start gap-5">
-                  <div className="p-3 bg-slate-50 rounded-2xl text-primary shadow-sm"><MapPin size={24} /></div>
-                  <div>
-                    <h4 className="font-black text-[10px] text-slate-400 uppercase tracking-widest mb-1.5">Official Address</h4>
-                    <p className="text-sm md:text-base font-bold text-slate-700 leading-tight">{site.location}</p>
-                    <Link href={externalMapsHref} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-primary uppercase mt-2 flex items-center gap-1 hover:underline">
-                      Open in Maps <Route size={10} />
+              <div className="space-y-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-primary/5 rounded-xl text-primary shrink-0"><MapPin size={18} /></div>
+                  <div className="min-w-0">
+                    <h4 className="font-black text-[9px] text-slate-400 uppercase tracking-widest mb-0.5">Address</h4>
+                    <p className="text-xs md:text-sm font-bold text-slate-800 leading-snug break-words">{site.location}</p>
+                    <Link href={discoverMapHref} className="text-[9px] font-black text-primary uppercase mt-1 inline-flex items-center gap-1 hover:underline">
+                      Open in Maps <Route size={9} />
                     </Link>
                   </div>
                 </div>
-                <div className="flex items-start gap-5">
-                  <div className="p-3 bg-slate-50 rounded-2xl text-primary shadow-sm"><Clock size={24} /></div>
-                  <div>
-                    <h4 className="font-black text-[10px] text-slate-400 uppercase tracking-widest mb-1.5">Visiting Hours</h4>
-                    <div className="grid gap-1.5">
-                      {WEEKLY_VISITING_DAYS.map(({ abbr, day }) => (
-                        <div key={day} className="grid grid-cols-[2rem_1fr] items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-primary">{abbr}</span>
-                          <span className="text-xs font-bold leading-snug text-slate-700">{day}: {getDailyVisitingTime(site.visitingHours)}</span>
-                        </div>
-                      ))}
-                    </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-primary/5 rounded-xl text-primary shrink-0"><Clock size={18} /></div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-black text-[9px] text-slate-400 uppercase tracking-widest mb-0.5">Visiting Hours</h4>
+                    <p className="text-xs md:text-sm font-bold text-slate-800 leading-snug">{site.visitingHours}</p>
+                    <button
+                      type="button"
+                      onClick={() => setIsScheduleExpanded(!isScheduleExpanded)}
+                      className="text-[9px] font-black text-slate-400 uppercase mt-1 flex items-center gap-1 hover:text-primary transition-colors"
+                    >
+                      {isScheduleExpanded ? 'Hide weekly schedule' : 'View weekly schedule'} {isScheduleExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                    </button>
+                    {isScheduleExpanded && (
+                      <div className="mt-2 grid gap-1 pt-2 border-t border-slate-100 text-[11px]">
+                        {WEEKLY_VISITING_DAYS.map(({ abbr, day }) => (
+                          <div key={day} className="flex justify-between items-center py-0.5 px-2 rounded-lg bg-slate-50">
+                            <span className="font-bold text-slate-800">{day}:</span>
+                            <span className="text-slate-600 font-medium">{getDailyVisitingTime(site.visitingHours)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-start gap-5">
-                  <div className="p-3 bg-slate-50 rounded-2xl text-primary shadow-sm"><Info size={24} /></div>
-                  <div>
-                    <h4 className="font-black text-[10px] text-slate-400 uppercase tracking-widest mb-1.5">Accessibility</h4>
-                    <p className="text-sm md:text-base font-bold text-slate-700 leading-tight">{site.accessibilityStatus}</p>
+
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-primary/5 rounded-xl text-primary shrink-0"><Info size={18} /></div>
+                  <div className="min-w-0">
+                    <h4 className="font-black text-[9px] text-slate-400 uppercase tracking-widest mb-0.5">Accessibility</h4>
+                    <p className="text-xs md:text-sm font-bold text-slate-800 leading-snug">{site.accessibilityStatus}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-primary/5 rounded-xl text-primary shrink-0"><Ticket size={18} /></div>
+                  <div className="min-w-0">
+                    <h4 className="font-black text-[9px] text-slate-400 uppercase tracking-widest mb-0.5">Admission</h4>
+                    <p className={cn(
+                      "text-xs md:text-sm font-bold leading-snug",
+                      site.entranceFee ? "text-slate-800" : "text-slate-400 italic font-normal"
+                    )}>
+                      {site.entranceFee || 'Free Admission'}
+                    </p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-4">
-                <Button className="w-full h-14 bg-primary rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-primary/30 active:scale-95 transition-all" asChild>
+              <div className="space-y-2.5">
+                <Button className="w-full h-11 bg-primary rounded-xl font-black uppercase text-[11px] tracking-[0.16em] shadow-lg shadow-primary/20 hover:bg-primary/90 active:scale-95 transition-all" asChild>
                   <Link href={discoverRouteHref}>
-                    <Route size={20} className="mr-2" /> Initialize Route
+                    <Route size={16} className="mr-2" /> Initialize Route
                   </Link>
                 </Button>
                 
                 <Button 
                    variant="outline"
-                   className="w-full h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2 hover:bg-primary/5 active:scale-95 transition-all"
+                   className="w-full h-11 rounded-xl font-black uppercase text-[10px] tracking-widest border border-slate-200 hover:bg-primary/5 active:scale-95 transition-all"
                    asChild
                 >
                    <Link href={discoverAddHref}>
-                      <Plus size={18} className="mr-2" /> Add to Itinerary
+                      <Plus size={15} className="mr-1.5" /> Add to Itinerary
                    </Link>
                 </Button>
 
-                <div className="grid grid-cols-1 gap-3 mt-2 sm:grid-cols-2 sm:gap-4">
+                <div className="grid grid-cols-2 gap-2.5">
                   <Button 
                     onClick={handleToggleFavorite} 
                     variant={isFavorited ? "default" : "secondary"} 
                     disabled={isFavoriteUpdating}
                     className={cn(
-                      "h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all",
-                      isFavorited ? "bg-accent text-white shadow-lg shadow-accent/20" : ""
+                      "h-11 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all",
+                      isFavorited ? "bg-accent text-white shadow" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                     )}
                   >
                     {isFavoriteUpdating ? (
-                      <Loader2 size={18} className="mr-2 animate-spin" />
+                      <Loader2 size={15} className="mr-1.5 animate-spin" />
                     ) : (
-                      <Heart size={18} className={cn("mr-2", isFavorited ? "fill-white" : "")} />
+                      <Heart size={15} className={cn("mr-1.5", isFavorited ? "fill-white" : "")} />
                     )}
                     {isFavorited ? 'Saved' : 'Favorite'}
                   </Button>
                   
                   <Button 
                     variant="secondary" 
-                    className="h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all hover:bg-slate-200"
+                    className="h-11 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all bg-slate-100 text-slate-700 hover:bg-slate-200"
                     onClick={handleShare}
                   >
-                    <Share2 size={18} className="mr-2" /> Share
+                    <Share2 size={15} className="mr-1.5" /> Share
                   </Button>
                 </div>
               </div>
               
-              <div className="mt-12 pt-8 border-t border-slate-100">
-                <div className="flex flex-col items-center gap-2 opacity-40">
-                   <NextImage src="/logo.png" alt="Handumanan" width={28} height={28} className="w-7 h-7 rounded-lg" />
-                   <p className="text-[9px] font-black uppercase text-center tracking-[0.3em]">
+              <div className="mt-6 pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-center gap-2 opacity-40">
+                   <NextImage src="/logo.png" alt="Handumanan" width={20} height={20} className="w-5 h-5 rounded-md" />
+                   <p className="text-[8px] font-black uppercase tracking-[0.25em]">
                      Heritage ID: {site.id}
                    </p>
                 </div>

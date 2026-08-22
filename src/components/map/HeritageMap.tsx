@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AdvancedMarker,
   APIProvider,
@@ -72,6 +72,9 @@ const HERITAGE_MAP_STYLES: google.maps.MapTypeStyle[] = [
   { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
 ];
 
+const MAP_UNAVAILABLE_MESSAGE = 'Map service is temporarily unavailable. Please check your map configuration.';
+const GOOGLE_MAPS_ERROR_PATTERN = /google maps javascript api error|referernotallowedmaperror|apiauthenticationerror|invalidkeymaperror|missingkeymaperror|google maps.*failed/i;
+
 interface HeritageMapProps {
   userLocation: { lat: number; lng: number } | null;
   sites: any[];
@@ -115,6 +118,52 @@ const formatTravelTime = (minutes: number) => {
   if (mins === 0) return `${hours} HR`;
   return `${hours} HR ${mins} MIN`;
 };
+
+function MapUnavailableFallback() {
+  return (
+    <div className="flex h-full min-h-[320px] w-full flex-col items-center justify-center bg-slate-50 p-6 text-center">
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 shadow-inner">
+        <AlertCircle size={28} />
+      </div>
+      <h3 className="mb-1 font-headline text-base font-bold text-slate-900 md:text-lg">
+        Map Service Temporarily Unavailable
+      </h3>
+      <p className="max-w-xs text-xs font-medium leading-relaxed text-slate-500 md:max-w-md">
+        {MAP_UNAVAILABLE_MESSAGE}
+      </p>
+    </div>
+  );
+}
+
+class HeritageMapErrorBoundary extends React.Component<
+  { children: React.ReactNode; onError: () => void },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch() {
+    this.props.onError();
+  }
+
+  render() {
+    if (this.state.hasError) return <MapUnavailableFallback />;
+    return this.props.children;
+  }
+}
+
+function getErrorText(error: unknown) {
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) return `${error.name} ${error.message}`;
+  if (error && typeof error === 'object') {
+    const maybeMessage = 'message' in error ? (error as { message?: unknown }).message : undefined;
+    return typeof maybeMessage === 'string' ? maybeMessage : String(error);
+  }
+  return '';
+}
 
 function CategoryMarkerIcon({
   category,
@@ -234,74 +283,54 @@ function MapController({
   focusedLocation?: { lat: number; lng: number } | null;
   isNavigating?: boolean;
   userLocation: { lat: number; lng: number } | null;
-  recenterKey?: number;
+recenterKey?: number;
   fitSitesKey?: number;
 }) {
   const map = useMap();
   const maps = useMapsLibrary('maps');
-  const lastFitSitesKey = useRef(fitSitesKey);
+  const centeredKeyRef = useRef<string | null>(null);
+  const lastRecenterKeyRef = useRef<number | undefined>(recenterKey);
 
   useEffect(() => {
-    if (!map || !isNavigating || !userLocation) return;
-    map.panTo(userLocation);
-    if ((map.getZoom() || 0) < 16) map.setZoom(17);
-  }, [isNavigating, map, userLocation?.lat, userLocation?.lng, userLocation]);
+    if (!map) return;
 
-  useEffect(() => {
-    if (!map || !recenterKey || recenterKey <= 0 || !userLocation) return;
-    map.setCenter(userLocation);
-    map.setZoom(17);
-  }, [map, recenterKey, userLocation]);
-
-  useEffect(() => {
-    if (!map || !maps || !fitSitesKey || lastFitSitesKey.current === fitSitesKey || isNavigating || focusedLocation) {
-      return;
-    }
-
-    lastFitSitesKey.current = fitSitesKey;
-
-    const sitePoints = sites
-      .map((site) => getSiteCoordinates(site))
-      .filter(({ lat, lng }) => isValidCoordinate(lat, lng))
-      .map(({ lat, lng }) => ({ lat: Number(lat), lng: Number(lng) }));
-
-    if (sitePoints.length === 0) return;
-
-    if (sitePoints.length === 1) {
-      map.setCenter(sitePoints[0]);
+    // 1. Explicit single site focus has top priority
+    if (focusedLocation && isValidCoordinate(focusedLocation.lat, focusedLocation.lng) && !isNavigating) {
+      map.setCenter(focusedLocation);
       map.setZoom(16);
       return;
     }
 
-    const bounds = new google.maps.LatLngBounds();
-    sitePoints.forEach(point => bounds.extend(point));
-    map.fitBounds(bounds, 80);
-  }, [fitSitesKey, focusedLocation, isNavigating, map, maps, sites]);
+    // 2. Live navigation mode follows user GPS
+    if (isNavigating && userLocation && isValidCoordinate(userLocation.lat, userLocation.lng)) {
+      map.panTo(userLocation);
+      if ((map.getZoom() || 0) < 16) map.setZoom(17);
+      return;
+    }
 
-  useEffect(() => {
-    if (!map || !focusedLocation || isNavigating || !isValidCoordinate(focusedLocation.lat, focusedLocation.lng)) return;
-    map.setCenter(focusedLocation);
-    map.setZoom(16);
-  }, [focusedLocation, isNavigating, map]);
+    // 3. User location initial centering or explicit locate-me button click
+    if (userLocation && isValidCoordinate(userLocation.lat, userLocation.lng)) {
+      const locKey = `${userLocation.lat.toFixed(5)},${userLocation.lng.toFixed(5)}`;
+      const isNewLoc = centeredKeyRef.current !== locKey;
+      const isManualRecenter = recenterKey !== undefined && recenterKey > 0 && recenterKey !== lastRecenterKeyRef.current;
 
-  useEffect(() => {
-    if (!map || !maps || isNavigating || focusedLocation || !routeCoords || routeCoords.length < 2) return;
-
-    const routePoints = routeCoords
-      .filter(([lat, lng]) => isValidCoordinate(lat, lng))
-      .map(([lat, lng]) => ({ lat, lng }));
-    if (routePoints.length < 2) return;
-
-    const bounds = new google.maps.LatLngBounds();
-    routePoints.forEach(point => bounds.extend(point));
-    sites.forEach((site) => {
-      const { lat, lng } = getSiteCoordinates(site);
-      if (isValidCoordinate(lat, lng)) {
-        bounds.extend({ lat: Number(lat), lng: Number(lng) });
+      if (isNewLoc || isManualRecenter) {
+        centeredKeyRef.current = locKey;
+        lastRecenterKeyRef.current = recenterKey;
+        console.log('[Map] Centering camera on userLocation:', userLocation);
+        map.setCenter(userLocation);
+        map.setZoom(16);
+        return;
       }
-    });
-    map.fitBounds(bounds, 80);
-  }, [focusedLocation, isNavigating, map, maps, routeCoords, sites]);
+    }
+
+    // 4. Neutral fallback center when user GPS is not available yet (Metro Cebu center, NEVER Manila/Wack-Wack)
+    if (!userLocation && !focusedLocation && !centeredKeyRef.current) {
+      centeredKeyRef.current = 'cebu-fallback';
+      map.setCenter({ lat: 10.3157, lng: 123.8854 });
+      map.setZoom(13);
+    }
+  }, [map, userLocation, focusedLocation, isNavigating, recenterKey]);
 
   return null;
 }
@@ -323,30 +352,69 @@ export default function HeritageMap({
   fitSitesKey,
 }: HeritageMapProps) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
-  const [selectedPopupSite, setSelectedPopupSite] = useState<any | null>(null);
+  const [hasMapError, setHasMapError] = useState(false);
   const { user } = useUser();
   const db = useFirestore();
 
+  const handleMapFailure = useCallback(() => {
+    setHasMapError(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const prevAuthFailure = (window as any).gm_authFailure;
+    (window as any).gm_authFailure = () => {
+      handleMapFailure();
+      if (typeof prevAuthFailure === 'function') {
+        try { prevAuthFailure(); } catch {}
+      }
+    };
+
+    const handleWindowError = (event: ErrorEvent) => {
+      const message = `${event.message || ''} ${getErrorText(event.error)}`;
+      if (GOOGLE_MAPS_ERROR_PATTERN.test(message)) {
+        handleMapFailure();
+      }
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (GOOGLE_MAPS_ERROR_PATTERN.test(getErrorText(event.reason))) {
+        handleMapFailure();
+      }
+    };
+
+    window.addEventListener('error', handleWindowError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      (window as any).gm_authFailure = prevAuthFailure;
+      window.removeEventListener('error', handleWindowError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, [handleMapFailure]);
+
   const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: userData } = useDoc(userDocRef);
-  const isAdmin = userData?.role === 'admin';
 
-  const defaultCenter = useMemo(() => ({ lat: 10.3157, lng: 123.8854 }), []);
+  const defaultCenter = useMemo(() => {
+    if (userLocation && isValidCoordinate(userLocation.lat, userLocation.lng)) {
+      return userLocation;
+    }
+    return { lat: 10.3157, lng: 123.8854 };
+  }, [userLocation]);
 
-  if (!apiKey) {
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-slate-100 p-6 text-center">
-        <div>
-          <p className="text-xs font-black uppercase tracking-widest text-slate-500">Google Maps API key missing</p>
-          <p className="mt-2 text-sm text-slate-400">Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to load the map.</p>
-        </div>
-      </div>
-    );
+  if (!apiKey || hasMapError) {
+    return <MapUnavailableFallback />;
   }
 
   return (
-    <div className="relative z-0 h-full w-full">
-      <APIProvider apiKey={apiKey} libraries={['marker']}>
+    <div className="relative z-0 h-full min-h-[320px] w-full overflow-hidden">
+      <HeritageMapErrorBoundary onError={handleMapFailure}>
+      <APIProvider
+        apiKey={apiKey}
+        libraries={['marker']}
+        onError={handleMapFailure}
+      >
         <Map
           defaultCenter={defaultCenter}
           defaultZoom={13}
@@ -389,7 +457,6 @@ export default function HeritageMap({
                 position={{ lat: Number(lat), lng: Number(lng) }}
                 title={site.name}
                 onClick={() => {
-                  setSelectedPopupSite(site);
                   onSelectSite?.(site);
                 }}
               >
@@ -397,122 +464,9 @@ export default function HeritageMap({
               </AdvancedMarker>
             );
           })}
-
-          {selectedPopupSite && (() => {
-            const { lat, lng } = getSiteCoordinates(selectedPopupSite);
-            const isInItinerary = itinerary.some(i => i.id === selectedPopupSite.id);
-            const availability = getSiteAvailability(selectedPopupSite);
-            const imageSources = getSiteImageSources(selectedPopupSite);
-            if (!isValidCoordinate(lat, lng)) return null;
-
-            return (
-              <InfoWindow
-                position={{ lat: Number(lat), lng: Number(lng) }}
-                onCloseClick={() => setSelectedPopupSite(null)}
-              >
-                <div className="w-[20rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[1.75rem] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)] ring-1 ring-slate-200">
-                  {imageSources.length > 0 && (
-                    <div className="relative m-2 mb-0 h-36 overflow-hidden rounded-[1.35rem] bg-slate-100">
-                      <SafeImage
-                        src={imageSources[0]}
-                        alt={selectedPopupSite.name}
-                        fallbackSrc={imageSources.slice(1)}
-                        fallbackClassName="object-cover"
-                        className="h-full w-full object-cover"
-                      />
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/80 via-slate-950/25 to-transparent p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="rounded-full bg-white px-3 py-1.5 text-[8px] font-black uppercase tracking-widest text-primary shadow-lg shadow-slate-950/10">
-                            {selectedPopupSite.city}
-                          </span>
-                          <span className="flex items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-[8px] font-black text-white ring-1 ring-white/25 backdrop-blur-md">
-                            <Star size={10} fill="currentColor" /> {Number(selectedPopupSite.rating || 0).toFixed(1)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div className="space-y-3.5 p-4 pt-3">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="w-fit rounded-full bg-primary/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-primary">{selectedPopupSite.category.split(' & ')[0]}</p>
-                        {selectedPopupSite.verificationStatus === 'LGU Verified' && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[8px] font-black uppercase tracking-widest text-emerald-800">
-                            <CheckCircle2 size={10} /> LGU Verified
-                          </span>
-                        )}
-                        {selectedPopupSite.verificationStatus === 'Rejected' && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-[8px] font-black uppercase tracking-widest text-red-800">
-                            <AlertCircle size={10} /> Rejected
-                          </span>
-                        )}
-                        {selectedPopupSite.verificationStatus === 'Needs Revision' && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[8px] font-black uppercase tracking-widest text-amber-800">
-                            <AlertCircle size={10} /> Needs Revision
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="text-[17px] font-black leading-[1.1] text-slate-950">{selectedPopupSite.name}</h3>
-                      <div className="flex items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-[10px] font-bold leading-snug text-slate-500">
-                        <MapPin size={13} className="mt-0.5 shrink-0 text-primary" />
-                        <span className="line-clamp-2">{selectedPopupSite.location || selectedPopupSite.city}</span>
-                      </div>
-                    </div>
-
-                    <p className="line-clamp-3 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 text-[11px] leading-relaxed text-slate-600 shadow-sm">{selectedPopupSite.description}</p>
-
-                    <div
-                      className={`flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5 text-[9px] font-black uppercase tracking-widest ring-1 ${
-                        availability.isOpen
-                          ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
-                          : 'bg-red-50 text-red-700 ring-red-100'
-                      }`}
-                    >
-                      <span>{availability.isOpen ? 'Open / Available' : 'Closed / Unavailable'}</span>
-                      <span className={`h-2.5 w-2.5 rounded-full shadow-sm ${availability.isOpen ? 'bg-emerald-500 shadow-emerald-500/40' : 'bg-red-500 shadow-red-500/40'}`} />
-                    </div>
-
-                    <div className="rounded-2xl bg-slate-100/70 p-2.5">
-                      <div className="mb-2 flex items-center gap-2 text-[8px] font-black uppercase tracking-widest text-slate-500">
-                        <Clock size={12} className="text-primary" />
-                        Visiting Hours
-                      </div>
-                      <div className="grid max-h-28 gap-1 overflow-y-auto pr-1">
-                        {WEEKLY_VISITING_DAYS.map(({ abbr, day }) => (
-                          <div key={day} className="grid grid-cols-[1.5rem_1fr] items-center gap-2 rounded-xl bg-white/80 px-2 py-1.5">
-                            <span className="text-[8px] font-black uppercase tracking-widest text-primary">{abbr}</span>
-                            <span className="truncate text-[9px] font-bold text-slate-600">{day}: {getDailyVisitingTime(selectedPopupSite.visitingHours)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {isAdmin && selectedPopupSite.needsVerification && (
-                      <div className="flex items-center gap-2 rounded-2xl bg-amber-50 px-3 py-2.5 text-[8px] font-black uppercase tracking-widest text-amber-700 ring-1 ring-amber-100">
-                        <AlertCircle size={10} /> Needs Verification
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-50 p-1.5">
-                      <Button asChild size="sm" variant="outline" className="h-10 rounded-xl border-white bg-white text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-slate-50">
-                        <Link href={`/site/${selectedPopupSite.id}`}>Details</Link>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={isInItinerary ? 'secondary' : 'default'}
-                        className="h-10 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/15"
-                        onClick={() => onAddSite(selectedPopupSite.id)}
-                      >
-                        {isInItinerary ? <Check size={12} /> : <Plus size={12} />} Route
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </InfoWindow>
-            );
-          })()}
         </Map>
       </APIProvider>
+      </HeritageMapErrorBoundary>
 
       {routeCoords && routeCoords.length > 1 && totalTime && totalDist && (
         <div className="pointer-events-none absolute left-1/2 top-20 z-10 -translate-x-1/2 rounded-2xl bg-white/95 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 shadow-xl ring-1 ring-black/5">

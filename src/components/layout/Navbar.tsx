@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -37,12 +38,37 @@ export function Navbar() {
   const auth = useAuth();
   const db = useFirestore();
 
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+
+  useEffect(() => {
+    setIsDropdownOpen(false);
+    setIsSheetOpen(false);
+    if (typeof document !== 'undefined') {
+      document.body.style.pointerEvents = '';
+      document.body.style.overflow = '';
+      document.body.removeAttribute('data-scroll-locked');
+      document.documentElement.style.pointerEvents = '';
+      document.documentElement.style.overflow = '';
+    }
+  }, [pathname]);
+
   const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: userData } = useDoc(userDocRef);
 
   const handleLogout = () => {
+    setIsDropdownOpen(false);
+    setIsSheetOpen(false);
     signOut(auth);
     router.push('/');
+  };
+
+  const handleNavClick = (href: string) => {
+    setIsDropdownOpen(false);
+    setIsSheetOpen(false);
+    if (href === '/explore' && typeof window !== 'undefined') {
+      sessionStorage.removeItem('handumanan-explore-state');
+    }
   };
 
   const getRoleLabel = () => {
@@ -58,7 +84,7 @@ export function Navbar() {
   };
 
   return (
-    <nav className="sticky top-0 z-[100] w-full border-b bg-white/80 backdrop-blur-md h-16 md:h-20">
+    <nav className="sticky top-0 z-40 h-[calc(4rem+env(safe-area-inset-top))] w-full border-b bg-white/85 pt-[env(safe-area-inset-top)] backdrop-blur-md md:h-[calc(5rem+env(safe-area-inset-top))]">
       <div className="container mx-auto px-4 h-full flex items-center justify-between">
         <Link href="/" className="flex min-w-0 items-center gap-2 md:gap-3 group">
           <Image
@@ -83,6 +109,7 @@ export function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => handleNavClick(item.href)}
                 className={cn(
                   "flex items-center gap-2 text-xs font-black uppercase tracking-widest transition-all hover:text-primary py-2",
                   isActive ? "text-primary border-b-2 border-primary" : "text-muted-foreground"
@@ -97,7 +124,7 @@ export function Navbar() {
           <div className="ml-4 flex items-center gap-4">
             {!isUserLoading && (
               user ? (
-                <DropdownMenu>
+                <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="rounded-2xl gap-3 px-3 h-12 hover:bg-slate-100">
                       <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-sm">
@@ -116,20 +143,20 @@ export function Navbar() {
                   <DropdownMenuContent align="end" sideOffset={10} collisionPadding={16} className="w-56 p-2 rounded-2xl shadow-2xl border-none">
                     <DropdownMenuLabel className="px-3 pb-2 font-black text-xs uppercase text-slate-400 tracking-widest">Account</DropdownMenuLabel>
                     <DropdownMenuSeparator className="bg-slate-50" />
-                    <DropdownMenuItem asChild className="rounded-xl h-11 px-3">
+                    <DropdownMenuItem asChild onClick={() => setIsDropdownOpen(false)} className="rounded-xl h-11 px-3">
                       <Link href="/profile" className="cursor-pointer font-bold">
                         <UserIcon size={18} className="mr-3 text-primary" /> Profile
                       </Link>
                     </DropdownMenuItem>
                     {userData?.role === 'admin' && (
-                      <DropdownMenuItem asChild className="rounded-xl h-11 px-3">
+                      <DropdownMenuItem asChild onClick={() => setIsDropdownOpen(false)} className="rounded-xl h-11 px-3">
                         <Link href="/admin-dashboard" className="cursor-pointer font-bold">
                           <Shield size={18} className="mr-3 text-primary" /> Admin Panel
                         </Link>
                       </DropdownMenuItem>
                     )}
                     {userData?.role === 'lgu' && (
-                      <DropdownMenuItem asChild className="rounded-xl h-11 px-3">
+                      <DropdownMenuItem asChild onClick={() => setIsDropdownOpen(false)} className="rounded-xl h-11 px-3">
                         <Link href="/lgu-dashboard" className="cursor-pointer font-bold">
                           <ShieldCheck size={18} className="mr-3 text-primary" /> LGU Portal
                         </Link>
@@ -152,7 +179,7 @@ export function Navbar() {
 
         {/* Mobile Nav */}
         <div className="md:hidden flex items-center gap-2">
-          <Sheet>
+          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10">
                 <Menu size={20} />
@@ -164,23 +191,23 @@ export function Navbar() {
               </SheetHeader>
               <div className="flex flex-col gap-2">
                 {NAV_ITEMS.map((item) => (
-                  <Link key={item.href} href={item.href} className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
+                  <Link key={item.href} href={item.href} onClick={() => handleNavClick(item.href)} className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
                     <item.icon size={18} className="text-primary" /> {item.label}
                   </Link>
                 ))}
                 <div className="pt-4 border-t mt-4 flex flex-col gap-2">
                   {user ? (
                     <>
-                      <Link href="/profile" className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
+                      <Link href="/profile" onClick={() => setIsSheetOpen(false)} className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
                         <UserIcon size={18} className="text-primary" /> Profile
                       </Link>
                       {userData?.role === 'admin' && (
-                         <Link href="/admin-dashboard" className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
+                         <Link href="/admin-dashboard" onClick={() => setIsSheetOpen(false)} className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
                            <Shield size={18} className="text-primary" /> Admin Panel
                          </Link>
                       )}
                       {userData?.role === 'lgu' && (
-                         <Link href="/lgu-dashboard" className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
+                         <Link href="/lgu-dashboard" onClick={() => setIsSheetOpen(false)} className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
                            <ShieldCheck size={18} className="text-primary" /> LGU Portal
                          </Link>
                       )}
@@ -189,7 +216,7 @@ export function Navbar() {
                       </Button>
                     </>
                   ) : (
-                    <Button asChild className="w-full h-12 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl">
+                    <Button asChild onClick={() => setIsSheetOpen(false)} className="w-full h-12 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl">
                       <Link href="/auth">Login</Link>
                     </Button>
                   )}

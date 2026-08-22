@@ -38,6 +38,7 @@ const SITE_IMAGE_FALLBACKS: Record<string, string> = {
   'cebu-city-hall': '/heritage-sites/cebucityhall1.jpg',
   'cebu-capitol': '/heritage-sites/cebuprovincialhall1.jpg.jpg',
   'cebu-patria': '/heritage-sites/patriadecebu1.jpg',
+  'cebu-rizal-memorial-library': '/heritage-sites/rizalmemoriallibraryandmuseum1.jpg',
   'talisay-landing': '/heritage-sites/talisaylandingsite1.jpg',
   'talisay-church': '/heritage-sites/stateresadeavilaparishchurch1.jpg',
   'talisay-plaza': '/heritage-sites/talisaycityplaza1.jpg',

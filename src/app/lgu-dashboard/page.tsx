@@ -30,6 +30,7 @@ import {
   Clock,
   Info,
   Landmark,
+  Ticket,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -77,6 +78,7 @@ function normalizeLguSite(site: any, dbOverride?: any): HeritageSite & { _source
     status: merged.status === 'Inactive' ? 'Inactive' : 'Active',
     demolitionStatus: merged.demolitionStatus || 'Non-Demolished',
     accessibilityStatus: merged.accessibilityStatus || 'Accessibility details unspecified.',
+    entranceFee: merged.entranceFee || undefined,
     _source: dbOverride ? 'Firestore Override' : 'Built-in Static Record',
   };
 }
@@ -96,6 +98,7 @@ export default function LguDashboardPage() {
   const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
   const [targetAction, setTargetAction] = useState<'Needs Revision' | 'Rejected' | null>(null);
   const [actionNotes, setActionNotes] = useState('');
+  const [editingFee, setEditingFee] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   // Authenticated LGU role verification
@@ -189,6 +192,7 @@ export default function LguDashboardPage() {
 
   const handleOpenInspect = (site: any) => {
     setSelectedSite(site);
+    setEditingFee(site.entranceFee || '');
     setIsInspectDialogOpen(true);
   };
 
@@ -229,6 +233,40 @@ export default function LguDashboardPage() {
       toast({
         title: 'Update Failed',
         description: 'Check your connection and Firestore security rules.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleSaveFeeOnly = async () => {
+    if (!db || !user || !selectedSite) return;
+    const trimmed = editingFee.trim();
+
+    if (trimmed.length > 200) {
+      toast({ title: 'Invalid Fee Text', description: 'Fee description must be 200 characters or fewer.', variant: 'destructive' });
+      return;
+    }
+    if (/<[^>]*>/g.test(trimmed)) {
+      toast({ title: 'Invalid Fee Text', description: 'Fee description cannot contain HTML tags.', variant: 'destructive' });
+      return;
+    }
+
+    setIsUpdatingStatus(true);
+    try {
+      const siteRef = doc(db, 'heritageSites', selectedSite.id);
+      await setDoc(siteRef, { entranceFee: trimmed || undefined }, { merge: true });
+      setSelectedSite((prev: any) => prev ? { ...prev, entranceFee: trimmed } : prev);
+      toast({
+        title: 'Entrance Fee Updated',
+        description: `Admission fee for ${selectedSite.name} updated to "${trimmed || 'Entrance fee not specified'}".`,
+      });
+    } catch (error) {
+      console.error('Failed to update entrance fee:', error);
+      toast({
+        title: 'Update Failed',
+        description: 'Check your connection and permissions.',
         variant: 'destructive',
       });
     } finally {
@@ -285,9 +323,9 @@ export default function LguDashboardPage() {
     <div className="flex h-[100dvh] flex-col bg-slate-50 font-body">
       <Navbar />
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="hidden w-72 shrink-0 border-r border-slate-200 bg-white p-5 md:flex md:flex-col justify-between">
+        <aside className="hidden w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-5 md:flex md:flex-col justify-between">
           <div>
             <div className="mb-6">
               <div className="flex items-center gap-2 text-emerald-600">
@@ -358,9 +396,9 @@ export default function LguDashboardPage() {
         </aside>
 
         {/* Main Workspace */}
-        <main className="min-w-0 flex-1 overflow-y-auto">
+        <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
           <div className="mx-auto max-w-[1500px] p-4 md:p-8">
-            <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="sticky top-0 z-20 -mx-4 mb-6 flex flex-col gap-4 border-b border-slate-200/70 bg-slate-50/95 px-4 py-4 backdrop-blur-md md:-mx-8 md:flex-row md:items-end md:justify-between md:px-8">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-600">Verification Console</p>
                 <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
@@ -608,6 +646,31 @@ export default function LguDashboardPage() {
                         <Info size={14} /> Accessibility
                       </h4>
                       <p className="text-sm font-bold text-slate-800">{selectedSite.accessibilityStatus}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-1">
+                        <Ticket size={14} /> Entrance Fee / Admission
+                      </h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Input
+                          value={editingFee}
+                          onChange={e => setEditingFee(e.target.value)}
+                          placeholder="e.g. Free Admission, ₱50, Estimated Fee: ₱50–₱100"
+                          className="h-9 text-xs font-bold bg-white"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-9 text-xs font-bold shrink-0 border-slate-300 hover:bg-slate-100"
+                          onClick={handleSaveFeeOnly}
+                          disabled={isUpdatingStatus}
+                        >
+                          Save Fee
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        LGU officers can update official or estimated admission fees.
+                      </p>
                     </div>
                   </div>
 

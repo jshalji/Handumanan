@@ -1,5 +1,4 @@
 'use client';
-'use client';
 
 import Image from 'next/image';
 
@@ -72,6 +71,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useIsMobile } from '@/hooks/use-mobile';
 import Link from 'next/link';
+import SitePlacePanel from '@/components/map/SitePlacePanel';
 
 const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), { 
   ssr: false,
@@ -312,11 +312,13 @@ function ExploreRouteContent() {
     if (options.openExplorer) {
       setIsPanelExpanded(true);
       setActiveTab('discover');
+    } else if (!isMobile) {
+      setIsPanelExpanded(false);
     }
     if (options.updateSearch) {
       setSearchQuery(site.name);
     }
-  }, []);
+  }, [isMobile]);
 
   const clearSingleSiteFocus = useCallback(() => {
     setSelectedMapSiteId(null);
@@ -358,6 +360,7 @@ function ExploreRouteContent() {
     setLoading(true);
     try {
       const loc = await getCurrentLocation();
+      console.log('[Location] Browser position:', loc);
       setUserLocation(loc);
       setRecenterKey(prev => prev + 1);
       return loc;
@@ -373,6 +376,10 @@ function ExploreRouteContent() {
       setLoading(false);
     }
   }, [toast]);
+
+  useEffect(() => {
+    detectLocation({ showError: false });
+  }, [detectLocation]);
 
   const getNearbyOpenAlternatives = useCallback((closedSite: any, limit = 3) => {
     const closedCoords = getSiteCoords(closedSite);
@@ -587,6 +594,11 @@ function ExploreRouteContent() {
 
     return Array.from(sitesById.values());
   }, [allSites, filteredAndSortedSites, isolatedItinerarySiteId, isTripMapFocused, itinerarySites, selectedMapSiteId]);
+
+  const selectedMapSite = useMemo(() => {
+    if (!selectedMapSiteId) return null;
+    return allSites.find(site => site.id === selectedMapSiteId) || null;
+  }, [allSites, selectedMapSiteId]);
 
   const searchSuggestions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -1036,7 +1048,6 @@ function ExploreRouteContent() {
       setSelectedCategory(null);
       clearSingleSiteFocus();
       setIsTripMapFocused(true);
-      setMapResetKey(prev => prev + 1);
       setIsResultModalOpen(true);
       setIsAutoGenerateOpen(false);
       toast({ title: "Planner Generated", description: "View your logical day plan below." });
@@ -1143,10 +1154,10 @@ function ExploreRouteContent() {
                   setIsTripMapFocused(false);
                   clearSingleSiteFocus();
                 }}
-                className="absolute right-3 top-6 -translate-y-1/2 rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full h-11 w-11 flex items-center justify-center text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
                 aria-label="Clear search"
               >
-                <X size={14} />
+                <X size={16} />
               </button>
             )}
           </div>
@@ -1277,6 +1288,26 @@ function ExploreRouteContent() {
         </div>
       )}
 
+      {/* SITE PLACE PANEL (Desktop Overlay & Mobile Bottom Sheet) */}
+      {selectedMapSite && (
+        <SitePlacePanel
+          site={selectedMapSite}
+          userLocation={userLocation}
+          isInItinerary={itineraryIds.includes(selectedMapSite.id)}
+          onClose={clearSingleSiteFocus}
+          onInitializeRoute={(siteToRoute) => {
+            setIsolatedItinerarySiteId(siteToRoute.id);
+            setIsTripMapFocused(false);
+            setIsPanelExpanded(false);
+            lastLiveRouteRefreshRef.current = null;
+            detectLocation({ showError: true });
+            toast({ title: "Route Initialized", description: `Preparing directions to ${siteToRoute.name}.` });
+          }}
+          onToggleItinerary={toggleSite}
+          isMobile={isMobile}
+        />
+      )}
+
       {/* DISCOVER PANEL */}
       <div className={cn(
         "fixed transition-all duration-500 ease-in-out z-30 pointer-events-auto",
@@ -1361,7 +1392,7 @@ function ExploreRouteContent() {
                                <p className="text-[11px] font-bold text-slate-900 truncate">{site.name}</p>
                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{site.city}</p>
                             </div>
-                            <Button onClick={() => toggleSite(site.id)} size="icon" variant={itineraryIds.includes(site.id) ? "secondary" : "default"} className={cn("h-9 w-9 rounded-xl", itineraryIds.includes(site.id) ? "bg-slate-200 text-slate-500" : "bg-primary text-white shadow-xl shadow-primary/20")}>
+                            <Button onClick={() => toggleSite(site.id)} size="icon" variant={itineraryIds.includes(site.id) ? "secondary" : "default"} className={cn("h-11 w-11 rounded-xl shrink-0 cursor-pointer", itineraryIds.includes(site.id) ? "bg-slate-200 text-slate-500" : "bg-primary text-white shadow-xl shadow-primary/20")}>
                                {itineraryIds.includes(site.id) ? <X size={16} /> : <Plus size={16} />}
                             </Button>
                          </div>

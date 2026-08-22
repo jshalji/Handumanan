@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 const ALLOWED_TRAVEL_MODES = new Set(['DRIVE', 'TWO_WHEELER', 'TRANSIT', 'WALK']);
 
 function isValidLatLng(value: any) {

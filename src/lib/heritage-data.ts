@@ -36,6 +36,7 @@ export interface HeritageSite {
   status: 'Active' | 'Inactive';
   demolitionStatus: 'Non-Demolished' | 'Demolished' | 'Partially Demolished';
   accessibilityStatus: string;
+  entranceFee?: string;
 }
 
 export const DEPRECATED_HERITAGE_SITE_IDS = ['llc-happyworld'];
@@ -66,7 +67,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-cathedral',
@@ -91,7 +93,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-cross',
@@ -116,7 +119,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-archdiocesan-museum',
@@ -141,7 +145,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: '₱50'
   },
   {
     id: 'cebu-casa-gorordo',
@@ -166,7 +171,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Estimated Fee: ₱100'
   },
   {
     id: 'cebu-yap-sandiego',
@@ -191,7 +197,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: '₱50'
   },
   {
     id: 'cebu-jesuit-house',
@@ -216,7 +223,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Estimated Fee: ₱100'
   },
   {
     id: 'cebu-national-museum',
@@ -241,7 +249,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-sugbu-chinese-museum',
@@ -266,7 +275,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Estimated Fee: ₱100'
   },
   {
     id: 'cebu-museo-sugbo',
@@ -291,7 +301,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: '₱75 (Adults) / ₱50 (Students)'
   },
   {
     id: 'cebu-uspf-jose-rizal-museum',
@@ -317,7 +328,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-usc-museum',
@@ -342,7 +354,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: '₱50'
   },
   {
     id: 'cebu-fort-san-pedro',
@@ -367,7 +380,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: '₱50 (Adults) / ₱20 (Students & Seniors)'
   },
   {
     id: 'cebu-heritage-monument',
@@ -392,7 +406,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-colon-street',
@@ -417,7 +432,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-tres-de-abril-marker',
@@ -442,7 +458,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-plaza-independencia',
@@ -467,7 +484,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-plaza-sugbo',
@@ -492,7 +510,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-plaza-hamabar',
@@ -517,7 +536,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-fuente-osmena',
@@ -542,7 +562,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-city-hall',
@@ -567,7 +588,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-capitol',
@@ -592,7 +614,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-patria',
@@ -617,7 +640,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     isActive: true,
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
-    accessibilityStatus: 'Accessible'
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
   {
     id: 'cebu-taoist',
@@ -643,6 +667,32 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
     accessibilityStatus: 'Accessible'
+  },
+  {
+    id: 'cebu-rizal-memorial-library',
+    name: "Rizal Memorial Library and Museum",
+    description: "Rizal Memorial Library and Museum is a historic landmark in Cebu City that houses the Cebu City Public Library. The building is associated with Cebu's educational, cultural, and historical heritage and serves as an important public cultural institution.",
+    overview: "Rizal Memorial Library and Museum is a historic landmark in Cebu City that houses the Cebu City Public Library. The building is associated with Cebu's educational, cultural, and historical heritage and serves as an important public cultural institution.",
+    significance: "Built in 1939 and designed by architect Juan M. Arellano, the Rizal Memorial Library and Museum is an important part of Cebu City's architectural and cultural history. The building also has historical significance from the World War II period and continues to serve the public as a library and cultural institution.",
+    category: "Historical Landmarks & Monuments",
+    location: "Osmeña Blvd, Cebu City",
+    city: "Cebu City",
+    visitingHours: "Monday to Friday, 8:00 AM - 5:00 PM",
+    imageUrl: "/heritage-sites/rizalmemoriallibraryandmuseum1.jpg",
+    galleryImages: [
+      "/heritage-sites/rizalmemoriallibraryandmuseum1.jpg",
+      "/heritage-sites/rizalmemoriallibraryandmuseum2.jpg",
+      "/heritage-sites/rizalmemoriallibraryandmuseum3.jpg"
+    ],
+    rating: 4.6,
+    tags: ["library", "museum", "arellano", "cebu-city-public-library", "rizal"],
+    coordinates: { lat: 10.30931, lng: 123.89274 },
+    isMustVisit: true,
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
   },
 
   // --- TALISAY CITY ---
@@ -1267,4 +1317,38 @@ export function searchSites(
 
     return matchesQuery && matchesCity && matchesCategory;
   });
+}
+
+export function hasExplicitHeritageIntent(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+
+  // Heritage & site-related terms
+  const hasHeritageTerm = /\b(heritage|site|sites|shrine|shrines|monument|monuments|landmark|landmarks|historical|history|museum|museums|church|churches|cathedral|basilica|ancestral|plaza|plazas|park|parks|library|libraries|public library|residence|residences|building|buildings|attraction|attractions|place|places|destination|destinations|spot|spots|visiting hours|hours|entrance fee|entrance|fee|fees|admission|ticket|tickets|price|prices|cost|directions|itinerary|route|trip|tour|tours)\b/.test(normalized);
+
+  // Specific question patterns
+  const hasSpecificQuestion = /\b(how much|entrance fee|admission|visiting hours|open|closed|where is|tell me about|what is|how do i get to|what are the|take me to|take me there|show me)\b/.test(normalized);
+
+  // Direct reference to specific known sites
+  const specificSiteNames = [
+    'mactan shrine', 'magellan cross', 'magellans cross', 'basilica', 'santo nino', 'cebu cathedral',
+    'casa gorordo', 'yap sandiego', 'yap-sandiego', 'jesuit house', 'fort san pedro', 'museo sugbo',
+    'national museum', 'sugbu chinese', 'taoist temple', 'fuente osmena', 'talisay landing', 'presidencia',
+    'bantayan sa hari', 'rizal memorial', 'rizal library', 'cebu city public library', 'rizal', 'patria',
+    'tres de abril', 'colon street', 'city hall', 'capitol', 'st. teresa', 'saint joseph', 'mandaue library',
+    'old bridge', 'millennium park', 'virgen de la regla'
+  ];
+  const hasDirectSiteReference = specificSiteNames.some(name => normalized.includes(name));
+
+  // Matching any site name or tag in built-in dataset
+  const words = normalized.split(' ').filter(w => w.length > 2);
+  const matchesBuiltInSite = HERITAGE_SITES.some(site => {
+    const siteName = site.name.toLowerCase();
+    const tags = site.tags.map(t => t.toLowerCase());
+    return siteName.includes(normalized) || normalized.includes(siteName) || words.some(w => siteName.includes(w) || tags.includes(w));
+  });
+
+  if (hasDirectSiteReference || matchesBuiltInSite || hasSpecificQuestion || hasHeritageTerm) return true;
+
+  return false;
 }

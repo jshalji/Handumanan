@@ -149,8 +149,19 @@ service cloud.firestore {
       match /reviews/{reviewId} {
         allow get, list: if true;
         allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-        allow update: if isExistingOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId;
-        allow delete: if isExistingOwner(resource.data.userId);
+        allow update: if (isExistingOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId) || isAdmin();
+        allow delete: if isExistingOwner(resource.data.userId) || isAdmin();
+      }
+
+      /**
+       * @description Visitor photos for specific heritage sites.
+       * @path /heritageSites/{siteId}/visitorPhotos/{photoId}
+       */
+      match /visitorPhotos/{photoId} {
+        allow get, list: if true;
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+        allow update: if (isExistingOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId) || isAdmin();
+        allow delete: if isExistingOwner(resource.data.userId) || isAdmin();
       }
     }
 

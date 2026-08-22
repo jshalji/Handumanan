@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+import { useAuth, useUser, useFirestore, useCollection, useDoc, useMemoFirebase, useFirebaseApp } from '@/firebase';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
 import { collection, deleteDoc, doc, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Navbar } from '@/components/layout/Navbar';
@@ -36,6 +37,9 @@ import {
   Trash2,
   Users,
   XCircle,
+  Upload,
+  X,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -67,6 +71,7 @@ type SiteFormState = {
   needsVerification: boolean;
   verificationStatus: VerificationStatus;
   verificationNotes: string;
+  entranceFee: string;
 };
 
 const ADMIN_NAV_ITEMS = [
@@ -113,7 +118,18 @@ const EMPTY_SITE_FORM: SiteFormState = {
   needsVerification: false,
   verificationStatus: 'Pending Verification',
   verificationNotes: '',
+  entranceFee: '',
 };
+
+function removeUndefinedProperties<T extends Record<string, any>>(obj: T): T {
+  const cleaned: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    if (obj[key] !== undefined) {
+      cleaned[key] = obj[key];
+    }
+  }
+  return cleaned as T;
+}
 
 function getSiteCoords(site: any) {
   return site?.coordinates || { lat: site?.latitude, lng: site?.longitude };
@@ -128,7 +144,7 @@ function normalizeSiteRecord(site: any, existingSite?: any) {
     ? { lat: latitude, lng: longitude }
     : existingSite?.coordinates;
 
-  return {
+  return removeUndefinedProperties({
     ...merged,
     coordinates,
     verificationStatus: (merged.verificationStatus as VerificationStatus) || 'Pending Verification',
@@ -137,11 +153,11 @@ function normalizeSiteRecord(site: any, existingSite?: any) {
     verifiedAt: merged.verifiedAt || undefined,
     verificationNotes: merged.verificationNotes || undefined,
     tags: Array.isArray(merged.tags) ? merged.tags : (Array.isArray(existingSite?.tags) ? existingSite.tags : []),
-  };
+  });
 }
 
 function getPersistableSiteData(site: any) {
-  const publicSiteData = { ...normalizeSiteRecord(site) };
+  const publicSiteData = removeUndefinedProperties({ ...normalizeSiteRecord(site) });
   delete publicSiteData._recordSource;
   return publicSiteData;
 }
@@ -184,12 +200,29 @@ function getInitialFormState(site?: any): SiteFormState {
     needsVerification: Boolean(site.needsVerification),
     verificationStatus: (site.verificationStatus as VerificationStatus) || 'Pending Verification',
     verificationNotes: site.verificationNotes || '',
+    entranceFee: site.entranceFee || '',
   };
 }
 
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+function validateImageFile(file: File): string | null {
+  if (!file.type || !ALLOWED_IMAGE_TYPES.includes(file.type.toLowerCase())) {
+    return `Invalid image file type (${file.type || 'unknown'}). Please select a JPG, JPEG, PNG, or WebP photo.`;
+  }
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+    return `File size (${sizeMb} MB) exceeds the 10 MB limit. Please choose a smaller photo.`;
+  }
+  return null;
+}
+
 function isValidHttpUrl(value: string) {
+  const trimmed = (value || '').trim();
+  if (trimmed.startsWith('/')) return true;
   try {
-    const url = new URL(value);
+    const url = new URL(trimmed);
     return url.protocol === 'http:' || url.protocol === 'https:';
   } catch {
     return false;
@@ -218,6 +251,7 @@ export default function AdminDashboardPage() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const db = useFirestore();
+  const firebaseApp = useFirebaseApp();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -231,6 +265,106 @@ export default function AdminDashboardPage() {
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [isSaving, setIsSaving] = useState(false);
   const [deletingSiteId, setDeletingSiteId] = useState<string | null>(null);
+
+  const [isUploadingMainImage, setIsUploadingMainImage] = useState(false);
+  const [isUploadingGallery, setIsUploadingGallery] = useState(false);
+  const [showManualUrlInput, setShowManualUrlInput] = useState(false);
+
+  const handleMainImageFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+
+    const validationErr = validateImageFile(file);
+    if (validationErr) {
+      toast({ title: 'Image Upload Failed', description: validationErr, variant: 'destructive' });
+      event.target.value = '';
+      return;
+    }
+
+    setIsUploadingMainImage(true);
+    try {
+      const storage = getStorage(firebaseApp);
+      const timestamp = Date.now();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const folder = editingSite?.id || 'new_site';
+      const storagePath = `heritageSites/${folder}/main_${timestamp}_${safeName}`;
+      const imageRef = ref(storage, storagePath);
+
+      await uploadBytes(imageRef, file);
+      const downloadUrl = await getDownloadURL(imageRef);
+
+      updateForm('imageUrl', downloadUrl);
+      toast({ title: 'Main Image Uploaded', description: 'Photo uploaded successfully to Firebase Storage.' });
+    } catch (err: any) {
+      console.error('Main image upload failed:', err);
+      toast({ title: 'Upload Failed', description: err.message || 'Failed to upload image to Firebase Storage.', variant: 'destructive' });
+    } finally {
+      setIsUploadingMainImage(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleGalleryImagesFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const validFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const validationErr = validateImageFile(file);
+      if (validationErr) {
+        toast({ title: `Skipped ${file.name}`, description: validationErr, variant: 'destructive' });
+      } else {
+        validFiles.push(file);
+      }
+    }
+
+    if (validFiles.length === 0) {
+      event.target.value = '';
+      return;
+    }
+
+    setIsUploadingGallery(true);
+    const uploadedUrls: string[] = [];
+
+    try {
+      const storage = getStorage(firebaseApp);
+      const folder = editingSite?.id || 'new_site';
+
+      for (const file of validFiles) {
+        const timestamp = Date.now();
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `heritageSites/${folder}/gallery_${timestamp}_${safeName}`;
+        const imageRef = ref(storage, storagePath);
+
+        await uploadBytes(imageRef, file);
+        const downloadUrl = await getDownloadURL(imageRef);
+        uploadedUrls.push(downloadUrl);
+      }
+
+      const currentGalleryList = splitList(formState.galleryImages);
+      const updatedGalleryList = Array.from(new Set([...currentGalleryList, ...uploadedUrls]));
+      updateForm('galleryImages', updatedGalleryList.join('\n'));
+
+      toast({
+        title: 'Gallery Photos Uploaded',
+        description: `Uploaded ${uploadedUrls.length} photo(s) to Firebase Storage.`
+      });
+    } catch (err: any) {
+      console.error('Gallery upload failed:', err);
+      toast({ title: 'Upload Failed', description: err.message || 'Failed to upload gallery photos.', variant: 'destructive' });
+    } finally {
+      setIsUploadingGallery(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleRemoveGalleryImage = (indexToRemove: number) => {
+    const currentList = splitList(formState.galleryImages);
+    const nextList = currentList.filter((_, idx) => idx !== indexToRemove);
+    updateForm('galleryImages', nextList.join('\n'));
+  };
 
   const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: userData, isLoading: isCheckingRole } = useDoc(userDocRef);
@@ -398,6 +532,13 @@ export default function AdminDashboardPage() {
       return 'Rating must be between 0 and 5.';
     }
 
+    if (formState.entranceFee && formState.entranceFee.trim().length > 200) {
+      return 'Entrance fee text must be 200 characters or fewer.';
+    }
+    if (formState.entranceFee && /<[^>]*>/g.test(formState.entranceFee)) {
+      return 'Entrance fee text must not contain HTML tags.';
+    }
+
     return null;
   };
 
@@ -414,7 +555,7 @@ export default function AdminDashboardPage() {
     const latitude = Number(formState.latitude);
     const longitude = Number(formState.longitude);
     const isActive = formState.status === 'Active' && formState.isActive;
-    const siteData = {
+    const siteData = removeUndefinedProperties({
       name: formState.name.trim(),
       city: formState.city,
       category: formState.category,
@@ -441,9 +582,10 @@ export default function AdminDashboardPage() {
       verifiedByUid: editingSite?.verifiedByUid || undefined,
       verifiedAt: editingSite?.verifiedAt || undefined,
       demolitionStatus: formState.demolitionStatus,
+      entranceFee: formState.entranceFee.trim() || undefined,
       updatedAt: serverTimestamp(),
       createdAt: editingSite?.createdAt || serverTimestamp(),
-    };
+    });
 
     setIsSaving(true);
     try {
@@ -453,9 +595,16 @@ export default function AdminDashboardPage() {
       setIsSiteDialogOpen(false);
       setEditingSite(null);
       setFormState(EMPTY_SITE_FORM);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save heritage site:', error);
-      toast({ title: 'Save failed', description: 'Please check your connection and Firestore permissions.', variant: 'destructive' });
+      const isPermissionError = error instanceof Error && /permission|PERMISSION_DENIED/i.test(error.message);
+      toast({
+        title: 'Save failed',
+        description: isPermissionError
+          ? 'Firestore rejected the save request due to security permissions.'
+          : (error?.message || 'Please check your connection and try again.'),
+        variant: 'destructive'
+      });
     } finally {
       setIsSaving(false);
     }
@@ -521,8 +670,8 @@ export default function AdminDashboardPage() {
     <div className="flex h-[100dvh] flex-col bg-slate-50 font-body">
       <Navbar />
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-72 shrink-0 border-r border-slate-200 bg-white p-5 md:flex md:flex-col">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <aside className="hidden w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-5 md:flex md:flex-col">
           <div className="mb-6">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Management</p>
             <h2 className="mt-2 text-lg font-black text-slate-950">Admin Console</h2>
@@ -542,9 +691,9 @@ export default function AdminDashboardPage() {
           </button>
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-y-auto">
+        <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
           <div className="mx-auto max-w-[1500px] p-4 md:p-8">
-            <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="sticky top-0 z-20 -mx-4 mb-5 flex flex-col gap-4 border-b border-slate-200/70 bg-slate-50/95 px-4 py-4 backdrop-blur-md md:-mx-8 md:flex-row md:items-end md:justify-between md:px-8">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.24em] text-primary">Administrator Access</p>
                 <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
@@ -737,8 +886,8 @@ export default function AdminDashboardPage() {
           </DialogHeader>
 
           <form onSubmit={handleSaveSite}>
-            <div className="grid gap-6 px-6 py-5 lg:grid-cols-[1.3fr_0.9fr]">
-              <div className="space-y-6">
+            <div className="grid gap-6 px-6 py-5 lg:grid-cols-2">
+              <div className="min-w-0 space-y-6">
                 <FormSection title="Identity">
                   <FormField label="Official Name" required>
                     <Input value={formState.name} onChange={event => updateForm('name', event.target.value)} placeholder="Example: Cebu Provincial Capitol" />
@@ -769,6 +918,12 @@ export default function AdminDashboardPage() {
                       <Input value={formState.accessibilityStatus} onChange={event => updateForm('accessibilityStatus', event.target.value)} placeholder="Fully Accessible" />
                     </FormField>
                   </div>
+                  <FormField label="Entrance Fee / Admission">
+                    <Input value={formState.entranceFee} onChange={event => updateForm('entranceFee', event.target.value)} placeholder="e.g. Free Admission, ₱50, Estimated Fee: ₱50–₱100" />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Enter the known admission fee or an estimated price with a note. Example: Free Admission, ₱50, Estimated Fee: ₱50–₱100. Leave blank if unavailable.
+                    </p>
+                  </FormField>
                   <div className="grid gap-4 md:grid-cols-3">
                     <ToggleField label="Active in public app" checked={formState.isActive} onChange={value => updateForm('isActive', value)} />
                     <ToggleField label="Must-visit highlight" checked={formState.isMustVisit} onChange={value => updateForm('isMustVisit', value)} />
@@ -789,7 +944,7 @@ export default function AdminDashboardPage() {
                 </FormSection>
               </div>
 
-              <div className="space-y-6">
+              <div className="min-w-0 space-y-6">
                 <FormSection title="Map Coordinates">
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1">
                     <FormField label="Latitude" required>
@@ -801,12 +956,144 @@ export default function AdminDashboardPage() {
                   </div>
                 </FormSection>
 
-                <FormSection title="Images">
-                  <FormField label="Main Image URL" required>
-                    <Input value={formState.imageUrl} onChange={event => updateForm('imageUrl', event.target.value)} placeholder="https://..." />
+                <FormSection title="Images & Gallery">
+                  <FormField label="Main Image" required>
+                    {formState.imageUrl ? (
+                      <div className="space-y-2">
+                        <div className="relative h-48 sm:h-52 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100 group">
+                          <SafeImage
+                            src={formState.imageUrl}
+                            alt="Main site cover preview"
+                            className="h-full w-full object-cover"
+                            fallbackClassName="object-contain p-4"
+                          />
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
+                            <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white text-slate-900 text-xs font-bold hover:bg-slate-100 shadow-md">
+                              <Upload size={14} />
+                              Replace
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                onChange={handleMainImageFileUpload}
+                                disabled={isUploadingMainImage || isSaving}
+                              />
+                            </label>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => updateForm('imageUrl', '')}
+                              className="h-8 text-xs font-bold"
+                            >
+                              <Trash2 size={14} className="mr-1" />
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-mono truncate max-w-full overflow-hidden">{formState.imageUrl}</p>
+                      </div>
+                    ) : (
+                      <div className="relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-200 bg-slate-50/50 p-6 text-center hover:bg-slate-50 transition-colors">
+                        {isUploadingMainImage ? (
+                          <div className="flex flex-col items-center gap-2 py-3">
+                            <Loader2 className="animate-spin text-primary" size={24} />
+                            <p className="text-xs font-bold text-slate-700">Uploading main image to Firebase Storage...</p>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center gap-2 cursor-pointer w-full">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                              <Upload size={20} />
+                            </div>
+                            <span className="text-xs font-black text-slate-800">Upload Main Image</span>
+                            <span className="text-[10px] text-slate-400 font-medium">JPG, PNG, or WebP up to 10 MB</span>
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              className="hidden"
+                              onChange={handleMainImageFileUpload}
+                              disabled={isUploadingMainImage || isSaving}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="mt-2 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setShowManualUrlInput(prev => !prev)}
+                        className="text-[10px] font-bold text-slate-500 hover:text-primary transition-colors flex items-center gap-1"
+                      >
+                        <LinkIcon size={12} />
+                        {showManualUrlInput ? 'Hide manual URL field' : 'Enter URL manually'}
+                      </button>
+                    </div>
+
+                    {showManualUrlInput && (
+                      <div className="mt-2">
+                        <Input
+                          value={formState.imageUrl}
+                          onChange={event => updateForm('imageUrl', event.target.value)}
+                          placeholder="https://firebasestorage.googleapis.com/... or /heritage-sites/..."
+                          className="text-xs font-mono"
+                        />
+                      </div>
+                    )}
                   </FormField>
-                  <FormField label="Gallery Image URLs">
-                    <Textarea value={formState.galleryImages} onChange={event => updateForm('galleryImages', event.target.value)} className="min-h-[90px]" placeholder="One URL per line" />
+
+                  <FormField label="Gallery Photos">
+                    <div className="space-y-3">
+                      {splitList(formState.galleryImages).length > 0 && (
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {splitList(formState.galleryImages).map((url, idx) => (
+                            <div key={`${url}-${idx}`} className="relative aspect-square overflow-hidden rounded-md border border-slate-200 bg-slate-100 group">
+                              <SafeImage src={url} alt={`Gallery photo ${idx + 1}`} className="h-full w-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveGalleryImage(idx)}
+                                className="absolute top-1 right-1 h-6 w-6 rounded-full bg-red-600 text-white flex items-center justify-center opacity-90 hover:opacity-100 shadow-md transition-opacity"
+                                title="Remove gallery photo"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="relative flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-200 bg-slate-50/50 p-4 text-center hover:bg-slate-50 transition-colors">
+                        {isUploadingGallery ? (
+                          <div className="flex items-center gap-2 py-2 text-xs font-bold text-slate-700">
+                            <Loader2 className="animate-spin text-primary" size={18} />
+                            <span>Uploading gallery photos to Firebase Storage...</span>
+                          </div>
+                        ) : (
+                          <label className="flex items-center justify-center gap-2 cursor-pointer w-full py-1">
+                            <Plus size={16} className="text-primary" />
+                            <span className="text-xs font-bold text-slate-800">Upload Gallery Photos</span>
+                            <span className="text-[10px] text-slate-400 font-medium">(Select multiple)</span>
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/jpeg,image/png,image/webp"
+                              className="hidden"
+                              onChange={handleGalleryImagesFileUpload}
+                              disabled={isUploadingGallery || isSaving}
+                            />
+                          </label>
+                        )}
+                      </div>
+
+                      {showManualUrlInput && (
+                        <Textarea
+                          value={formState.galleryImages}
+                          onChange={event => updateForm('galleryImages', event.target.value)}
+                          className="min-h-[80px] text-xs font-mono"
+                          placeholder="One image URL per line..."
+                        />
+                      )}
+                    </div>
                   </FormField>
                 </FormSection>
 
@@ -859,10 +1146,10 @@ export default function AdminDashboardPage() {
             </div>
 
             <DialogFooter className="border-t border-slate-100 bg-slate-50 px-6 py-4">
-              <Button type="button" variant="outline" onClick={() => setIsSiteDialogOpen(false)} disabled={isSaving}>
+              <Button type="button" variant="outline" onClick={() => setIsSiteDialogOpen(false)} disabled={isSaving || isUploadingMainImage || isUploadingGallery}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSaving}>
+              <Button type="submit" disabled={isSaving || isUploadingMainImage || isUploadingGallery}>
                 {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />}
                 Save Record
               </Button>
@@ -1005,8 +1292,9 @@ function SiteTable({
                 <TableCell className="text-sm text-slate-600">{site.category || 'Uncategorized'}</TableCell>
                 <TableCell>
                   <div className="space-y-1 text-xs text-slate-500">
-                    <p>{site.visitingHours || 'Hours missing'}</p>
-                    <p>{hasCoordinates ? `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` : 'Coordinates missing'}</p>
+                    <p className="font-semibold text-slate-700">{site.visitingHours || 'Hours missing'}</p>
+                    <p className="text-[11px] text-amber-800 font-medium">{site.entranceFee ? `Fee: ${site.entranceFee}` : 'Fee not specified'}</p>
+                    <p className="text-[10px] text-slate-400">{hasCoordinates ? `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` : 'Coordinates missing'}</p>
                   </div>
                 </TableCell>
                 <TableCell>
