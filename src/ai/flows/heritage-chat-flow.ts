@@ -1286,7 +1286,7 @@ async function getTravelTimeChatResponse(query: string, sites: HeritageSiteRecor
 function getNearbyChatResponse(input: HeritageChatInput, query: string, sites: HeritageSiteRecord[]): HeritageChatOutput {
   if (!input.userLocation) {
     return {
-      text: "I can recommend sites near you, but I need your GPS location first. Please allow location access in your browser, then ask for nearby sites again.",
+      text: "I can't determine your precise current location right now. Please enable location access or select a location.",
       suggestedSiteIds: [],
     };
   }

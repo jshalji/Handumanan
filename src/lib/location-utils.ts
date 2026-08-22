@@ -16,22 +16,61 @@ export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2
   return distance;
 }
 
+export type LocationConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface EvaluatedLocation {
+  lat: number;
+  lng: number;
+  accuracy: number;
+  confidence: LocationConfidence;
+  isTrusted: boolean;
+}
+
+export const MAX_TRUSTED_ACCURACY_METERS = 10000; // 10 km threshold
+
 /**
- * Gets the user's current geolocation.
+ * Evaluates raw browser geolocation coordinates against accuracy thresholds.
  */
-export function getCurrentLocation(): Promise<{ lat: number; lng: number }> {
+export function evaluateLocationAccuracy(coords: { latitude: number; longitude: number; accuracy?: number }): EvaluatedLocation {
+  const accuracy = typeof coords.accuracy === 'number' && Number.isFinite(coords.accuracy) ? coords.accuracy : 999999;
+  const isTrusted = accuracy <= MAX_TRUSTED_ACCURACY_METERS;
+  const confidence: LocationConfidence = accuracy <= 1000 ? 'HIGH' : accuracy <= 10000 ? 'MEDIUM' : 'LOW';
+
+  console.log('[GPS] Browser location:', {
+    lat: coords.latitude,
+    lng: coords.longitude,
+    accuracy: accuracy,
+  });
+
+  console.log('[GPS] Location confidence:', {
+    accuracy: accuracy,
+    trusted: isTrusted,
+    confidence: confidence,
+  });
+
+  return {
+    lat: coords.latitude,
+    lng: coords.longitude,
+    accuracy,
+    confidence,
+    isTrusted,
+  };
+}
+
+/**
+ * Gets the user's current geolocation with accuracy evaluation.
+ */
+export function getCurrentLocation(options?: PositionOptions): Promise<EvaluatedLocation> {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
       reject(new Error('Geolocation is not supported by your browser.'));
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        resolve({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
+        const evaluated = evaluateLocationAccuracy(position.coords);
+        resolve(evaluated);
       },
       (error) => {
         reject(error);
@@ -39,7 +78,8 @@ export function getCurrentLocation(): Promise<{ lat: number; lng: number }> {
       {
         enableHighAccuracy: true,
         maximumAge: 0,
-        timeout: 12000,
+        timeout: 15000,
+        ...options,
       }
     );
   });
@@ -52,22 +92,19 @@ export type LocationPoint = {
 };
 
 export type LocationWatchHandlers = {
-  onUpdate: (location: LocationPoint) => void;
+  onUpdate: (location: EvaluatedLocation) => void;
   onError?: (error: GeolocationPositionError) => void;
 };
 
 export function watchCurrentLocation({ onUpdate, onError }: LocationWatchHandlers): () => void {
-  if (!navigator.geolocation) {
+  if (typeof window === 'undefined' || !navigator.geolocation) {
     return () => {};
   }
 
   const watchId = navigator.geolocation.watchPosition(
     (position) => {
-      onUpdate({
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-        accuracy: position.coords.accuracy,
-      });
+      const evaluated = evaluateLocationAccuracy(position.coords);
+      onUpdate(evaluated);
     },
     (error) => {
       onError?.(error);

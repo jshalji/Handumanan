@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useCallback, Suspense, useRef } from 'rea
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DEPRECATED_HERITAGE_SITE_IDS, HeritageSite, HERITAGE_SITES, isSiteVisibleToUser } from '@/lib/heritage-data';
-import { calculateDistance, getCurrentLocation, watchCurrentLocation } from '@/lib/location-utils';
+import { calculateDistance, getCurrentLocation, watchCurrentLocation, type EvaluatedLocation } from '@/lib/location-utils';
 import { getRouteMulti, RouteStep, getRoute, type TravelMode } from '@/lib/routing-service';
 import { getSiteAvailability, isSiteOpenForVisit } from '@/lib/site-availability';
 import { generatePersonalizedItinerary, type GeneratePersonalizedItineraryOutput } from '@/ai/flows/generate-personalized-itinerary';
@@ -135,6 +135,7 @@ function ExploreRouteContent() {
   
   const orsKey = process.env.NEXT_PUBLIC_ORS_API_KEY || '';
 
+  const [browserLocation, setBrowserLocation] = useState<EvaluatedLocation | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [itineraryIds, setItineraryIds] = useState<string[]>([]);
@@ -359,16 +360,31 @@ function ExploreRouteContent() {
   const detectLocation = useCallback(async (options: { showError?: boolean } = {}) => {
     setLoading(true);
     try {
-      const loc = await getCurrentLocation();
-      console.log('[Location] Browser position:', loc);
-      setUserLocation(loc);
-      setRecenterKey(prev => prev + 1);
-      return loc;
+      const evalLoc = await getCurrentLocation({ enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+      setBrowserLocation(evalLoc);
+
+      if (evalLoc.isTrusted) {
+        const trustedPoint = { lat: evalLoc.lat, lng: evalLoc.lng };
+        setUserLocation(trustedPoint);
+        setRecenterKey(prev => prev + 1);
+        return trustedPoint;
+      } else {
+        setUserLocation(null);
+        if (options.showError !== false) {
+          toast({
+            title: "Location Inaccurate",
+            description: "Your device location is currently inaccurate. Please enable Windows Location Services or use a mobile device for more precise positioning.",
+            variant: "destructive"
+          });
+        }
+        return null;
+      }
     } catch (err: any) {
+      setUserLocation(null);
       if (options.showError !== false) {
         const message = err?.code === 1
           ? "Location permission was blocked. Enable location for this site in your browser settings."
-          : "Your phone could not share its location. You can still generate a trip without Near Me mode.";
+          : "Your device could not share its location. You can still generate a trip without Near Me mode.";
         toast({ title: "Location Unavailable", description: message, variant: "destructive" });
       }
       return null;
@@ -455,8 +471,17 @@ function ExploreRouteContent() {
       setIsTripMapFocused(false);
       setIsPanelExpanded(false);
       lastLiveRouteRefreshRef.current = null;
-      detectLocation({ showError: true });
-      toast({ title: "Route Initialized", description: `Preparing directions to ${site.name}.` });
+      detectLocation({ showError: true }).then(loc => {
+        if (!loc) {
+          toast({
+            title: "Location Inaccurate",
+            description: "I can't get a precise current location right now. Please enable location services or select your starting point manually.",
+            variant: "destructive"
+          });
+        } else {
+          toast({ title: "Route Initialized", description: `Preparing directions to ${site.name}.` });
+        }
+      });
     }
   }, [allSites, detectLocation, focusSingleSite, getNearbyOpenAlternatives, itineraryIds, saveToLocal, searchParams, toast]);
 
@@ -469,8 +494,13 @@ function ExploreRouteContent() {
 
     const stopWatching = watchCurrentLocation({
       onUpdate: (location) => {
-        setUserLocation({ lat: location.lat, lng: location.lng });
-        setIsLiveTracking(true);
+        setBrowserLocation(location);
+        if (location.isTrusted) {
+          setUserLocation({ lat: location.lat, lng: location.lng });
+          setIsLiveTracking(true);
+        } else {
+          console.log('[GPS] Watch update rejected due to low accuracy:', location.accuracy);
+        }
       },
       onError: (error) => {
         setIsLiveTracking(false);
@@ -480,7 +510,7 @@ function ExploreRouteContent() {
             title: "Live Location Paused",
             description: error.code === 1
               ? "Location permission was blocked. Enable it to move the marker while navigating."
-              : "Your phone could not update live location. The last known location is still shown.",
+              : "Your device could not update live location. The last known location is still shown.",
             variant: "destructive"
           });
         }
@@ -832,8 +862,15 @@ function ExploreRouteContent() {
       toast({ title: "No Destination", description: "Select at least one heritage site." });
       return;
     }
-    const loc = await detectLocation();
-    if (!loc) return;
+    const loc = await detectLocation({ showError: true });
+    if (!loc) {
+      toast({
+        title: "Location Needed",
+        description: "I can't get a precise current location right now. Please enable location services or select your starting point manually.",
+        variant: "destructive"
+      });
+      return;
+    }
     const optimizedIds = optimizeItineraryIds(itinerarySites.map(site => site.id), loc);
     if (optimizedIds.join('|') !== itineraryIds.join('|')) {
       saveToLocal(optimizedIds);
@@ -1200,6 +1237,17 @@ function ExploreRouteContent() {
         </div>
 
         <div className="hidden md:flex items-center gap-2 pointer-events-auto">
+          {browserLocation && (
+            <div className="flex items-center gap-1.5 rounded-2xl bg-white/95 px-3 py-3 text-[9px] font-black uppercase tracking-widest text-slate-700 shadow-3xl ring-1 ring-black/5 backdrop-blur-xl">
+              <span className={cn(
+                "h-2 w-2 rounded-full shrink-0",
+                browserLocation.confidence === 'HIGH' ? "bg-emerald-500" : browserLocation.confidence === 'MEDIUM' ? "bg-amber-500" : "bg-slate-400"
+              )} />
+              <span>
+                {browserLocation.confidence === 'HIGH' ? 'Location Precise' : browserLocation.confidence === 'MEDIUM' ? 'Location Approx' : 'Location Inaccurate'}
+              </span>
+            </div>
+          )}
           <Button 
             onClick={() => setIsPanelExpanded(prev => !prev)}
             size="icon" 
@@ -1207,7 +1255,7 @@ function ExploreRouteContent() {
           >
             <Compass size={20} />
           </Button>
-          <Button onClick={() => detectLocation()} size="icon" className="h-12 w-12 rounded-2xl shadow-3xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5">
+          <Button onClick={() => detectLocation({ showError: true })} size="icon" className="h-12 w-12 rounded-2xl shadow-3xl bg-white/95 backdrop-blur-xl text-primary hover:bg-slate-50 border-none ring-1 ring-black/5" title="Locate Me">
             {loading ? <Loader2 className="animate-spin" size={20} /> : <LocateFixed size={20} />}
           </Button>
         </div>

@@ -449,8 +449,14 @@ export function HeritageChatBot() {
       let locationForRequest = chatLocation;
       if (isNearbyLocationRequest(text) && !locationForRequest) {
         try {
-          locationForRequest = await getCurrentLocation();
-          setChatLocation(locationForRequest);
+          const evalLoc = await getCurrentLocation({ enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+          if (evalLoc.isTrusted) {
+            locationForRequest = { lat: evalLoc.lat, lng: evalLoc.lng };
+            setChatLocation(locationForRequest);
+          } else {
+            locationForRequest = null;
+            setChatLocation(null);
+          }
         } catch (locationError) {
           console.warn('Chat location unavailable:', locationError);
         }
