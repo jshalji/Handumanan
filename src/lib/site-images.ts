@@ -54,6 +54,7 @@ const SITE_IMAGE_FALLBACKS: Record<string, string> = {
   'llc-plaza-rizal': '/heritage-sites/plazarizal(rizalpark)1.jpg',
   'llc-millennium-park': '/heritage-sites/millenniumpark1.jpg',
   'llc-bridge-park': '/heritage-sites/oldbridgepark1.jpg',
+  'marcelo-fernan-bridge': '/heritage-sites/marcelofernanbridge1.jpg',
 };
 
 export function getSiteImageFallback(site?: SiteImageFallbackInput | null) {

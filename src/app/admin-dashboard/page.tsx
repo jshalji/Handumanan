@@ -45,6 +45,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { HERITAGE_SITES, VerificationStatus, isSiteVisibleToUser } from '@/lib/heritage-data';
 import { SafeImage } from '@/components/ui/safe-image';
+import { getSiteImageFallback, normalizeImageSource } from '@/lib/site-images';
 
 type AdminTab = 'dashboard' | 'sites' | 'categories' | 'feedback' | 'users' | 'settings';
 
@@ -220,7 +221,8 @@ function validateImageFile(file: File): string | null {
 
 function isValidHttpUrl(value: string) {
   const trimmed = (value || '').trim();
-  if (trimmed.startsWith('/')) return true;
+  if (!trimmed) return true;
+  if (trimmed.startsWith('/') || trimmed.startsWith('heritage-sites/')) return true;
   try {
     const url = new URL(trimmed);
     return url.protocol === 'http:' || url.protocol === 'https:';
@@ -268,7 +270,7 @@ export default function AdminDashboardPage() {
 
   const [isUploadingMainImage, setIsUploadingMainImage] = useState(false);
   const [isUploadingGallery, setIsUploadingGallery] = useState(false);
-  const [showManualUrlInput, setShowManualUrlInput] = useState(false);
+  const [showManualUrlInput, setShowManualUrlInput] = useState(true);
 
   const handleMainImageFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -452,7 +454,7 @@ export default function AdminDashboardPage() {
       revision,
       rejected,
       needsReview,
-      images: allSites.filter(s => isValidHttpUrl(s.imageUrl || '')).length,
+      images: allSites.filter(s => Boolean(s.imageUrl?.trim())).length,
     };
   }, [directorySites]);
 
@@ -503,7 +505,6 @@ export default function AdminDashboardPage() {
       ['category', 'Category'],
       ['location', 'Street address or barangay'],
       ['visitingHours', 'Visitor hours'],
-      ['imageUrl', 'Main image URL'],
       ['description', 'Directory description'],
       ['significance', 'Historical significance'],
     ];
@@ -514,8 +515,9 @@ export default function AdminDashboardPage() {
       }
     }
 
-    if (!isValidHttpUrl(formState.imageUrl.trim())) {
-      return 'Main image URL must be a valid http or https URL.';
+    const trimmedUrl = formState.imageUrl.trim();
+    if (trimmedUrl && !isValidHttpUrl(trimmedUrl)) {
+      return 'Main image URL must be a valid URL (http/https or relative path like /heritage-sites/...).';
     }
 
     const latitude = Number(formState.latitude);
@@ -555,6 +557,15 @@ export default function AdminDashboardPage() {
     const latitude = Number(formState.latitude);
     const longitude = Number(formState.longitude);
     const isActive = formState.status === 'Active' && formState.isActive;
+
+    let finalImageUrl = normalizeImageSource(formState.imageUrl.trim());
+    if (!finalImageUrl) {
+      const localFallback = getSiteImageFallback({ id: editingSite?.id, city: formState.city });
+      if (localFallback && localFallback !== '/metrocebu-bg.jpg') {
+        finalImageUrl = localFallback;
+      }
+    }
+
     const siteData = removeUndefinedProperties({
       name: formState.name.trim(),
       city: formState.city,
@@ -562,7 +573,7 @@ export default function AdminDashboardPage() {
       location: formState.location.trim(),
       visitingHours: formState.visitingHours.trim(),
       accessibilityStatus: formState.accessibilityStatus.trim() || 'Accessible',
-      imageUrl: formState.imageUrl.trim(),
+      imageUrl: finalImageUrl,
       galleryImages: splitList(formState.galleryImages),
       description: formState.description.trim(),
       overview: formState.overview.trim() || formState.description.trim(),
@@ -957,7 +968,7 @@ export default function AdminDashboardPage() {
                 </FormSection>
 
                 <FormSection title="Images & Gallery">
-                  <FormField label="Main Image" required>
+                  <FormField label="Main Image">
                     {formState.imageUrl ? (
                       <div className="space-y-2">
                         <div className="relative h-48 sm:h-52 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100 group">

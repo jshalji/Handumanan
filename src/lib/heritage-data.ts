@@ -924,6 +924,34 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     accessibilityStatus: 'Accessible'
   },
   {
+    id: 'marcelo-fernan-bridge',
+    name: "Marcelo Fernan Bridge",
+    description: "An extradosed cable-stayed bridge connecting Mandaue City and Lapu-Lapu City across the Mactan Channel.",
+    overview: "The Marcelo Fernan Bridge is an extradosed cable-stayed bridge spanning the Mactan Channel, connecting Mandaue City on mainland Cebu to Lapu-Lapu City on Mactan Island. Opened in August 1999, it was constructed to relieve heavy traffic on the older Mandaue-Mactan Bridge. Named after Senator Marcelo B. Fernan, a distinguished Cebuano statesman and Chief Justice, the 1,237-meter bridge features a 185-meter central span and is one of the longest cable-stayed bridges in the Philippines. It serves as a vital transportation artery for tourism, commerce, and access to Mactan-Cebu International Airport.",
+    significance: "Named in honor of Senator Marcelo B. Fernan—the only Filipino to serve as both Chief Justice of the Supreme Court and Senate President—this landmark bridge represents modern engineering and Cebuano statesmanship. It plays an essential role in Metro Cebu's urban infrastructure, facilitating seamless economic and social connection between Mandaue City and Lapu-Lapu City.",
+    category: "Historical Landmarks & Monuments",
+    location: "Mactan Channel, connecting Mandaue City and Lapu-Lapu City",
+    city: "Mandaue City",
+    visitingHours: "Monday to Sunday, 24 Hours",
+    imageUrl: "/heritage-sites/marcelofernanbridge1.jpg",
+    galleryImages: [
+      "/heritage-sites/marcelofernanbridge1.jpg",
+      "/heritage-sites/marcelofernanbridge2.jpg",
+      "/heritage-sites/marcelofernanbridge3.jpg"
+    ],
+    rating: 4.7,
+    tags: ["bridge", "cable-stayed", "mandaue", "lapu-lapu", "mactan-channel", "marcelo-fernan", "second-bridge"],
+    coordinates: { lat: 10.3302, lng: 123.9611 },
+    isMustVisit: true,
+    needsVerification: true,
+    verificationStatus: 'Pending Verification',
+    isActive: true,
+    status: 'Active',
+    demolitionStatus: 'Non-Demolished',
+    accessibilityStatus: 'Accessible',
+    entranceFee: 'Free Admission'
+  },
+  {
     id: 'mandaue-plaza',
     name: "Mandaue City Heritage Plaza",
     description: "A public space that highlights Mandaue's historic civic center.",
@@ -1235,6 +1263,10 @@ const ENRICHED_SITE_CONTENT: Record<string, Pick<HeritageSite, 'overview' | 'sig
     overview: "The Mandaue-Mactan Bridge, often called the First Bridge, connects mainland Cebu to Mactan Island across the Mactan Channel. Completed in the early 1970s, it changed daily movement, trade, airport access, and regional development. Although primarily infrastructure, its scale, age, and impact have made it part of Metro Cebu's modern heritage landscape.",
     significance: "The bridge is significant because it marks a turning point in regional connectivity. It helped integrate Mandaue and Lapu-Lapu into a stronger metropolitan economy, supporting tourism, industry, commuting, and airport-linked growth. For users, it shows that heritage can include engineering works that reshape how communities live, travel, and imagine their region."
   },
+  'marcelo-fernan-bridge': {
+    overview: "The Marcelo Fernan Bridge is an extradosed cable-stayed bridge spanning the Mactan Channel, connecting Mandaue City on mainland Cebu to Lapu-Lapu City on Mactan Island. Opened in August 1999, it was constructed to relieve heavy traffic on the older Mandaue-Mactan Bridge. Named after Senator Marcelo B. Fernan, a distinguished Cebuano statesman and Chief Justice, the 1,237-meter bridge features a 185-meter central span and is one of the longest cable-stayed bridges in the Philippines. It serves as a vital transportation artery for tourism, commerce, and access to Mactan-Cebu International Airport.",
+    significance: "Named in honor of Senator Marcelo B. Fernan—the only Filipino to serve as both Chief Justice of the Supreme Court and Senate President—this landmark bridge represents modern engineering and Cebuano statesmanship. It plays an essential role in Metro Cebu's urban infrastructure, facilitating seamless economic and social connection between Mandaue City and Lapu-Lapu City."
+  },
   'mandaue-plaza': {
     overview: "Mandaue City Heritage Plaza is a landscaped public space in the historic poblacion, visually connected to the Mandaue Presidencia and the National Shrine of Saint Joseph. It provides room for ceremonies, festivals, casual gatherings, and public rest. The plaza helps frame nearby landmarks as one coherent heritage district rather than isolated buildings.",
     significance: "The plaza is significant because it preserves the traditional relationship between church, government, and public space. It serves as Mandaue's civic living room, where residents gather for celebrations and official events. By tying together religious and political landmarks, it strengthens the community's sense of place and continuity."
@@ -1336,7 +1368,7 @@ export function hasExplicitHeritageIntent(text: string): boolean {
     'national museum', 'sugbu chinese', 'taoist temple', 'fuente osmena', 'talisay landing', 'presidencia',
     'bantayan sa hari', 'rizal memorial', 'rizal library', 'cebu city public library', 'rizal', 'patria',
     'tres de abril', 'colon street', 'city hall', 'capitol', 'st. teresa', 'saint joseph', 'mandaue library',
-    'old bridge', 'millennium park', 'virgen de la regla'
+    'old bridge', 'millennium park', 'virgen de la regla', 'marcelo fernan', 'marcelo fernan bridge', 'second bridge'
   ];
   const hasDirectSiteReference = specificSiteNames.some(name => normalized.includes(name));
 
