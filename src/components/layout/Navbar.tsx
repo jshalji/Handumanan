@@ -124,16 +124,7 @@ export function Navbar() {
               );
             })}
 
-            <Button
-              variant="outline"
-              onClick={() => setIsFeedbackModalOpen(true)}
-              className="rounded-2xl gap-2 text-xs font-black uppercase tracking-wider border-slate-200 hover:bg-slate-100 h-10 px-4"
-            >
-              <MessageSquare size={15} className="text-primary" />
-              Feedback
-            </Button>
-
-            <div className="ml-2 flex items-center gap-4">
+            <div className="ml-4 flex items-center gap-4">
               {!isUserLoading && (
                 user ? (
                   <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
