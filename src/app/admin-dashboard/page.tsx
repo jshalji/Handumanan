@@ -40,6 +40,16 @@ import {
   Upload,
   X,
   Link as LinkIcon,
+  Eye,
+  Shield,
+  User,
+  Mail,
+  Globe,
+  Cpu,
+  Sparkles,
+  Layers,
+  Lock,
+  Info,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -271,6 +281,108 @@ export default function AdminDashboardPage() {
   const [isUploadingMainImage, setIsUploadingMainImage] = useState(false);
   const [isUploadingGallery, setIsUploadingGallery] = useState(false);
   const [showManualUrlInput, setShowManualUrlInput] = useState(true);
+
+  // System Users Query & State
+  const usersQuery = useMemoFirebase(() => db ? collection(db, 'users') : null, [db]);
+  const { data: dbUsers, isLoading: isUsersLoading } = useCollection(usersQuery);
+
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<string>('All');
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [isUserDetailOpen, setIsUserDetailOpen] = useState(false);
+
+  const normalizedUsers = useMemo(() => {
+    return (dbUsers || []).map((u: any) => ({
+      id: u.id,
+      displayName: u.displayName || u.name || 'Registered Account',
+      email: u.email || 'No email specified',
+      role: (u.role as string) || 'user',
+      createdAt: u.createdAt || u.updatedAt || undefined,
+      ...u,
+    })).sort((a: any, b: any) => String(a.displayName || '').localeCompare(String(b.displayName || '')));
+  }, [dbUsers]);
+
+  const filteredUsers = useMemo(() => {
+    const q = userSearchQuery.trim().toLowerCase();
+    return normalizedUsers.filter((u: any) => {
+      const matchesSearch = !q || [u.displayName, u.email, u.id, u.role].join(' ').toLowerCase().includes(q);
+      const matchesRole = userRoleFilter === 'All'
+        || (userRoleFilter === 'admin' && u.role === 'admin')
+        || (userRoleFilter === 'lgu' && u.role === 'lgu')
+        || (userRoleFilter === 'user' && u.role !== 'admin' && u.role !== 'lgu');
+      return matchesSearch && matchesRole;
+    });
+  }, [normalizedUsers, userSearchQuery, userRoleFilter]);
+
+  const userStats = useMemo(() => {
+    return {
+      total: normalizedUsers.length,
+      admins: normalizedUsers.filter((u: any) => u.role === 'admin').length,
+      lgu: normalizedUsers.filter((u: any) => u.role === 'lgu').length,
+      regular: normalizedUsers.filter((u: any) => u.role !== 'admin' && u.role !== 'lgu').length,
+    };
+  }, [normalizedUsers]);
+
+  // User Feedback Query & State
+  const feedbackQuery = useMemoFirebase(() => db ? collection(db, 'userFeedback') : null, [db]);
+  const { data: dbFeedback, isLoading: isFeedbackLoading } = useCollection(feedbackQuery);
+
+  const [feedbackSearchQuery, setFeedbackSearchQuery] = useState('');
+  const [feedbackStatusFilter, setFeedbackStatusFilter] = useState<string>('All');
+  const [selectedFeedback, setSelectedFeedback] = useState<any>(null);
+  const [isFeedbackDetailOpen, setIsFeedbackDetailOpen] = useState(false);
+  const [isUpdatingFeedbackStatus, setIsUpdatingFeedbackStatus] = useState(false);
+
+  const normalizedFeedback = useMemo(() => {
+    return (dbFeedback || []).map((f: any) => ({
+      id: f.id,
+      userName: f.userName || f.name || f.userEmail || 'Anonymous Visitor',
+      userEmail: f.userEmail || f.email || 'Not provided',
+      message: f.message || f.content || 'No message content provided.',
+      category: f.category || f.type || 'General System',
+      status: f.status || 'New',
+      createdAt: f.createdAt || undefined,
+      ...f,
+    }));
+  }, [dbFeedback]);
+
+  const filteredFeedback = useMemo(() => {
+    const q = feedbackSearchQuery.trim().toLowerCase();
+    return normalizedFeedback.filter((f: any) => {
+      const matchesSearch = !q || [f.userName, f.userEmail, f.message, f.category].join(' ').toLowerCase().includes(q);
+      const matchesStatus = feedbackStatusFilter === 'All' || f.status === feedbackStatusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [normalizedFeedback, feedbackSearchQuery, feedbackStatusFilter]);
+
+  const feedbackStats = useMemo(() => {
+    return {
+      total: normalizedFeedback.length,
+      new: normalizedFeedback.filter((f: any) => f.status === 'New' || !f.status).length,
+      reviewed: normalizedFeedback.filter((f: any) => f.status === 'Reviewed').length,
+      resolved: normalizedFeedback.filter((f: any) => f.status === 'Resolved').length,
+    };
+  }, [normalizedFeedback]);
+
+  const handleUpdateFeedbackStatus = async (feedbackId: string, newStatus: 'New' | 'Reviewed' | 'Resolved') => {
+    if (!db) return;
+    setIsUpdatingFeedbackStatus(true);
+    try {
+      await setDoc(doc(db, 'userFeedback', feedbackId), {
+        status: newStatus,
+        reviewedBy: user?.displayName || user?.email || 'Administrator',
+        reviewedAt: serverTimestamp(),
+      }, { merge: true });
+      toast({ title: 'Feedback status updated', description: `Marked as ${newStatus}` });
+      setIsFeedbackDetailOpen(false);
+      setSelectedFeedback(null);
+    } catch (err: any) {
+      console.error('Failed to update feedback status:', err);
+      toast({ title: 'Update failed', description: err.message || 'Could not update status.', variant: 'destructive' });
+    } finally {
+      setIsUpdatingFeedbackStatus(false);
+    }
+  };
 
   const handleMainImageFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -864,16 +976,441 @@ export default function AdminDashboardPage() {
               </Card>
             )}
 
-            {(['feedback', 'users', 'settings'] as AdminTab[]).includes(activeTab) && (
-              <Card className="rounded-lg border-slate-200 bg-white">
-                <CardContent className="flex min-h-[320px] flex-col items-center justify-center p-8 text-center">
-                  <ShieldCheck className="mb-3 text-slate-300" size={42} />
-                  <h2 className="text-xl font-black text-slate-950">Panel Reserved</h2>
-                  <p className="mt-2 max-w-md text-sm text-slate-500">
-                    This area is ready for the next admin workflow. Heritage site records are fully managed in the current Sites panel.
-                  </p>
-                </CardContent>
-              </Card>
+            {activeTab === 'users' && (
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600">
+                        <Users size={20} />
+                      </div>
+                      <div>
+                        <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">Total System Users</p>
+                        <p className="text-2xl font-black text-slate-950">{userStats.total}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-purple-50 text-purple-600">
+                        <ShieldCheck size={20} />
+                      </div>
+                      <div>
+                        <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">Administrators</p>
+                        <p className="text-2xl font-black text-slate-950">{userStats.admins}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-emerald-600">
+                        <Shield size={20} />
+                      </div>
+                      <div>
+                        <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">LGU Officers</p>
+                        <p className="text-2xl font-black text-slate-950">{userStats.lgu}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-700">
+                        <User size={20} />
+                      </div>
+                      <div>
+                        <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">Registered Users</p>
+                        <p className="text-2xl font-black text-slate-950">{userStats.regular}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="rounded-lg border-slate-200 bg-white">
+                  <CardHeader className="gap-4 border-b border-slate-100 p-5">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <CardTitle className="text-base font-black">Registered Accounts Directory</CardTitle>
+                      <div className="flex flex-col gap-2 md:flex-row">
+                        <div className="relative min-w-[240px]">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                          <Input
+                            value={userSearchQuery}
+                            onChange={e => setUserSearchQuery(e.target.value)}
+                            placeholder="Search user name, email, UID..."
+                            className="h-10 rounded-md border-slate-200 pl-9"
+                          />
+                        </div>
+                        <select
+                          value={userRoleFilter}
+                          onChange={e => setUserRoleFilter(e.target.value)}
+                          className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium"
+                        >
+                          <option value="All">All Roles</option>
+                          <option value="admin">Administrator</option>
+                          <option value="lgu">LGU Officer</option>
+                          <option value="user">Registered User</option>
+                        </select>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-slate-50">
+                            <TableHead className="min-w-[240px]">User</TableHead>
+                            <TableHead>System Role</TableHead>
+                            <TableHead className="min-w-[220px]">Account UID</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {isUsersLoading && (
+                            <TableRow>
+                              <TableCell colSpan={5} className="h-40 text-center">
+                                <Loader2 className="mx-auto animate-spin text-primary" />
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          {!isUsersLoading && filteredUsers.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={5} className="h-40 text-center">
+                                <p className="font-bold text-slate-700">No user records found.</p>
+                                <p className="mt-1 text-sm text-slate-500">Try adjusting your search query or role filter.</p>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          {!isUsersLoading && filteredUsers.map((u: any) => (
+                            <TableRow key={u.id}>
+                              <TableCell>
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 font-bold text-slate-700 text-sm">
+                                    {(u.displayName || u.email || 'U').charAt(0).toUpperCase()}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="truncate font-black text-slate-950">{u.displayName}</p>
+                                    <p className="truncate text-xs text-slate-500">{u.email}</p>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {u.role === 'admin' ? (
+                                  <Badge className="bg-purple-600 hover:bg-purple-700 text-white border-none font-bold text-[10px] uppercase">
+                                    Administrator
+                                  </Badge>
+                                ) : u.role === 'lgu' ? (
+                                  <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-none font-bold text-[10px] uppercase">
+                                    LGU Officer
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="border-slate-300 text-slate-700 font-bold text-[10px] uppercase">
+                                    Registered User
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs text-slate-500 truncate max-w-[200px]">
+                                {u.id}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="border-emerald-500 text-emerald-700 bg-emerald-50 font-bold text-[10px]">
+                                  Active Account
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs font-bold"
+                                  onClick={() => { setSelectedUser(u); setIsUserDetailOpen(true); }}
+                                >
+                                  <Eye size={14} className="mr-1" /> View Details
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {activeTab === 'feedback' && (
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600">
+                        <MessageSquare size={20} />
+                      </div>
+                      <div>
+                        <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">Total Submissions</p>
+                        <p className="text-2xl font-black text-slate-950">{feedbackStats.total}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-amber-50 text-amber-600">
+                        <Clock size={20} />
+                      </div>
+                      <div>
+                        <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">New Queue</p>
+                        <p className="text-2xl font-black text-slate-950">{feedbackStats.new}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-purple-50 text-purple-600">
+                        <FileEdit size={20} />
+                      </div>
+                      <div>
+                        <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">Reviewed</p>
+                        <p className="text-2xl font-black text-slate-950">{feedbackStats.reviewed}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-emerald-600">
+                        <CheckCircle2 size={20} />
+                      </div>
+                      <div>
+                        <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">Resolved</p>
+                        <p className="text-2xl font-black text-slate-950">{feedbackStats.resolved}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="rounded-lg border-slate-200 bg-white">
+                  <CardHeader className="gap-4 border-b border-slate-100 p-5">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <CardTitle className="text-base font-black">User Feedback Queue</CardTitle>
+                      <div className="flex flex-col gap-2 md:flex-row">
+                        <div className="relative min-w-[240px]">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                          <Input
+                            value={feedbackSearchQuery}
+                            onChange={e => setFeedbackSearchQuery(e.target.value)}
+                            placeholder="Search user, message..."
+                            className="h-10 rounded-md border-slate-200 pl-9"
+                          />
+                        </div>
+                        <select
+                          value={feedbackStatusFilter}
+                          onChange={e => setFeedbackStatusFilter(e.target.value)}
+                          className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium"
+                        >
+                          <option value="All">All Statuses</option>
+                          <option value="New">New</option>
+                          <option value="Reviewed">Reviewed</option>
+                          <option value="Resolved">Resolved</option>
+                        </select>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {isFeedbackLoading && (
+                      <div className="flex min-h-[260px] items-center justify-center">
+                        <Loader2 className="animate-spin text-primary" size={32} />
+                      </div>
+                    )}
+
+                    {!isFeedbackLoading && filteredFeedback.length === 0 && (
+                      <div className="flex min-h-[300px] flex-col items-center justify-center p-8 text-center">
+                        <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                          <MessageSquare size={28} />
+                        </div>
+                        <h3 className="text-lg font-black text-slate-950">No User Feedback Submissions</h3>
+                        <p className="mt-1 max-w-md text-xs text-slate-500 leading-relaxed">
+                          General system feedback submitted by visitors will be queued here for administrator review. Site-specific visitor reviews and star ratings are separately managed on individual heritage site pages.
+                        </p>
+                      </div>
+                    )}
+
+                    {!isFeedbackLoading && filteredFeedback.length > 0 && (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-slate-50">
+                              <TableHead className="min-w-[200px]">User</TableHead>
+                              <TableHead className="min-w-[140px]">Category</TableHead>
+                              <TableHead className="min-w-[300px]">Message</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead className="text-right">Action</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredFeedback.map((f: any) => (
+                              <TableRow key={f.id}>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-black text-slate-950 text-xs">{f.userName}</p>
+                                    <p className="text-[11px] text-slate-500">{f.userEmail}</p>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-xs font-semibold text-slate-700">
+                                  {f.category}
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-600 line-clamp-2">
+                                  {f.message}
+                                </TableCell>
+                                <TableCell>
+                                  {f.status === 'Resolved' ? (
+                                    <Badge className="bg-emerald-600 text-white font-bold text-[10px] uppercase">
+                                      Resolved
+                                    </Badge>
+                                  ) : f.status === 'Reviewed' ? (
+                                    <Badge className="bg-purple-600 text-white font-bold text-[10px] uppercase">
+                                      Reviewed
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="border-amber-400 text-amber-800 bg-amber-50 font-bold text-[10px] uppercase">
+                                      New
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-xs font-bold"
+                                    onClick={() => { setSelectedFeedback(f); setIsFeedbackDetailOpen(true); }}
+                                  >
+                                    <Eye size={14} className="mr-1" /> Review
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {activeTab === 'settings' && (
+              <div className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardHeader className="border-b border-slate-100 pb-4">
+                      <div className="flex items-center gap-2">
+                        <Cpu className="text-primary" size={20} />
+                        <CardTitle className="text-base font-black">System Architecture</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-5 space-y-4 text-xs">
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Application Core</p>
+                        <p className="text-sm font-black text-slate-900 mt-0.5">Handumanan v1.0 (Metro Cebu Heritage System)</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Framework & Engine</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">Next.js 15 (App Router), React 19, Tailwind CSS</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Authentication Provider</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">Firebase Authentication (Email/Password & Role Profiles)</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Primary Database</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">Google Cloud Firestore (`heritageSites`, `users`, `categories`)</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardHeader className="border-b border-slate-100 pb-4">
+                      <div className="flex items-center gap-2">
+                        <Globe className="text-emerald-600" size={20} />
+                        <CardTitle className="text-base font-black">Map & Spatial Defaults</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-5 space-y-4 text-xs">
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Default Center Coordinates</p>
+                        <p className="font-semibold text-slate-800 font-mono mt-0.5">10.3157, 123.8854 (Metro Cebu Center)</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Map Zoom Level</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">Zoom Level 13 (Metro Cebu Extents)</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Covered LGUs</p>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          <Badge variant="outline">Cebu City</Badge>
+                          <Badge variant="outline">Mandaue City</Badge>
+                          <Badge variant="outline">Lapu-Lapu City</Badge>
+                          <Badge variant="outline">Talisay City</Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Routing & Navigation Engine</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">Google Maps Directions API (`/api/google-routes` proxy)</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardHeader className="border-b border-slate-100 pb-4">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="text-purple-600" size={20} />
+                        <CardTitle className="text-base font-black">Directory & AI Grounding</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-5 space-y-4 text-xs">
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Dataset Integration</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">Hybrid (Static `HERITAGE_SITES` + Firestore Custom Overrides)</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Active Registered Sites</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">{stats.total} total directory records</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">AI Chatbot Engine</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">Genkit AI Heritage Flow with strict directory grounding</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Public Visibility Policy</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">Suppresses `Needs Revision` and `Rejected` sites from public views</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardHeader className="border-b border-slate-100 pb-4">
+                      <div className="flex items-center gap-2">
+                        <Lock className="text-amber-600" size={20} />
+                        <CardTitle className="text-base font-black">Security & Support Metadata</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-5 space-y-4 text-xs">
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Security Rules Policy</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">Enforced via `firestore.rules` (Role-based access control for Admins & LGUs)</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Current Session Admin</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">{user?.displayName || user?.email || 'Administrator'}</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Storage Status</p>
+                        <p className="font-semibold text-amber-700 mt-0.5">Spark Plan (Uses local static assets under `public/heritage-sites/`)</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">Technical Support</p>
+                        <p className="font-semibold text-slate-800 mt-0.5">Handumanan Core Heritage System Maintenance Team</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             )}
           </div>
         </main>
@@ -1166,6 +1703,135 @@ export default function AdminDashboardPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Details Inspection Dialog */}
+      <Dialog open={isUserDetailOpen} onOpenChange={setIsUserDetailOpen}>
+        <DialogContent className="max-w-md rounded-lg bg-white p-6">
+          {selectedUser && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-xl font-black text-slate-950">
+                  User Account Details
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-1">
+                  Authentication metadata and assigned system role.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="my-4 space-y-3 text-xs">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary text-base">
+                    {(selectedUser.displayName || selectedUser.email || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-black text-slate-950 text-sm truncate">{selectedUser.displayName}</p>
+                    <p className="text-slate-500 truncate">{selectedUser.email}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <div>
+                    <span className="font-black uppercase tracking-wider text-[10px] text-slate-400">User ID (UID):</span>
+                    <p className="font-mono text-xs text-slate-800 bg-slate-100 p-2 rounded mt-0.5 break-all">{selectedUser.id}</p>
+                  </div>
+                  <div>
+                    <span className="font-black uppercase tracking-wider text-[10px] text-slate-400">Assigned System Role:</span>
+                    <div className="mt-1">
+                      {selectedUser.role === 'admin' ? (
+                        <Badge className="bg-purple-600 text-white font-bold text-[10px] uppercase">Administrator</Badge>
+                      ) : selectedUser.role === 'lgu' ? (
+                        <Badge className="bg-emerald-600 text-white font-bold text-[10px] uppercase">LGU Officer</Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-slate-300 text-slate-700 font-bold text-[10px] uppercase">Registered User</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="font-black uppercase tracking-wider text-[10px] text-slate-400">Account Authorization Policy:</span>
+                    <p className="text-slate-500 mt-0.5 leading-relaxed">
+                      Permissions are enforced strictly via Firestore Security Rules (`firestore.rules`). Admin and LGU privileges require matching profile roles or admin registry keys.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsUserDetailOpen(false)}>
+                  Close Details
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Feedback Review Dialog */}
+      <Dialog open={isFeedbackDetailOpen} onOpenChange={setIsFeedbackDetailOpen}>
+        <DialogContent className="max-w-lg rounded-lg bg-white p-6">
+          {selectedFeedback && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center justify-between">
+                  <DialogTitle className="text-xl font-black text-slate-950">
+                    User Feedback Review
+                  </DialogTitle>
+                  <Badge variant="outline">{selectedFeedback.category}</Badge>
+                </div>
+                <DialogDescription className="text-xs text-slate-500 mt-1">
+                  Submitted by {selectedFeedback.userName} ({selectedFeedback.userEmail})
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="my-4 space-y-4 text-xs">
+                <div>
+                  <span className="font-black uppercase tracking-wider text-[10px] text-slate-400">Feedback Message:</span>
+                  <p className="text-xs text-slate-800 bg-slate-50 p-3 rounded-lg border border-slate-200 mt-1 whitespace-pre-wrap leading-relaxed">
+                    {selectedFeedback.message}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="font-black uppercase tracking-wider text-[10px] text-slate-400">Current Queue Status:</span>
+                  <div className="mt-1">
+                    {selectedFeedback.status === 'Resolved' ? (
+                      <Badge className="bg-emerald-600 text-white font-bold text-[10px] uppercase">Resolved</Badge>
+                    ) : selectedFeedback.status === 'Reviewed' ? (
+                      <Badge className="bg-purple-600 text-white font-bold text-[10px] uppercase">Reviewed</Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-amber-400 text-amber-800 bg-amber-50 font-bold text-[10px] uppercase">New</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+                <Button variant="outline" onClick={() => setIsFeedbackDetailOpen(false)}>
+                  Close
+                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-purple-300 text-purple-700 hover:bg-purple-50 font-bold"
+                    onClick={() => handleUpdateFeedbackStatus(selectedFeedback.id, 'Reviewed')}
+                    disabled={isUpdatingFeedbackStatus}
+                  >
+                    Mark Reviewed
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                    onClick={() => handleUpdateFeedbackStatus(selectedFeedback.id, 'Resolved')}
+                    disabled={isUpdatingFeedbackStatus}
+                  >
+                    Mark Resolved
+                  </Button>
+                </div>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
