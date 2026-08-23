@@ -282,87 +282,16 @@ export default function AdminDashboardPage() {
   const [isUploadingGallery, setIsUploadingGallery] = useState(false);
   const [showManualUrlInput, setShowManualUrlInput] = useState(true);
 
-  // System Users Query & State
-  const usersQuery = useMemoFirebase(() => db ? collection(db, 'users') : null, [db]);
-  const { data: dbUsers, isLoading: isUsersLoading } = useCollection(usersQuery);
-
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState<string>('All');
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isUserDetailOpen, setIsUserDetailOpen] = useState(false);
-
-  const normalizedUsers = useMemo(() => {
-    return (dbUsers || []).map((u: any) => ({
-      id: u.id,
-      displayName: u.displayName || u.name || 'Registered Account',
-      email: u.email || 'No email specified',
-      role: (u.role as string) || 'user',
-      createdAt: u.createdAt || u.updatedAt || undefined,
-      ...u,
-    })).sort((a: any, b: any) => String(a.displayName || '').localeCompare(String(b.displayName || '')));
-  }, [dbUsers]);
-
-  const filteredUsers = useMemo(() => {
-    const q = userSearchQuery.trim().toLowerCase();
-    return normalizedUsers.filter((u: any) => {
-      const matchesSearch = !q || [u.displayName, u.email, u.id, u.role].join(' ').toLowerCase().includes(q);
-      const matchesRole = userRoleFilter === 'All'
-        || (userRoleFilter === 'admin' && u.role === 'admin')
-        || (userRoleFilter === 'lgu' && u.role === 'lgu')
-        || (userRoleFilter === 'user' && u.role !== 'admin' && u.role !== 'lgu');
-      return matchesSearch && matchesRole;
-    });
-  }, [normalizedUsers, userSearchQuery, userRoleFilter]);
-
-  const userStats = useMemo(() => {
-    return {
-      total: normalizedUsers.length,
-      admins: normalizedUsers.filter((u: any) => u.role === 'admin').length,
-      lgu: normalizedUsers.filter((u: any) => u.role === 'lgu').length,
-      regular: normalizedUsers.filter((u: any) => u.role !== 'admin' && u.role !== 'lgu').length,
-    };
-  }, [normalizedUsers]);
-
-  // User Feedback Query & State
-  const feedbackQuery = useMemoFirebase(() => db ? collection(db, 'userFeedback') : null, [db]);
-  const { data: dbFeedback, isLoading: isFeedbackLoading } = useCollection(feedbackQuery);
 
   const [feedbackSearchQuery, setFeedbackSearchQuery] = useState('');
   const [feedbackStatusFilter, setFeedbackStatusFilter] = useState<string>('All');
   const [selectedFeedback, setSelectedFeedback] = useState<any>(null);
   const [isFeedbackDetailOpen, setIsFeedbackDetailOpen] = useState(false);
   const [isUpdatingFeedbackStatus, setIsUpdatingFeedbackStatus] = useState(false);
-
-  const normalizedFeedback = useMemo(() => {
-    return (dbFeedback || []).map((f: any) => ({
-      id: f.id,
-      userName: f.userName || f.name || f.userEmail || 'Anonymous Visitor',
-      userEmail: f.userEmail || f.email || 'Not provided',
-      message: f.message || f.content || 'No message content provided.',
-      category: f.category || f.type || 'General System',
-      status: f.status || 'New',
-      createdAt: f.createdAt || undefined,
-      ...f,
-    }));
-  }, [dbFeedback]);
-
-  const filteredFeedback = useMemo(() => {
-    const q = feedbackSearchQuery.trim().toLowerCase();
-    return normalizedFeedback.filter((f: any) => {
-      const matchesSearch = !q || [f.userName, f.userEmail, f.message, f.category].join(' ').toLowerCase().includes(q);
-      const matchesStatus = feedbackStatusFilter === 'All' || f.status === feedbackStatusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [normalizedFeedback, feedbackSearchQuery, feedbackStatusFilter]);
-
-  const feedbackStats = useMemo(() => {
-    return {
-      total: normalizedFeedback.length,
-      new: normalizedFeedback.filter((f: any) => f.status === 'New' || !f.status).length,
-      reviewed: normalizedFeedback.filter((f: any) => f.status === 'Reviewed').length,
-      resolved: normalizedFeedback.filter((f: any) => f.status === 'Resolved').length,
-    };
-  }, [normalizedFeedback]);
 
   const handleUpdateFeedbackStatus = async (feedbackId: string, newStatus: 'New' | 'Reviewed' | 'Resolved') => {
     if (!db) return;
@@ -482,6 +411,85 @@ export default function AdminDashboardPage() {
 
   const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: userData, isLoading: isCheckingRole } = useDoc(userDocRef);
+
+  // System Users Query & State
+  const canQueryUsers = !!(db && user && userData?.role === 'admin' && activeTab === 'users');
+  const usersQuery = useMemoFirebase(
+    () => (canQueryUsers ? collection(db, 'users') : null),
+    [db, user, userData?.role, activeTab, canQueryUsers]
+  );
+  const { data: dbUsers, isLoading: isUsersLoading } = useCollection(usersQuery);
+
+  const normalizedUsers = useMemo(() => {
+    return (dbUsers || []).map((u: any) => ({
+      id: u.id,
+      displayName: u.displayName || u.name || 'Registered Account',
+      email: u.email || 'No email specified',
+      role: (u.role as string) || 'user',
+      createdAt: u.createdAt || u.updatedAt || undefined,
+      ...u,
+    })).sort((a: any, b: any) => String(a.displayName || '').localeCompare(String(b.displayName || '')));
+  }, [dbUsers]);
+
+  const filteredUsers = useMemo(() => {
+    const q = userSearchQuery.trim().toLowerCase();
+    return normalizedUsers.filter((u: any) => {
+      const matchesSearch = !q || [u.displayName, u.email, u.id, u.role].join(' ').toLowerCase().includes(q);
+      const matchesRole = userRoleFilter === 'All'
+        || (userRoleFilter === 'admin' && u.role === 'admin')
+        || (userRoleFilter === 'lgu' && u.role === 'lgu')
+        || (userRoleFilter === 'user' && u.role !== 'admin' && u.role !== 'lgu');
+      return matchesSearch && matchesRole;
+    });
+  }, [normalizedUsers, userSearchQuery, userRoleFilter]);
+
+  const userStats = useMemo(() => {
+    return {
+      total: normalizedUsers.length,
+      admins: normalizedUsers.filter((u: any) => u.role === 'admin').length,
+      lgu: normalizedUsers.filter((u: any) => u.role === 'lgu').length,
+      regular: normalizedUsers.filter((u: any) => u.role !== 'admin' && u.role !== 'lgu').length,
+    };
+  }, [normalizedUsers]);
+
+  // User Feedback Query & State
+  const canQueryFeedback = !!(db && user && userData?.role === 'admin' && activeTab === 'feedback');
+  const feedbackQuery = useMemoFirebase(
+    () => (canQueryFeedback ? collection(db, 'userFeedback') : null),
+    [db, user, userData?.role, activeTab, canQueryFeedback]
+  );
+  const { data: dbFeedback, isLoading: isFeedbackLoading } = useCollection(feedbackQuery);
+
+  const normalizedFeedback = useMemo(() => {
+    return (dbFeedback || []).map((f: any) => ({
+      id: f.id,
+      userName: f.userName || f.name || f.userEmail || 'Anonymous Visitor',
+      userEmail: f.userEmail || f.email || 'Not provided',
+      message: f.message || f.content || 'No message content provided.',
+      category: f.category || f.type || 'General System',
+      status: f.status || 'New',
+      createdAt: f.createdAt || undefined,
+      ...f,
+    }));
+  }, [dbFeedback]);
+
+  const filteredFeedback = useMemo(() => {
+    const q = feedbackSearchQuery.trim().toLowerCase();
+    return normalizedFeedback.filter((f: any) => {
+      const matchesSearch = !q || [f.userName, f.userEmail, f.message, f.category].join(' ').toLowerCase().includes(q);
+      const matchesStatus = feedbackStatusFilter === 'All' || f.status === feedbackStatusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [normalizedFeedback, feedbackSearchQuery, feedbackStatusFilter]);
+
+  const feedbackStats = useMemo(() => {
+    return {
+      total: normalizedFeedback.length,
+      new: normalizedFeedback.filter((f: any) => f.status === 'New' || !f.status).length,
+      reviewed: normalizedFeedback.filter((f: any) => f.status === 'Reviewed').length,
+      resolved: normalizedFeedback.filter((f: any) => f.status === 'Resolved').length,
+    };
+  }, [normalizedFeedback]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {

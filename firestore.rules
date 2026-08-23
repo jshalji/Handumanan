@@ -172,5 +172,14 @@ service cloud.firestore {
     match /roles_admin/{adminUid} {
       allow read, write: if false; 
     }
+
+    /**
+     * @description General user feedback submissions queue.
+     * @path /userFeedback/{feedbackId}
+     */
+    match /userFeedback/{feedbackId} {
+      allow get, list, update, delete: if isAdmin();
+      allow create: if true;
+    }
   }
 }
