@@ -1237,17 +1237,6 @@ function ExploreRouteContent() {
         </div>
 
         <div className="hidden md:flex items-center gap-2 pointer-events-auto">
-          {browserLocation && (
-            <div className="flex items-center gap-1.5 rounded-2xl bg-white/95 px-3 py-3 text-[9px] font-black uppercase tracking-widest text-slate-700 shadow-3xl ring-1 ring-black/5 backdrop-blur-xl">
-              <span className={cn(
-                "h-2 w-2 rounded-full shrink-0",
-                browserLocation.confidence === 'HIGH' ? "bg-emerald-500" : browserLocation.confidence === 'MEDIUM' ? "bg-amber-500" : "bg-slate-400"
-              )} />
-              <span>
-                {browserLocation.confidence === 'HIGH' ? 'Location Precise' : browserLocation.confidence === 'MEDIUM' ? 'Location Approx' : 'Location Inaccurate'}
-              </span>
-            </div>
-          )}
           <Button 
             onClick={() => setIsPanelExpanded(prev => !prev)}
             size="icon" 
