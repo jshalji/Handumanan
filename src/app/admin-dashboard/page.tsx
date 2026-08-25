@@ -36,6 +36,7 @@ import {
   ShieldCheck,
   Trash2,
   Users,
+  RefreshCw,
   XCircle,
   Upload,
   X,
@@ -278,6 +279,9 @@ export default function AdminDashboardPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [deletingSiteId, setDeletingSiteId] = useState<string | null>(null);
 
+  const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
+  const { data: userData, isLoading: isCheckingRole } = useDoc(userDocRef);
+
   const [isUploadingMainImage, setIsUploadingMainImage] = useState(false);
   const [isUploadingGallery, setIsUploadingGallery] = useState(false);
   const [showManualUrlInput, setShowManualUrlInput] = useState(true);
@@ -286,6 +290,108 @@ export default function AdminDashboardPage() {
   const [userRoleFilter, setUserRoleFilter] = useState<string>('All');
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isUserDetailOpen, setIsUserDetailOpen] = useState(false);
+
+  const [isProvisionUserOpen, setIsProvisionUserOpen] = useState(false);
+  const [provisionName, setProvisionName] = useState('');
+  const [provisionEmail, setProvisionEmail] = useState('');
+  const [provisionUid, setProvisionUid] = useState('');
+  const [provisionRole, setProvisionRole] = useState<'user' | 'admin' | 'lgu'>('user');
+  const [isProvisioning, setIsProvisioning] = useState(false);
+
+  const handleProvisionUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db) return;
+    if (!provisionEmail.trim()) {
+      toast({ title: 'Email required', description: 'Please enter user email.', variant: 'destructive' });
+      return;
+    }
+
+    setIsProvisioning(true);
+    try {
+      const targetUid = provisionUid.trim() || `user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      await setDoc(doc(db, 'users', targetUid), {
+        uid: targetUid,
+        displayName: provisionName.trim() || provisionEmail.split('@')[0],
+        email: provisionEmail.trim(),
+        role: provisionRole,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
+      toast({
+        title: 'User Profile Provisioned',
+        description: `Successfully provisioned record for ${provisionEmail}.`,
+      });
+      setIsProvisionUserOpen(false);
+      setProvisionName('');
+      setProvisionEmail('');
+      setProvisionUid('');
+      setProvisionRole('user');
+    } catch (err: any) {
+      console.error('Failed to provision user profile:', err);
+      toast({
+        title: 'Provision Failed',
+        description: err.message || 'Could not provision user record.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProvisioning(false);
+    }
+  };
+
+  const [isSyncingAuthUsers, setIsSyncingAuthUsers] = useState(false);
+
+  const handleSyncAuthUsers = async () => {
+    if (!user) return;
+    setIsSyncingAuthUsers(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch('/api/admin/sync-users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json().catch(() => ({ success: false, message: 'Invalid response format' }));
+      if (data && data.success) {
+        const createdUsers = data.created ?? data.createdCount ?? 0;
+        if (data.hasServiceAccount === false) {
+          toast({
+            title: 'Service Account Required for Auto-Sync',
+            description: 'To auto-discover all Firebase Auth users, add FIREBASE_SERVICE_ACCOUNT_KEY to .env.local. Or use "+ Provision User Record" to add any account manually.',
+          });
+        } else if (createdUsers > 0) {
+          toast({
+            title: 'Auth User Sync Complete',
+            description: data.message || `Successfully synchronized ${createdUsers} new user account(s).`,
+          });
+        } else {
+          toast({
+            title: 'System Users Up to Date',
+            description: data.message || 'All user accounts are already synchronized in Firestore.',
+          });
+        }
+      } else if (data && data.message) {
+        toast({
+          title: 'Sync Information',
+          description: data.message,
+          variant: 'default',
+        });
+      }
+    } catch (err: any) {
+      console.warn('Sync Auth Users notice:', err);
+    } finally {
+      setIsSyncingAuthUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'users' && user && userData?.role === 'admin') {
+      handleSyncAuthUsers();
+    }
+  }, [activeTab, user, userData?.role]);
 
   const [feedbackSearchQuery, setFeedbackSearchQuery] = useState('');
   const [feedbackStatusFilter, setFeedbackStatusFilter] = useState<string>('All');
@@ -409,14 +515,11 @@ export default function AdminDashboardPage() {
     updateForm('galleryImages', nextList.join('\n'));
   };
 
-  const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
-  const { data: userData, isLoading: isCheckingRole } = useDoc(userDocRef);
-
   // System Users Query & State
-  const canQueryUsers = !!(db && user && userData?.role === 'admin' && activeTab === 'users');
+  const canQueryUsers = !!(db && user && userData?.role === 'admin');
   const usersQuery = useMemoFirebase(
     () => (canQueryUsers ? collection(db, 'users') : null),
-    [db, user, userData?.role, activeTab, canQueryUsers]
+    [db, user, userData?.role, canQueryUsers]
   );
   const { data: dbUsers, isLoading: isUsersLoading } = useCollection(usersQuery);
 
@@ -1057,6 +1160,23 @@ export default function AdminDashboardPage() {
                           <option value="lgu">LGU Officer</option>
                           <option value="user">Registered User</option>
                         </select>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleSyncAuthUsers}
+                          disabled={isSyncingAuthUsers}
+                          className="h-10 rounded-md font-bold shrink-0"
+                        >
+                          {isSyncingAuthUsers ? <Loader2 size={15} className="animate-spin mr-1.5" /> : <RefreshCw size={15} className="mr-1.5" />}
+                          Sync Auth Users
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => setIsProvisionUserOpen(true)}
+                          className="h-10 rounded-md font-bold shrink-0"
+                        >
+                          <Plus size={15} className="mr-1.5" /> Provision User Record
+                        </Button>
                       </div>
                     </div>
                   </CardHeader>
@@ -1772,6 +1892,79 @@ export default function AdminDashboardPage() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Provision User Record Dialog */}
+      <Dialog open={isProvisionUserOpen} onOpenChange={setIsProvisionUserOpen}>
+        <DialogContent className="max-w-md rounded-lg bg-white p-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-slate-950">
+              Provision User Record
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 mt-1">
+              Create or sync a user profile in Firestore for existing registered accounts.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleProvisionUser} className="space-y-4 my-2">
+            <div className="space-y-2">
+              <Label htmlFor="prov-name" className="text-xs font-bold text-slate-700">Display Name</Label>
+              <Input
+                id="prov-name"
+                value={provisionName}
+                onChange={e => setProvisionName(e.target.value)}
+                placeholder="Juan Dela Cruz"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="prov-email" className="text-xs font-bold text-slate-700">Email Address *</Label>
+              <Input
+                id="prov-email"
+                type="email"
+                value={provisionEmail}
+                onChange={e => setProvisionEmail(e.target.value)}
+                placeholder="user@example.com"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="prov-uid" className="text-xs font-bold text-slate-700">Firebase Auth UID (Optional)</Label>
+              <Input
+                id="prov-uid"
+                value={provisionUid}
+                onChange={e => setProvisionUid(e.target.value)}
+                placeholder="Leave blank to generate UID"
+                className="font-mono text-xs"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="prov-role" className="text-xs font-bold text-slate-700">Assigned System Role</Label>
+              <select
+                id="prov-role"
+                value={provisionRole}
+                onChange={e => setProvisionRole(e.target.value as any)}
+                className="w-full h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium"
+              >
+                <option value="user">Registered User</option>
+                <option value="lgu">LGU Officer</option>
+                <option value="admin">Administrator</option>
+              </select>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsProvisionUserOpen(false)} disabled={isProvisioning}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isProvisioning}>
+                {isProvisioning ? <Loader2 size={15} className="animate-spin mr-1.5" /> : null}
+                Provision User
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

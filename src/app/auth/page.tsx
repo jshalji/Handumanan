@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useUser } from '@/firebase';
+import { useAuth, useUser, useFirestore } from '@/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Navbar } from '@/components/layout/Navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +23,7 @@ export default function AuthPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const auth = useAuth();
+  const db = useFirestore();
   const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
@@ -50,9 +52,20 @@ export default function AuthPage() {
     } else {
       createUserWithEmailAndPassword(auth, email, password)
         .then(async (userCredential) => {
+          const newUid = userCredential.user.uid;
           if (name) {
             await updateProfile(userCredential.user, {
               displayName: name
+            });
+          }
+          if (db) {
+            await setDoc(doc(db, 'users', newUid), {
+              uid: newUid,
+              displayName: name.trim() || email.split('@')[0],
+              email: email.trim(),
+              role: 'user',
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
             });
           }
           toast({

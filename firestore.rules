@@ -33,7 +33,7 @@ service cloud.firestore {
 
     /** @description Checks if the authenticated user is the owner of the existing document. */
     function isExistingOwner(ownerId) {
-      return resource != null && isOwner(ownerId);
+      return resource != null && 'data' in resource && isOwner(ownerId);
     }
 
     /** @description Checks if the user has administrative privileges via the user profile role field. */
@@ -142,28 +142,28 @@ service cloud.firestore {
       allow get, list: if true;
       allow create, update: if isAdmin() || (hasLguProfile() && isLguVerificationOnlyWrite());
       allow delete: if isAdmin();
+    }
 
-      /**
-       * @description User reviews for specific heritage sites.
-       * @path /heritageSites/{siteId}/reviews/{reviewId}
-       */
-      match /reviews/{reviewId} {
-        allow get, list: if true;
-        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-        allow update: if (isExistingOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId) || isAdmin();
-        allow delete: if isExistingOwner(resource.data.userId) || isAdmin();
-      }
+    /**
+     * @description Unified collection group rules for reviews across all heritage sites.
+     * @path /{path=**}/reviews/{reviewId}
+     */
+    match /{path=**}/reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource != null && resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId) || isAdmin());
+      allow delete: if isSignedIn() && ((resource != null && resource.data.userId == request.auth.uid) || isAdmin());
+    }
 
-      /**
-       * @description Visitor photos for specific heritage sites.
-       * @path /heritageSites/{siteId}/visitorPhotos/{photoId}
-       */
-      match /visitorPhotos/{photoId} {
-        allow get, list: if true;
-        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-        allow update: if (isExistingOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId) || isAdmin();
-        allow delete: if isExistingOwner(resource.data.userId) || isAdmin();
-      }
+    /**
+     * @description Unified collection group rules for visitor photos across all heritage sites.
+     * @path /{path=**}/visitorPhotos/{photoId}
+     */
+    match /{path=**}/visitorPhotos/{photoId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && ((resource != null && resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId) || isAdmin());
+      allow delete: if isSignedIn() && ((resource != null && resource.data.userId == request.auth.uid) || isAdmin());
     }
 
     /**
