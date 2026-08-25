@@ -127,7 +127,7 @@ export function Navbar() {
             <div className="ml-4 flex items-center gap-4">
               {!isUserLoading && (
                 user ? (
-                  <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+                  <DropdownMenu modal={false} open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="rounded-2xl gap-3 px-3 h-12 hover:bg-slate-100">
                         <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-sm">
