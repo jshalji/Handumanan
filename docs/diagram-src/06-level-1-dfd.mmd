@@ -1,0 +1,102 @@
+flowchart TD
+    %% External Entities
+    Guest["👤 GUEST / VISITOR"]
+    User["👤 REGISTERED USER"]
+    Admin["👤 ADMINISTRATOR"]
+    LGU["🏛️ LGU OFFICER"]
+    HTML5Geo["📱 HTML5 BROWSER GEOLOCATION API"]
+    GoogleMaps["⚙️ GOOGLE MAPS PLATFORM"]
+    GoogleRoutes["🛣️ GOOGLE ROUTES API"]
+    GeminiAI["✨ GEMINI AI (VIA GENKIT)"]
+
+    %% Processes
+    P1(("1.0<br/>User & Role<br/>Management"))
+    P2(("2.0<br/>Heritage Site Directory<br/>Management"))
+    P3(("3.0<br/>Location & Map<br/>Services"))
+    P4(("4.0<br/>Routing & Navigation<br/>Services"))
+    P5(("5.0<br/>AI Services<br/>(Chatbot & Planner)"))
+    P6(("6.0<br/>Reviews & Ratings<br/>Management"))
+    P7(("7.0<br/>Visitor Photo Album<br/>Management"))
+    P8(("8.0<br/>Favorites & Saved<br/>Itineraries"))
+    P9(("9.0<br/>User Feedback<br/>Management"))
+
+    %% Data Stores
+    D1[("D1 Users Collection (/users)")]
+    D2[("D2 Heritage Sites Collection (/heritageSites)")]
+    D3[("D3 Categories Data (/categories)")]
+    D4[("D4 Site Images (Firebase Storage)")]
+    D5[("D5 Reviews Subcollection Group (/heritageSites/{siteId}/reviews)")]
+    D6[("D6 Visitor Photos Subcollection Group (/heritageSites/{siteId}/visitorPhotos)")]
+    D7[("D7 Favorites Subcollection (/users/{uid}/favorites)")]
+    D8[("D8 Itineraries Subcollection (/users/{uid}/itineraries)")]
+    D9[("D9 User Feedback Collection (/userFeedback)")]
+
+    %% Flows - Process 1.0 User Management
+    User -->|"Login Credentials / Profile Data"| P1
+    Admin -->|"User Role Provisioning"| P1
+    LGU -->|"LGU Credentials"| P1
+    P1 <-->|"Read / Write Profile & Role"| D1
+    P1 -->|"Session Token & User Profile"| User
+    P1 -->|"LGU Session Authorization"| LGU
+
+    %% Flows - Process 2.0 Heritage Site Management
+    Guest -->|"Search & Category Filters"| P2
+    P2 -->|"Site Directory & Details"| Guest
+    Admin -->|"Create / Edit / Deactivate Sites"| P2
+    LGU -->|"Verify, Revise, Reject & Fee Update"| P2
+    P2 <-->|"Read / Write Heritage Records"| D2
+    P2 <-->|"Read Categories"| D3
+    P2 <-->|"Upload / Fetch Site Images"| D4
+
+    %% Flows - Process 3.0 Location & Map Services
+    Guest -->|"Map Coordinates / Nearby Location Request"| P3
+    User -->|"Map Directions Request"| P3
+    P3 <-->|"Read Site Coordinates"| D2
+    P3 -->|"Request Geolocation"| HTML5Geo
+    HTML5Geo -->|"User GPS Coordinates"| P3
+    P3 -->|"Coordinates & Map Config"| GoogleMaps
+    GoogleMaps -->|"Map Rendering & Markers"| P3
+    P3 -->|"Interactive Map Pins & Selected Site Details"| Guest
+
+    %% Flows - Process 4.0 Routing & Navigation Services
+    Guest -->|"Origin & Destination Waypoints"| P4
+    User -->|"Route Planning Request"| P4
+    P4 -->|"Waypoints & Travel Profile"| GoogleRoutes
+    GoogleRoutes -->|"Directions, Distance & Duration"| P4
+    P4 -->|"Calculated Route & Directions"| User
+
+    %% Flows - Process 5.0 AI Services
+    User -->|"Chatbot Prompt & Trip Preferences"| P5
+    P5 <-->|"Read Active Sites Context"| D2
+    P5 <-->|"Read User Favorites Context"| D7
+    P5 -->|"Prompt & Directory Context"| GeminiAI
+    GeminiAI -->|"AI Chatbot Reply & Itinerary Json"| P5
+    P5 -->|"Chatbot Response & Planned Route"| User
+
+    %% Flows - Process 6.0 Reviews & Ratings
+    User -->|"Submit Rating (1-5) & Review Comment"| P6
+    Admin -->|"Delete Abusive Review"| P6
+    P6 <-->|"Write / Delete Review Record"| D5
+    D5 -->|"Read Submitted Reviews"| P6
+    P6 -->|"Update Average Rating Summary"| D2
+    P6 -->|"Display Reviews & Community Feed"| Guest
+
+    %% Flows - Process 7.0 Visitor Photo Album
+    User -->|"Upload Compressed Photo & Caption"| P7
+    Admin -->|"Delete Photo"| P7
+    P7 -->|"Upload Photo Blob"| D4
+    D4 -->|"Image URL"| P7
+    P7 <-->|"Write / Delete Photo Metadata"| D6
+    P7 -->|"Display Visitor Photo Album"| Guest
+
+    %% Flows - Process 8.0 Favorites & Saved Itineraries
+    User -->|"Bookmark Site / Save Itinerary"| P8
+    P8 <-->|"Read / Write Favorites"| D7
+    P8 <-->|"Read / Write Itineraries"| D8
+    P8 -->|"Saved Trips & Favorites List"| User
+
+    %% Flows - Process 9.0 User Feedback Management
+    User -->|"Submit System Feedback Message"| P9
+    Admin -->|"Review & Resolve Feedback Status"| P9
+    P9 <-->|"Read / Write Feedback Submissions"| D9
+    P9 -->|"Feedback Status Update Notification"| Admin

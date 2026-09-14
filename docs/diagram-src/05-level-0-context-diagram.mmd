@@ -1,0 +1,45 @@
+flowchart TD
+    Guest["👤 GUEST / VISITOR"]
+    User["👤 REGISTERED USER"]
+    Admin["👤 ADMINISTRATOR"]
+    LGU["🏛️ LGU OFFICER"]
+
+    System(("0.0<br/>HANDUMANAN CULTURAL HERITAGE<br/>SITE INFORMATION SYSTEM FOR METRO CEBU"))
+
+    HTML5Geo["📱 HTML5 BROWSER GEOLOCATION API"]
+    GoogleMaps["⚙️ GOOGLE MAPS PLATFORM"]
+    GoogleRoutes["🛣️ GOOGLE ROUTES API"]
+    GeminiAI["✨ GEMINI AI (VIA GENKIT)"]
+    Firebase["🔥 FIREBASE SERVICES (AUTH & FIRESTORE)"]
+
+    %% Guest Flows
+    Guest -->|"Search & Category Filters, Location Requests, Selected Site IDs"| System
+    System -->|"Heritage Site Listings, Detailed Profiles, Map Markers"| Guest
+
+    %% Registered User Flows
+    User -->|"Login Credentials, AI Chatbot Queries, Itinerary Preferences, Reviews, Favorites, Photos, Feedback"| System
+    System -->|"Authentication Token, Account Profile, AI Chatbot Replies, Generated Itineraries, Saved Trips"| User
+
+    %% Admin Flows
+    Admin -->|"Site CRUD Operations, User Role Management, Category Updates, Feedback Resolutions"| System
+    System -->|"System Dashboard Stats, User List, Feedback Submissions Queue"| Admin
+
+    %% LGU Flows
+    LGU -->|"LGU Credentials, Verification Status (Verify, Revise, Reject), Reviewer Notes, Fee Updates"| System
+    System -->|"Heritage Directory Table, Detailed Inspection Profile"| LGU
+
+    %% External Systems Flows
+    System -->|"Location Permission Request"| HTML5Geo
+    HTML5Geo -->|"GPS Coordinates & Accuracy Evaluation"| System
+
+    System -->|"Map Center, Coordinates & Custom Style Config"| GoogleMaps
+    GoogleMaps -->|"Map Tile Rendering & Markers"| System
+
+    System -->|"Routing Request (Waypoints, Travel Profile, Transit Mode)"| GoogleRoutes
+    GoogleRoutes -->|"Route Polylines, Distance & Travel Duration"| System
+
+    System -->|"User Prompts, Travel Preferences & Directory Site Context"| GeminiAI
+    GeminiAI -->|"Chatbot Responses & Structured Itinerary Plans"| System
+
+    System -->|"Auth Verification, Read/Write User Data, Sites & Feedback"| Firebase
+    Firebase -->|"Auth Session, Stored Documents & Security Rule Status"| System

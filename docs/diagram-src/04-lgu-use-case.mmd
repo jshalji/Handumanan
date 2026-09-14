@@ -1,0 +1,16 @@
+graph TB
+    subgraph Handumanan_System["HANDUMANAN SYSTEM"]
+        UC1(["1. Authenticate as LGU Officer"])
+        UC2(["2. View Metro Cebu Heritage Sites Directory"])
+        UC3(["3. Inspect Site Details"])
+        UC4(["4. Update Verification Status (Verify / Revise / Reject)"])
+        UC5(["5. Edit Heritage Site Entrance Fee"])
+    end
+
+    LGU["🏛️ LGU OFFICER"]
+
+    LGU --- UC1
+    LGU --- UC2
+    LGU --- UC3
+    LGU --- UC4
+    LGU --- UC5

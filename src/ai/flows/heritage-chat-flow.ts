@@ -7,6 +7,21 @@ import { ai, hasGoogleAiApiKey } from '@/ai/genkit';
 import { z } from 'genkit';
 import { DEPRECATED_HERITAGE_SITE_IDS, HERITAGE_SITES, hasExplicitHeritageIntent } from '@/lib/heritage-data';
 import { getSiteAvailability, isSiteOpenForVisit } from '@/lib/site-availability';
+import {
+  isExplicitTourRequest,
+  isTourPlanningMode,
+  isPromptInjectionQuery,
+  getPromptInjectionRefusal,
+  isBroadCebuQuestion,
+  getBroadCebuResponse,
+  checkNonexistentOrUnlistedSite,
+  checkMissingFactInSiteRecord,
+  isBestHeritageSiteQuery,
+  getBestHeritageSiteResponse,
+  checkAllOpeningHoursQuery,
+  getAllOpeningHoursResponse,
+  generateStructuredTourResponse,
+} from '@/lib/heritage-intent';
 
 const MessageSchema = z.object({
   role: z.enum(['user', 'model', 'system']),
@@ -56,6 +71,7 @@ const HeritageChatInputSchema = z.object({
 const HeritageChatOutputSchema = z.object({
   text: z.string(),
   suggestedSiteIds: z.array(z.string()).optional(),
+  isGeneratedItinerary: z.boolean().optional(),
 });
 
 export type HeritageChatInput = z.infer<typeof HeritageChatInputSchema>;
@@ -171,16 +187,8 @@ function parseAvailableHours(query: string): number {
   return match ? Number(match[1]) : 4;
 }
 
-function isTripPlanningQuery(query: string): boolean {
-  const hasExplicitPlanningKeyword =
-    /\b(itinerary|route|trip|tour|tours|planner|planning)\b/.test(query) ||
-    (/\bplan\b/.test(query) && /\b(cebu|heritage|site|sites|place|places|route|trip|tour|museum|church|landmark|day|hour|hours)\b/.test(query));
-
-  return (
-    isTravelTimeQuery(query) ||
-    /\b(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/.test(query) ||
-    hasExplicitPlanningKeyword
-  );
+function isTripPlanningQuery(query: string, history: any[] = []): boolean {
+  return isExplicitTourRequest(query, history) || isTravelTimeQuery(query);
 }
 
 function getStopCountForHours(hours: number): number {
@@ -1079,18 +1087,19 @@ function isClearlyUnsupportedGeneralQuestion(query: string, sites: HeritageSiteR
   return getStrongMatchingSites(query, 1, sites, false).length === 0;
 }
 
-function isHandumananFocusedQuery(query: string, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+function isHandumananFocusedQuery(query: string, sites: HeritageSiteRecord[] = HERITAGE_SITES, history: any[] = []) {
   const normalizedQuery = normalizeSearchText(query);
   if (asksOutsideMetroCebu(normalizedQuery)) return false;
-  if (isClearlyUnsupportedGeneralQuestion(query, sites)) return false;
+  if (isClearlyUnsupportedGeneralQuestion(query, sites) && !isTourPlanningMode(history, query)) return false;
 
   return (
+    isTourPlanningMode(history, query) ||
     getStrongMatchingSites(query, 1, sites, false).length > 0 ||
     Boolean(getCityFromQuery(query)) ||
     Boolean(getCategoryFromQuery(query)) ||
     isSystemQuestion(query) ||
     isNearbyLocationQuery(query) ||
-    isTripPlanningQuery(normalizedQuery) ||
+    isTripPlanningQuery(normalizedQuery, history) ||
     (hasHandumananFocusKeyword(normalizedQuery) && HANDUMANAN_DOMAIN_REGEX.test(normalizedQuery)) ||
     isRecommendationQuery(normalizedQuery) ||
     /\b(favorite|favorites|top site|top sites|best site|best sites|must visit|must see|recommend.*site|next stop|nearby site|nearby sites)\b/.test(normalizedQuery) ||
@@ -1584,6 +1593,32 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 3);
 
+  if (isPromptInjectionQuery(lastMessage)) {
+    return getPromptInjectionRefusal();
+  }
+
+  if (isBroadCebuQuestion(lastMessage)) {
+    return getBroadCebuResponse();
+  }
+
+  const unlistedResult = checkNonexistentOrUnlistedSite(lastMessage, sites);
+  if (unlistedResult) return unlistedResult;
+
+  const missingFactResult = checkMissingFactInSiteRecord(lastMessage, sites);
+  if (missingFactResult) return missingFactResult;
+
+  if (checkAllOpeningHoursQuery(lastMessage)) {
+    return getAllOpeningHoursResponse(sites);
+  }
+
+  if (isBestHeritageSiteQuery(lastMessage)) {
+    return getBestHeritageSiteResponse(sites);
+  }
+
+  if (isExplicitTourRequest(lastMessage)) {
+    return generateStructuredTourResponse(lastMessage, input, sites);
+  }
+
   // Friendly greetings
   if (isSimpleGreetingQuery(lastMessage)) {
     return {
@@ -1805,7 +1840,7 @@ function shouldAnswerLocally(input: HeritageChatInput): boolean {
   const normalizedMessage = lastMessage.toLowerCase();
   const sites = getSiteCorpus(input);
 
-  if (isFriendlyChatQuery(lastMessage) || !isHandumananFocusedQuery(lastMessage, sites)) {
+  if (isFriendlyChatQuery(lastMessage) || !isHandumananFocusedQuery(lastMessage, sites, input.history)) {
     return true;
   }
 
@@ -1825,7 +1860,7 @@ function shouldAnswerLocally(input: HeritageChatInput): boolean {
     isNearbyLocationQuery(lastMessage) ||
     /\b(near|nearby|around|close to)\b/.test(normalizedMessage) ||
     isDirectoryListQuery(lastMessage) ||
-    isTripPlanningQuery(lastMessage)
+    isTripPlanningQuery(lastMessage, input.history)
   );
 }
 
@@ -1901,6 +1936,7 @@ function sanitizeChatOutput(output: HeritageChatOutput, sites: HeritageSiteRecor
   return {
     text,
     suggestedSiteIds,
+    isGeneratedItinerary: output.isGeneratedItinerary,
   };
 }
 
@@ -1918,9 +1954,35 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
   const sites = getSiteCorpus(input);
   const normalizedLastMessage = normalizeSearchText(lastMessage);
 
+  if (isPromptInjectionQuery(lastMessage)) {
+    return getPromptInjectionRefusal();
+  }
+
+  if (isTourPlanningMode(input.history, lastMessage)) {
+    return generateStructuredTourResponse(lastMessage, input, sites);
+  }
+
+  if (isBroadCebuQuestion(lastMessage)) {
+    return getBroadCebuResponse();
+  }
+
+  const unlistedResult = checkNonexistentOrUnlistedSite(lastMessage, sites);
+  if (unlistedResult) return unlistedResult;
+
+  const missingFactResult = checkMissingFactInSiteRecord(lastMessage, sites);
+  if (missingFactResult) return missingFactResult;
+
+  if (checkAllOpeningHoursQuery(lastMessage)) {
+    return getAllOpeningHoursResponse(sites);
+  }
+
+  if (isBestHeritageSiteQuery(lastMessage)) {
+    return getBestHeritageSiteResponse(sites);
+  }
+
   if (
     !isFriendlyChatQuery(lastMessage) &&
-    (asksOutsideMetroCebu(normalizedLastMessage) || !isHandumananFocusedQuery(lastMessage, sites))
+    (asksOutsideMetroCebu(normalizedLastMessage) || !isHandumananFocusedQuery(lastMessage, sites, input.history))
   ) {
     return getFocusedRedirectResponse();
   }

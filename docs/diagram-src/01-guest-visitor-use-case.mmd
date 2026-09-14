@@ -1,0 +1,18 @@
+graph TB
+    subgraph Handumanan_System["HANDUMANAN SYSTEM"]
+        UC1(["1. Search and Browse Heritage Sites"])
+        UC2(["2. View Heritage Site Information"])
+        UC3(["3. View Map, Nearby Sites and Current Location"])
+    end
+
+    Guest["👤 GUEST / VISITOR"]
+
+    ExtGeoLocation[["📱 HTML5 Browser Geolocation API<br/>(Client GPS)"]]
+    ExtGoogleMaps[["⚙️ Google Maps Platform<br/>(Map JS API & Markers)"]]
+
+    Guest --- UC1
+    Guest --- UC2
+    Guest --- UC3
+
+    UC3 --- ExtGeoLocation
+    UC3 --- ExtGoogleMaps

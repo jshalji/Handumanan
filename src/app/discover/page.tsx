@@ -345,17 +345,17 @@ function ExploreRouteContent() {
       if (saved) {
         try {
           const savedIds = JSON.parse(saved);
-          const hasNewRoute = JSON.stringify(savedIds) !== JSON.stringify(itineraryIds);
-          if (hasNewRoute) setItineraryIds(savedIds);
+          setItineraryIds(savedIds);
           setActiveTab('planner');
           setIsPanelExpanded(true);
-          if (hasNewRoute) toast({ title: "Route Generated", description: "Your chat-generated trip is ready on the map." });
+          setIsTripMapFocused(true);
+          toast({ title: "Route Generated", description: "Your chat-generated trip is ready on the map." });
         } catch (e) {
           console.error("Storage parse error", e);
         }
       }
     }
-  }, [searchParams, itineraryIds, toast]);
+  }, [searchParams, toast]);
 
   const detectLocation = useCallback(async (options: { showError?: boolean } = {}) => {
     setLoading(true);

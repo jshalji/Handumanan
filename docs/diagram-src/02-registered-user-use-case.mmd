@@ -1,0 +1,25 @@
+graph TB
+    subgraph Handumanan_System["HANDUMANAN SYSTEM"]
+        UC1(["1. Save Favorite Heritage Sites"])
+        UC2(["2. Submit Ratings and Reviews (1–5 Stars)"])
+        UC3(["3. Generate and Save AI Itineraries"])
+        UC4(["4. Upload Visitor Photos"])
+        UC5(["5. Use AI Heritage Guide (Ask Questions & Get Information)"])
+        UC6(["6. Submit General User Feedback"])
+    end
+
+    User["👤 REGISTERED USER"]
+
+    ExtGemini[["✨ Gemini AI via Genkit<br/>(Gemini 2.5 Flash)"]]
+    ExtGoogleMaps[["⚙️ Google Maps Platform<br/>(Map JS API)"]]
+
+    User --- UC1
+    User --- UC2
+    User --- UC3
+    User --- UC4
+    User --- UC5
+    User --- UC6
+
+    UC3 --- ExtGemini
+    UC3 --- ExtGoogleMaps
+    UC5 --- ExtGemini

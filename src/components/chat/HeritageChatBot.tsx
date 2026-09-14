@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageCircle, Send, Sparkles, MapPin, Heart, Minimize2, Loader2, Navigation, Compass, ExternalLink, Info } from 'lucide-react';
 import { chatWithHeritageBot } from '@/ai/flows/heritage-chat-flow';
+import { isExplicitTourRequest, isTourPlanningMode, evaluateTourPlanningState } from '@/lib/heritage-intent';
 import type { HeritageChatInput } from '@/ai/flows/heritage-chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
@@ -24,6 +25,7 @@ interface Message {
   text: string;
   siteIds?: string[];
   requiresAuth?: boolean;
+  isGeneratedItinerary?: boolean;
 }
 
 type ChatDirectorySite = NonNullable<HeritageChatInput['directorySites']>[number];
@@ -78,23 +80,8 @@ function compactSiteForChat(site: any): ChatDirectorySite | null {
   return payload;
 }
 
-function isTripPlanningRequest(text: string) {
-  const query = text.toLowerCase();
-  const hasTravelEndpoints =
-    /\bfrom\b.+\bto\b/.test(query) ||
-    /\bbetween\b.+\band\b/.test(query);
-  const asksForTravelTime =
-    /\b(how long|how many hours|how many minutes|travel time|trip time|drive time|driving time|eta|duration|distance|far)\b/.test(query) ||
-    /\b(take|takes)\b.+\b(go|get|travel|drive)\b/.test(query);
-  const hasExplicitPlanningKeyword =
-    /\b(itinerary|route|trip|tour|tours|planner|planning)\b/.test(query) ||
-    (/\bplan\b/.test(query) && /\b(cebu|heritage|site|sites|place|places|route|trip|tour|museum|church|landmark|day|hour|hours)\b/.test(query));
-
-  return (
-    /\b(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/.test(query) ||
-    (hasTravelEndpoints && asksForTravelTime) ||
-    hasExplicitPlanningKeyword
-  );
+function isTripPlanningRequest(text: string, history?: any[]) {
+  return isExplicitTourRequest(text, history);
 }
 
 function isNearbyLocationRequest(text: string) {
@@ -208,7 +195,7 @@ function getClientStrongMatches(query: string, sites: any[], limit = 5) {
     .map(result => result.site);
 }
 
-function getClientFallbackResponse(text: string, sites: any[]): { text: string; suggestedSiteIds: string[] } {
+function getClientFallbackResponse(text: string, sites: any[], input?: any): { text: string; suggestedSiteIds: string[]; isGeneratedItinerary?: boolean } {
   const query = normalizeChatText(text);
   const activeSites = sites.filter(site => site?.isActive !== false && site?.status !== 'Inactive');
   const mustVisitSites = activeSites
@@ -220,6 +207,16 @@ function getClientFallbackResponse(text: string, sites: any[]): { text: string; 
     return {
       text: "Hello! Maayong adlaw. I can still help you explore Handumanan's Metro Cebu heritage directory, routes, and must-visit sites.",
       suggestedSiteIds: mustVisitSites.map(site => site.id),
+      isGeneratedItinerary: false,
+    };
+  }
+
+  if (isTourPlanningMode(input?.history, text)) {
+    const result = evaluateTourPlanningState(text, input || { history: [{ role: 'user', content: [{ text }] }] }, sites);
+    return {
+      text: result.text,
+      suggestedSiteIds: result.suggestedSiteIds || [],
+      isGeneratedItinerary: result.isGeneratedItinerary,
     };
   }
 
@@ -227,10 +224,9 @@ function getClientFallbackResponse(text: string, sites: any[]): { text: string; 
     return {
       text: "Sorry, I can only answer questions related to Metro Cebu heritage sites, tourism guidance, routes, itineraries, and the Handumanan system.",
       suggestedSiteIds: [],
+      isGeneratedItinerary: false,
     };
   }
-
-
 
   const city = ['cebu city', 'mandaue city', 'talisay city', 'lapu-lapu city']
     .find(cityName => query.includes(cityName));
@@ -262,6 +258,7 @@ function getClientFallbackResponse(text: string, sites: any[]): { text: string; 
     return {
       text: "Sorry, I can only answer questions related to Metro Cebu heritage sites, tourism guidance, routes, itineraries, and the Handumanan system.",
       suggestedSiteIds: [],
+      isGeneratedItinerary: false,
     };
   }
 
@@ -278,24 +275,18 @@ function getClientFallbackResponse(text: string, sites: any[]): { text: string; 
     })
     .slice(0, 5);
 
-  if (isTripPlanningRequest(text)) {
-    const routeSites = (matches.length >= 2 ? matches : mustVisitSites).slice(0, 4);
-    return {
-      text: `I prepared a simple heritage route using available directory data: ${routeSites.map(site => site.name).join(', ')}. Opening these on the map can help you review the stops.`,
-      suggestedSiteIds: routeSites.map(site => site.id),
-    };
-  }
-
   if (matches.length > 0) {
     return {
       text: `Here are relevant Handumanan sites: ${matches.map(site => `${site.name} (${site.city})`).join(', ')}. You can open each card to view details and map directions.`,
       suggestedSiteIds: matches.map(site => site.id),
+      isGeneratedItinerary: false,
     };
   }
 
   return {
     text: "I can help with Handumanan topics like Metro Cebu heritage sites, routes, cities, categories, and must-visit places. Try asking: recommend heritage sites in Cebu City.",
     suggestedSiteIds: [],
+    isGeneratedItinerary: false,
   };
 }
 
@@ -481,31 +472,40 @@ export function HeritageChatBot() {
         directorySites: directorySitesForChat,
       });
       const suggestedSiteIds = response.suggestedSiteIds?.filter(Boolean) ?? [];
+      const isGeneratedItinerary = Boolean(response.isGeneratedItinerary);
 
       setMessages(prev => [...prev, { 
         role: 'model', 
         text: response.text,
-        siteIds: suggestedSiteIds
+        siteIds: suggestedSiteIds,
+        isGeneratedItinerary,
       }]);
 
-      if (isTripPlanningRequest(text) && suggestedSiteIds.length > 1) {
+      if (isGeneratedItinerary && suggestedSiteIds.length > 1) {
         localStorage.setItem('handumanan_draft_itinerary', JSON.stringify(suggestedSiteIds));
         setIsOpen(false);
-        router.push('/discover?trip=chat');
+        router.push(`/discover?trip=chat&t=${Date.now()}`);
       }
     } catch (error) {
       console.error(error);
-      const fallbackResponse = getClientFallbackResponse(text, directorySites);
+      const history = newMessages.map(m => ({
+        role: m.role as 'user' | 'model',
+        content: [{ text: m.text }]
+      }));
+      const fallbackResponse = getClientFallbackResponse(text, directorySites, { history, userLocation: chatLocation });
+      const isGeneratedItinerary = Boolean(fallbackResponse.isGeneratedItinerary);
+
       setMessages(prev => [...prev, {
         role: 'model',
         text: fallbackResponse.text,
         siteIds: fallbackResponse.suggestedSiteIds,
+        isGeneratedItinerary,
       }]);
 
-      if (isTripPlanningRequest(text) && fallbackResponse.suggestedSiteIds.length > 1) {
+      if (isGeneratedItinerary && fallbackResponse.suggestedSiteIds.length > 1) {
         localStorage.setItem('handumanan_draft_itinerary', JSON.stringify(fallbackResponse.suggestedSiteIds));
         setIsOpen(false);
-        router.push('/discover?trip=chat');
+        router.push(`/discover?trip=chat&t=${Date.now()}`);
       }
     } finally {
       setIsLoading(false);
@@ -650,6 +650,18 @@ export function HeritageChatBot() {
                           </Card>
                         );
                       })}
+                      {msg.siteIds.length > 1 && msg.isGeneratedItinerary && (
+                        <Button
+                          onClick={() => {
+                            localStorage.setItem('handumanan_draft_itinerary', JSON.stringify(msg.siteIds));
+                            setIsOpen(false);
+                            router.push(`/discover?trip=chat&t=${Date.now()}`);
+                          }}
+                          className="w-full h-9 rounded-xl bg-primary hover:bg-primary/90 text-white font-headline text-[10px] uppercase font-black tracking-widest shadow-md flex items-center justify-center gap-2 mt-1"
+                        >
+                          <Compass size={14} /> Open Tour on Map
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>

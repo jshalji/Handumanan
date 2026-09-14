@@ -1,0 +1,16 @@
+graph TB
+    subgraph Handumanan_System["HANDUMANAN SYSTEM"]
+        UC1(["1. Manage Heritage Site Records and Information"])
+        UC2(["2. Manage System Users and Roles"])
+        UC3(["3. Manage General User Feedback Submissions"])
+        UC4(["4. Manage Heritage Categories"])
+        UC5(["5. Moderate Community Content (Reviews & Visitor Photos)"])
+    end
+
+    Admin["👤 ADMINISTRATOR"]
+
+    Admin --- UC1
+    Admin --- UC2
+    Admin --- UC3
+    Admin --- UC4
+    Admin --- UC5
