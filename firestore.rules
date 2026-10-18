@@ -61,13 +61,19 @@ service cloud.firestore {
     /** @description Checks if the write operation only affects allowed LGU verification fields with valid status values. */
     function isLguVerificationOnlyWrite() {
       let allowedFields = ['verificationStatus', 'verifiedBy', 'verifiedByUid', 'verifiedAt', 'verificationNotes', 'entranceFee'];
-      let hasValidStatus = request.resource.data.verificationStatus == 'LGU Verified'
+      // For new documents (resource == null), check all incoming keys; for updates, check only changed keys
+      let isAllowedKeys = resource == null
+        ? request.resource.data.keys().hasOnly(allowedFields)
+        : request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedFields);
+      // Only validate the status value when verificationStatus is actually being written
+      let statusNotChanged = resource == null
+        ? !request.resource.data.keys().hasAny(['verificationStatus'])
+        : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['verificationStatus']);
+      let hasValidStatus = statusNotChanged
+        || request.resource.data.verificationStatus == 'LGU Verified'
         || request.resource.data.verificationStatus == 'Needs Revision'
         || request.resource.data.verificationStatus == 'Rejected'
         || request.resource.data.verificationStatus == 'Pending Verification';
-      let isAllowedKeys = resource == null 
-        ? request.resource.data.keys().hasOnly(allowedFields)
-        : request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedFields);
 
       return isAllowedKeys && hasValidStatus;
     }

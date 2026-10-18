@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useCollection, useDoc, useMemoFirebase, useFirebaseApp } from '@/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
-import { collection, deleteDoc, doc, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, collectionGroup, deleteDoc, doc, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Navbar } from '@/components/layout/Navbar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import {
   AlertCircle,
+  Camera,
   CheckCircle2,
   Clock,
   Database,
@@ -58,7 +59,7 @@ import { HERITAGE_SITES, VerificationStatus, isSiteVisibleToUser } from '@/lib/h
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageFallback, normalizeImageSource } from '@/lib/site-images';
 
-type AdminTab = 'dashboard' | 'sites' | 'categories' | 'feedback' | 'users' | 'settings';
+type AdminTab = 'dashboard' | 'sites' | 'categories' | 'feedback' | 'users' | 'community' | 'settings';
 
 type SiteFormState = {
   name: string;
@@ -90,6 +91,7 @@ const ADMIN_NAV_ITEMS = [
   { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
   { id: 'sites' as const, label: 'Heritage Sites', icon: MapPin },
   { id: 'categories' as const, label: 'Categories', icon: Database },
+  { id: 'community' as const, label: 'Community Content', icon: Camera },
   { id: 'feedback' as const, label: 'User Feedback', icon: MessageSquare },
   { id: 'users' as const, label: 'System Users', icon: Users },
   { id: 'settings' as const, label: 'Settings', icon: Settings },
@@ -398,6 +400,69 @@ export default function AdminDashboardPage() {
   const [selectedFeedback, setSelectedFeedback] = useState<any>(null);
   const [isFeedbackDetailOpen, setIsFeedbackDetailOpen] = useState(false);
   const [isUpdatingFeedbackStatus, setIsUpdatingFeedbackStatus] = useState(false);
+
+  // Community Content: Reviews & Visitor Photos
+  const [communityContentTab, setCommunityContentTab] = useState<'reviews' | 'photos'>('reviews');
+  const [communitySearchQuery, setCommunitySearchQuery] = useState('');
+  const [isDeletingCommunityItem, setIsDeletingCommunityItem] = useState<string | null>(null);
+
+  const canQueryCommunity = !!(db && user && userData?.role === 'admin' && activeTab === 'community');
+
+  const reviewsGroupQuery = useMemoFirebase(
+    () => canQueryCommunity ? query(collectionGroup(db, 'reviews'), orderBy('createdAt', 'desc')) : null,
+    [db, user, userData?.role, activeTab, canQueryCommunity]
+  );
+  const { data: allReviews, isLoading: isReviewsGroupLoading } = useCollection(reviewsGroupQuery);
+
+  const photosGroupQuery = useMemoFirebase(
+    () => canQueryCommunity ? query(collectionGroup(db, 'visitorPhotos'), orderBy('uploadedAt', 'desc')) : null,
+    [db, user, userData?.role, activeTab, canQueryCommunity]
+  );
+  const { data: allPhotos, isLoading: isPhotosGroupLoading } = useCollection(photosGroupQuery);
+
+  const filteredReviews = useMemo(() => {
+    const q = communitySearchQuery.trim().toLowerCase();
+    return (allReviews || []).filter((r: any) => {
+      if (!q) return true;
+      return [r.userName, r.userEmail, r.text, r.comment, r.siteId].join(' ').toLowerCase().includes(q);
+    });
+  }, [allReviews, communitySearchQuery]);
+
+  const filteredPhotos = useMemo(() => {
+    const q = communitySearchQuery.trim().toLowerCase();
+    return (allPhotos || []).filter((p: any) => {
+      if (!q) return true;
+      return [p.userName, p.userEmail, p.caption, p.siteId].join(' ').toLowerCase().includes(q);
+    });
+  }, [allPhotos, communitySearchQuery]);
+
+  const handleDeleteReview = async (review: any) => {
+    if (!db || !review?.siteId || !review?.id) return;
+    if (!confirm(`Delete this review by "${review.userName || 'user'}"? This cannot be undone.`)) return;
+    setIsDeletingCommunityItem(review.id);
+    try {
+      await deleteDoc(doc(db, 'heritageSites', review.siteId, 'reviews', review.id));
+      toast({ title: 'Review deleted', description: 'The visitor review has been removed.' });
+    } catch (err: any) {
+      toast({ title: 'Delete failed', description: err.message || 'Could not delete review.', variant: 'destructive' });
+    } finally {
+      setIsDeletingCommunityItem(null);
+    }
+  };
+
+  const handleDeletePhoto = async (photo: any) => {
+    if (!db || !photo?.siteId || !photo?.id) return;
+    if (!confirm(`Delete this visitor photo? This cannot be undone.`)) return;
+    setIsDeletingCommunityItem(photo.id);
+    try {
+      await deleteDoc(doc(db, 'heritageSites', photo.siteId, 'visitorPhotos', photo.id));
+      toast({ title: 'Photo deleted', description: 'The visitor photo has been removed.' });
+    } catch (err: any) {
+      toast({ title: 'Delete failed', description: err.message || 'Could not delete photo.', variant: 'destructive' });
+    } finally {
+      setIsDeletingCommunityItem(null);
+    }
+  };
 
   const handleUpdateFeedbackStatus = async (feedbackId: string, newStatus: 'New' | 'Reviewed' | 'Resolved') => {
     if (!db) return;
@@ -931,7 +996,7 @@ export default function AdminDashboardPage() {
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.24em] text-primary">Administrator Access</p>
                 <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
-                  {activeTab === 'sites' ? 'Heritage Site Records' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+                  {activeTab === 'sites' ? 'Heritage Site Records' : activeTab === 'community' ? 'Community Content' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
                 </h1>
                   <p className="mt-2 max-w-2xl text-sm text-slate-500">
                   Manage built-in directory data and Firestore overrides used for map pins, directory cards, visitor info, and route planning.
@@ -1261,6 +1326,181 @@ export default function AdminDashboardPage() {
                     </div>
                   </CardContent>
                 </Card>
+              </div>
+            )}
+
+            {activeTab === 'community' && (
+              <div className="space-y-5">
+                {/* Stats */}
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600"><MessageSquare size={20} /></div>
+                      <div>
+                        <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">Total Reviews</p>
+                        <p className="text-2xl font-black text-slate-950">{allReviews?.length ?? 0}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-purple-50 text-purple-600"><Camera size={20} /></div>
+                      <div>
+                        <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">Visitor Photos</p>
+                        <p className="text-2xl font-black text-slate-950">{allPhotos?.length ?? 0}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Sub-tab switcher */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCommunityContentTab('reviews')}
+                    className={cn('flex h-9 items-center gap-2 rounded-md px-4 text-xs font-bold transition-colors', communityContentTab === 'reviews' ? 'bg-primary text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50')}
+                  >
+                    <MessageSquare size={14} /> Visitor Reviews
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCommunityContentTab('photos')}
+                    className={cn('flex h-9 items-center gap-2 rounded-md px-4 text-xs font-bold transition-colors', communityContentTab === 'photos' ? 'bg-primary text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50')}
+                  >
+                    <Camera size={14} /> Visitor Photos
+                  </button>
+                  <div className="ml-auto relative min-w-[220px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <Input
+                      value={communitySearchQuery}
+                      onChange={e => setCommunitySearchQuery(e.target.value)}
+                      placeholder={communityContentTab === 'reviews' ? 'Search reviews...' : 'Search photos...'}
+                      className="h-9 rounded-md border-slate-200 pl-9 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Reviews Table */}
+                {communityContentTab === 'reviews' && (
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardHeader className="border-b border-slate-100 p-5">
+                      <CardTitle className="text-base font-black">Visitor Reviews</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      {isReviewsGroupLoading ? (
+                        <div className="flex min-h-[200px] items-center justify-center"><Loader2 className="animate-spin text-primary" size={28} /></div>
+                      ) : filteredReviews.length === 0 ? (
+                        <div className="flex min-h-[200px] flex-col items-center justify-center p-8 text-center">
+                          <MessageSquare size={28} className="mb-3 text-slate-300" />
+                          <p className="font-bold text-slate-700">No visitor reviews found.</p>
+                          <p className="mt-1 text-xs text-slate-500">Reviews submitted by visitors on heritage site pages appear here.</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-slate-50">
+                                <TableHead className="min-w-[180px]">Reviewer</TableHead>
+                                <TableHead className="min-w-[160px]">Site</TableHead>
+                                <TableHead>Rating</TableHead>
+                                <TableHead className="min-w-[300px]">Review</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {filteredReviews.map((r: any) => (
+                                <TableRow key={r.id}>
+                                  <TableCell>
+                                    <p className="font-black text-slate-950 text-xs">{r.userName || r.displayName || 'Anonymous'}</p>
+                                    <p className="text-[11px] text-slate-500">{r.userEmail || r.email || ''}</p>
+                                  </TableCell>
+                                  <TableCell className="text-xs font-semibold text-slate-700">
+                                    <span className="font-mono text-[10px] text-slate-400 block">{r.siteId}</span>
+                                    {r.siteName || ''}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-amber-500 text-sm">{'★'.repeat(Math.round(r.rating || 0))}</span>
+                                      <span className="text-xs font-bold text-slate-700">{r.rating ?? '—'}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-xs text-slate-600 max-w-xs">
+                                    <p className="line-clamp-2">{r.text || r.comment || r.review || '(no text)'}</p>
+                                  </TableCell>
+                                  <TableCell className="text-[11px] text-slate-500 whitespace-nowrap">
+                                    {r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString() : r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                      onClick={() => handleDeleteReview(r)}
+                                      disabled={isDeletingCommunityItem === r.id}
+                                      aria-label="Delete review"
+                                    >
+                                      {isDeletingCommunityItem === r.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Photos Grid */}
+                {communityContentTab === 'photos' && (
+                  <Card className="rounded-lg border-slate-200 bg-white">
+                    <CardHeader className="border-b border-slate-100 p-5">
+                      <CardTitle className="text-base font-black">Visitor Photos</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-5">
+                      {isPhotosGroupLoading ? (
+                        <div className="flex min-h-[200px] items-center justify-center"><Loader2 className="animate-spin text-primary" size={28} /></div>
+                      ) : filteredPhotos.length === 0 ? (
+                        <div className="flex min-h-[200px] flex-col items-center justify-center text-center">
+                          <Camera size={28} className="mb-3 text-slate-300" />
+                          <p className="font-bold text-slate-700">No visitor photos found.</p>
+                          <p className="mt-1 text-xs text-slate-500">Photos uploaded by visitors on heritage site pages appear here.</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                          {filteredPhotos.map((p: any) => (
+                            <div key={p.id} className="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-100 aspect-square">
+                              <SafeImage
+                                src={p.imageUrl || p.photoUrl || ''}
+                                alt={p.caption || 'Visitor photo'}
+                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                              />
+                              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
+                                <div>
+                                  <p className="text-white text-[10px] font-bold truncate">{p.userName || 'Visitor'}</p>
+                                  <p className="text-white/70 text-[9px] truncate">{p.siteId}</p>
+                                  {p.caption && <p className="text-white/80 text-[10px] mt-1 line-clamp-2 italic">{p.caption}</p>}
+                                </div>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="h-7 text-[11px] font-bold w-full mt-1"
+                                  onClick={() => handleDeletePhoto(p)}
+                                  disabled={isDeletingCommunityItem === p.id}
+                                >
+                                  {isDeletingCommunityItem === p.id ? <Loader2 size={12} className="animate-spin mr-1" /> : <Trash2 size={12} className="mr-1" />}
+                                  Delete
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
 
