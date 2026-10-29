@@ -50,9 +50,15 @@ export interface InternalQuery extends Query<DocumentData> {
  * The Firestore CollectionReference or Query. Waits if null/undefined.
  * @returns {UseCollectionResult<T>} Object with data, isLoading, error.
  */
+export interface UseCollectionOptions {
+  includeDocumentPath?: boolean;
+}
+
 export function useCollection<T = any>(
-    memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>) & {__memo?: boolean})  | null | undefined,
+    memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>) & {__memo?: boolean}) | null | undefined,
+    options: UseCollectionOptions = {},
 ): UseCollectionResult<T> {
+  const includeDocumentPath = options.includeDocumentPath === true;
   type ResultItemType = WithId<T>;
   type StateDataType = ResultItemType[] | null;
 
@@ -78,7 +84,11 @@ export function useCollection<T = any>(
       (snapshot: QuerySnapshot<DocumentData>) => {
         const results: ResultItemType[] = [];
         for (const doc of snapshot.docs) {
-          results.push({ ...(doc.data() as T), id: doc.id });
+          results.push({
+            ...(doc.data() as T),
+            id: doc.id,
+            ...(includeDocumentPath ? { __documentPath: doc.ref.path } : {}),
+          });
         }
         setData(results);
         setError(null);
@@ -112,7 +122,7 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
-  }, [memoizedTargetRefOrQuery]);
+  }, [memoizedTargetRefOrQuery, includeDocumentPath]);
 
   if (memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
     throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');

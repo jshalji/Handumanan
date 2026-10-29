@@ -9,8 +9,9 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageFallback, getSiteImageSources } from '@/lib/site-images';
 import { getDailyVisitingTime, WEEKLY_VISITING_DAYS } from '@/lib/visiting-hours';
+import { getRatingSummaryState, isValidRating } from '@/lib/review-ratings';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import {
   Star,
   MapPin,
@@ -57,8 +58,27 @@ function formatReviewDate(createdAt: any) {
   }
 }
 
-function StarRatingDisplay({ rating, count }: { rating: number; count?: number }) {
-  const rounded = Math.round(rating * 2) / 2;
+function StarRatingDisplay({ summary }: { summary: ReturnType<typeof getRatingSummaryState> }) {
+  if (summary.status === 'loading' || summary.status === 'unavailable') {
+    return (
+      <span className="text-xs font-bold text-slate-400" aria-live="polite">
+        {summary.status === 'loading' ? 'Loading ratings…' : 'Ratings unavailable'}
+      </span>
+    );
+  }
+
+  if (summary.status === 'empty') {
+    return (
+      <div className="flex items-center gap-1.5" aria-live="polite">
+        <div className="flex items-center text-slate-300" aria-label="Empty stars">
+          {[1, 2, 3, 4, 5].map(star => <Star key={star} size={14} />)}
+        </div>
+        <span className="text-xs font-bold text-slate-500">No ratings yet</span>
+      </div>
+    );
+  }
+
+  const rounded = Math.round(summary.average * 2) / 2;
   return (
     <div className="flex items-center gap-1.5">
       <div className="flex items-center text-amber-400">
@@ -76,10 +96,8 @@ function StarRatingDisplay({ rating, count }: { rating: number; count?: number }
           />
         ))}
       </div>
-      <span className="text-xs font-black text-slate-900">{rating.toFixed(1)}</span>
-      {typeof count === 'number' && (
-        <span className="text-[10px] font-bold text-slate-400">({count})</span>
-      )}
+      <span className="text-xs font-black text-slate-900">{summary.average.toFixed(1)}</span>
+      <span className="text-[10px] font-bold text-slate-400">({summary.count} {summary.count === 1 ? 'rating' : 'ratings'})</span>
     </div>
   );
 }
@@ -102,33 +120,23 @@ export default function SitePlacePanel({
   // Fetch Firestore reviews (single source of truth with directory & details page)
   const reviewsQuery = useMemoFirebase(() => {
     if (!db || !siteId) return null;
-    return query(
-      collection(db, 'heritageSites', siteId, 'reviews'),
-      orderBy('createdAt', 'desc')
-    );
+    return collection(db, 'heritageSites', siteId, 'reviews');
   }, [db, siteId]);
-  const { data: reviews, isLoading: isReviewsLoading } = useCollection(reviewsQuery);
+  const { data: reviews, isLoading: isReviewsLoading, error: reviewsError } = useCollection(reviewsQuery);
+  const ratingSummary = getRatingSummaryState(reviews, {
+    isLoading: isReviewsLoading,
+    isAvailable: Boolean(reviewsQuery),
+    error: reviewsError,
+  });
+  const orderedReviews = useMemo(() => [...(reviews || [])].sort((a: any, b: any) => {
+    const getTime = (value: any) => typeof value?.toDate === 'function'
+      ? value.toDate().getTime()
+      : (value ? new Date(value).getTime() : 0);
+    return getTime(b.createdAt) - getTime(a.createdAt);
+  }), [reviews]);
+  const totalReviews = ratingSummary.count;
+  const ratingCounts = ratingSummary.counts;
 
-  const averageRatingNumber = useMemo(() => {
-    if (reviews && reviews.length > 0) {
-      const sum = reviews.reduce((acc, rev) => acc + (Number(rev.rating) || 0), 0);
-      return Math.round((sum / reviews.length) * 10) / 10;
-    }
-    return Number.isFinite(Number(site?.rating)) ? Number(site.rating) : 4.5;
-  }, [reviews, site?.rating]);
-
-  const totalReviews = reviews ? reviews.length : 0;
-
-  const ratingCounts = useMemo(() => {
-    const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-    if (reviews && reviews.length > 0) {
-      reviews.forEach((rev) => {
-        const r = Math.min(5, Math.max(1, Math.round(Number(rev.rating) || 5)));
-        counts[r as keyof typeof counts]++;
-      });
-    }
-    return counts;
-  }, [reviews]);
 
   if (!site) return null;
 
@@ -192,7 +200,7 @@ export default function SitePlacePanel({
 
         {/* Rating Summary Header */}
         <div className="flex items-center justify-between gap-3 pt-1">
-          <StarRatingDisplay rating={averageRatingNumber} count={totalReviews} />
+          <StarRatingDisplay summary={ratingSummary} />
           <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500">
             <MapPin size={12} className="text-primary shrink-0" />
             <span className="truncate max-w-[180px]">{site.location || site.city}</span>
@@ -334,33 +342,51 @@ export default function SitePlacePanel({
 
             {/* Rating Breakdown Card */}
             <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100 space-y-3">
-              <div className="flex items-center gap-4">
-                <div className="text-center shrink-0 pr-3 border-r border-slate-200">
-                  <p className="text-3xl font-headline font-black text-slate-900 leading-none">
-                    {averageRatingNumber.toFixed(1)}
-                  </p>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">out of 5</p>
-                </div>
-                <div className="flex-1 space-y-1">
-                  {[5, 4, 3, 2, 1].map((starLevel) => {
-                    const count = ratingCounts[starLevel as keyof typeof ratingCounts];
-                    const percent = totalReviews > 0 ? (count / totalReviews) * 100 : 0;
-                    return (
-                      <div key={starLevel} className="flex items-center gap-2 text-[10px]">
-                        <span className="w-3 text-right font-bold text-slate-500">{starLevel}</span>
-                        <Star size={10} className="fill-amber-400 text-amber-400 shrink-0" />
-                        <div className="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                          <div
-                            className="h-full bg-amber-400 rounded-full transition-all"
-                            style={{ width: `${percent}%` }}
-                          />
+              {ratingSummary.status === 'rated' || ratingSummary.status === 'empty' ? (
+                <div className="flex items-center gap-4">
+                  <div className="text-center shrink-0 pr-3 border-r border-slate-200">
+                    {ratingSummary.status === 'rated' ? (
+                      <>
+                        <p className="text-3xl font-headline font-black text-slate-900 leading-none">
+                          {ratingSummary.average.toFixed(1)}
+                        </p>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">out of 5</p>
+                        <p className="text-[9px] text-slate-400">{ratingSummary.count} {ratingSummary.count === 1 ? 'rating' : 'ratings'}</p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center text-slate-300" aria-label="Empty stars">
+                          {[1, 2, 3, 4, 5].map(star => <Star key={star} size={12} />)}
                         </div>
-                        <span className="w-4 text-right font-medium text-slate-400">{count}</span>
-                      </div>
-                    );
-                  })}
+                        <p className="mt-1 text-[9px] font-bold text-slate-500">No ratings yet</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    {[5, 4, 3, 2, 1].map((starLevel) => {
+                      const count = ratingCounts[starLevel as keyof typeof ratingCounts];
+                      const percent = totalReviews > 0 ? (count / totalReviews) * 100 : 0;
+                      return (
+                        <div key={starLevel} className="flex items-center gap-2 text-[10px]">
+                          <span className="w-3 text-right font-bold text-slate-500">{starLevel}</span>
+                          <Star size={10} className="fill-amber-400 text-amber-400 shrink-0" />
+                          <div className="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                            <div
+                              className="h-full bg-amber-400 rounded-full transition-all"
+                              style={{ width: `${percent}%` }}
+                            />
+                          </div>
+                          <span className="w-4 text-right font-medium text-slate-400">{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <p className="text-center text-xs font-bold text-slate-400" aria-live="polite">
+                  {ratingSummary.status === 'loading' ? 'Loading ratings…' : 'Ratings unavailable'}
+                </p>
+              )}
             </div>
 
             {/* Recent Reviews List */}
@@ -368,9 +394,13 @@ export default function SitePlacePanel({
               <div className="p-4 text-center text-xs font-bold text-slate-400">
                 Loading visitor reviews...
               </div>
-            ) : reviews && reviews.length > 0 ? (
+            ) : reviewsError ? (
+              <div role="alert" className="p-4 text-center text-xs font-bold text-red-600">
+                Visitor reviews are unavailable. Please try again later.
+              </div>
+            ) : orderedReviews.length > 0 ? (
               <div className="space-y-3">
-                {reviews.slice(0, 4).map((rev) => (
+                {orderedReviews.slice(0, 4).map((rev) => (
                   <div key={rev.id} className="rounded-2xl bg-white p-3.5 border border-slate-100 shadow-sm space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
@@ -386,19 +416,21 @@ export default function SitePlacePanel({
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center text-amber-400">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Star
-                            key={s}
-                            size={11}
-                            className={cn(
-                              s <= Math.round(Number(rev.rating) || 5)
-                                ? 'fill-amber-400 text-amber-400'
-                                : 'text-slate-200'
-                            )}
-                          />
-                        ))}
-                      </div>
+                      {isValidRating(rev.rating) && (
+                        <div className="flex items-center text-amber-400" aria-label={`${rev.rating} out of 5 stars`}>
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              size={11}
+                              className={cn(
+                                s <= Math.round(rev.rating)
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'text-slate-200'
+                              )}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
                     {rev.comment && (
                       <p className="text-xs leading-relaxed text-slate-600 font-medium">

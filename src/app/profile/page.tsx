@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { query, collection, collectionGroup, where, orderBy, doc, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { isValidRating } from '@/lib/review-ratings';
 import { updateProfile, updatePassword, signOut } from 'firebase/auth';
 import {
   User as UserIcon,
@@ -134,14 +135,17 @@ export default function ProfilePage() {
   // Fetch User Reviews across all sites (Collection Group) using safe getDocs
   const [userReviews, setUserReviews] = useState<any[]>([]);
   const [isReviewsLoading, setIsReviewsLoading] = useState(true);
+  const [isReviewsError, setIsReviewsError] = useState(false);
 
   useEffect(() => {
     if (!db || !user) {
       setUserReviews([]);
       setIsReviewsLoading(false);
+      setIsReviewsError(Boolean(user));
       return;
     }
     setIsReviewsLoading(true);
+    setIsReviewsError(false);
     const q = query(collectionGroup(db, 'reviews'), where('userId', '==', user.uid));
     getDocs(q)
       .then((snap) => {
@@ -151,6 +155,7 @@ export default function ProfilePage() {
       .catch((err) => {
         console.warn('CollectionGroup reviews query notice:', err);
         setUserReviews([]);
+        setIsReviewsError(true);
       })
       .finally(() => setIsReviewsLoading(false));
   }, [db, user]);
@@ -621,11 +626,13 @@ export default function ProfilePage() {
               <TabsContent value="reviews" className="mt-0 space-y-4">
                 {isReviewsLoading ? (
                   <div className="flex justify-center p-16"><Loader2 className="animate-spin text-primary" size={36} /></div>
+                ) : isReviewsError ? (
+                  <div role="alert" className="py-16 text-center text-sm font-bold text-slate-500">Your reviews are unavailable right now. Please try again later.</div>
                 ) : sortedReviews.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {sortedReviews.map((rev: any) => {
                       const createdDate = rev.createdAt?.toDate ? rev.createdAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Review';
-                      const ratingNum = Number(rev.rating) || 5;
+                      const ratingNum = isValidRating(rev.rating) ? rev.rating : null;
                       return (
                         <Card key={rev.id} className="border border-slate-200/80 shadow-sm hover:shadow-md transition-all rounded-2xl p-5 space-y-3">
                           <div className="flex items-start justify-between gap-3">
@@ -635,9 +642,12 @@ export default function ProfilePage() {
                               </Link>
                               <span className="text-[11px] text-slate-400 font-medium">{createdDate}</span>
                             </div>
-                            <div className="flex items-center gap-0.5 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg text-amber-700 text-xs font-bold shrink-0">
-                              <Star size={13} className="fill-amber-400 text-amber-400 mr-1" />
-                              {ratingNum.toFixed(1)}
+                            <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg text-amber-700 text-xs font-bold shrink-0">
+                              {ratingNum !== null ? (
+                                <><Star size={13} className="fill-amber-400 text-amber-400 mr-1" />{ratingNum.toFixed(1)}</>
+                              ) : (
+                                <span className="text-slate-500">No rating</span>
+                              )}
                             </div>
                           </div>
 

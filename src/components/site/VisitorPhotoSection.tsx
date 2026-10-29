@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { SafeImage } from '@/components/ui/safe-image';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { isValidRating } from '@/lib/review-ratings';
 import {
   Camera,
   X,
@@ -41,6 +42,7 @@ interface VisitorPhotoSectionProps {
   siteName: string;
   reviews?: any[];
   isReviewsLoading?: boolean;
+  isReviewsError?: boolean;
   reviewForm?: React.ReactNode;
   reviewPrompt?: React.ReactNode;
 }
@@ -163,6 +165,7 @@ export function VisitorPhotoSection({
   siteName,
   reviews = [],
   isReviewsLoading = false,
+  isReviewsError = false,
   reviewPrompt,
 }: VisitorPhotoSectionProps) {
   const { user } = useUser();
@@ -721,7 +724,7 @@ export function VisitorPhotoSection({
                   </div>
 
                 {/* Rating if present */}
-                {Boolean(post.rating) && (
+                {isValidRating(post.rating) && (
                   <div className="mb-2">
                     <RatingStars rating={post.rating} />
                   </div>

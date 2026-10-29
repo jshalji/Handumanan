@@ -19,7 +19,8 @@ export interface HeritageSite {
   visitingHours: string;
   imageUrl: string;
   galleryImages?: string[];
-  rating: number;
+  imageAttributions?: { url: string; creator: string; license: string; licenseUrl: string }[];
+  rating?: number;
   tags: string[];
   coordinates: {
     lat: number;
@@ -57,7 +58,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/basilica1.jpg",
       "/heritage-sites/basilica2.jpg",
-      "/heritage-sites/basilica3.jpg"
+      "/heritage-sites/basilica3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/1/1c/Basilica_Minore_del_Santo_Nino.jpg",
     ],
 
     rating: 4.9,
@@ -84,7 +86,9 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/metropolitancebucathedral1.jpg",
       "/heritage-sites/metropolitancebucathedral2.jpg",
-      "/heritage-sites/metropolitancebucathedral3.jpg"
+      "/heritage-sites/metropolitancebucathedral3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/4/4a/Cebu_Metropolitan_Cathedral.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/5/59/Inside_the_Cebu_Metropolitan_Cathedral..jpg",
     ],
     rating: 4.7,
     tags: ["cathedral", "baroque"],
@@ -110,7 +114,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/magellanscross1.jpg",
       "/heritage-sites/magellanscross2.jpg",
-      "/heritage-sites/magellanscross3.jpg"
+      "/heritage-sites/magellanscross3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/0/05/Magellan's_Cross_Cebu.jpg",
     ],
     rating: 4.8,
     tags: ["cross", "magellan"],
@@ -136,7 +141,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/Archdiocesanmuseumofcebu1.jpg",
       "/heritage-sites/Archdiocesanmuseumofcebu2.jpg",
-      "/heritage-sites/Archdiocesanmuseumofcebu3.jpg"
+      "/heritage-sites/Archdiocesanmuseumofcebu3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/e/e6/The_Archdiocesan_Museum_of_Cebu_3.jpg",
     ],
     rating: 4.5,
     tags: ["museum", "religious-art"],
@@ -162,7 +168,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/casagorordomuseum1.jpg",
       "/heritage-sites/casagorordomuseum2.jpg",
-      "/heritage-sites/casagorordomuseum3.jpg"
+      "/heritage-sites/casagorordomuseum3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/9/9e/Casa_Gorordo_Museum_(E._Aboitiz,_Cebu_City;_09-05-2022).jpg",
     ],
     rating: 4.7,
     tags: ["mansion", "lifestyle"],
@@ -172,7 +179,7 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
     accessibilityStatus: 'Accessible',
-    entranceFee: 'Estimated Fee: ₱100'
+    entranceFee: "₱100 (self-guided) / ₱150 (guided) / ₱50 (students, seniors, PWD)",
   },
   {
     id: 'cebu-yap-sandiego',
@@ -188,7 +195,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/yapsandiegoancestralhouse1.jpg",
       "/heritage-sites/yapsandiegoancestralhouse2.jpg",
-      "/heritage-sites/yapsandiegoancestralhouse3.jpg"
+      "/heritage-sites/yapsandiegoancestralhouse3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/f/fe/Yap-Sandiego_Ancestral_House,_Cebu_City.jpg",
     ],
     rating: 4.7,
     tags: ["ancestral", "parian"],
@@ -214,7 +222,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/1730jesuithouse1.jpg",
       "/heritage-sites/1730jesuithouse2.jpg",
-      "/heritage-sites/1730jesuithouse3.jpg"
+      "/heritage-sites/1730jesuithouse3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/5/5f/1730_Jesuit_House_Museum.jpg",
     ],
     rating: 4.6,
     tags: ["jesuit", "hidden-gem"],
@@ -224,7 +233,7 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
     accessibilityStatus: 'Accessible',
-    entranceFee: 'Estimated Fee: ₱100'
+    entranceFee: "₱50–100 (approx.)",
   },
   {
     id: 'cebu-national-museum',
@@ -240,7 +249,10 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/nationalmuseumofthephilippinsecebu1.jpg",
       "/heritage-sites/nationalmuseumofthephilippinsecebu2.jpg",
-      "/heritage-sites/nationalmuseumofthephilippinsecebu3.jpg"
+      "/heritage-sites/nationalmuseumofthephilippinsecebu3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/5/59/National_Museum_of_the_Philippines-Cebu.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/9/98/Exploring_Cebu_Plaza_Independencia_and_National_Museum_of_the_Philippines_in_Cebu_City,_Cebu,_Philippines_2.jpg",
+
     ],
     rating: 4.8,
     tags: ["museum", "aduana"],
@@ -266,7 +278,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/sugbuchineseheritagemuseum1.jpg",
       "/heritage-sites/sugbuchineseheritagemuseum2.jpg",
-      "/heritage-sites/sugbuchineseheritagemuseum3.jpg"
+      "/heritage-sites/sugbuchineseheritagemuseum3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/1/14/Sugbu_Chinese_Heritage_Museum,_Cebu_City,_Jan_2024.jpg",
     ],
     rating: 4.6,
     tags: ["museum", "chinese", "gotiaoco", "trade", "culture"],
@@ -292,7 +305,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/museosugbo1.jpg",
       "/heritage-sites/museosugbo2.jpg",
-      "/heritage-sites/museosugbo3.jpg"
+      "/heritage-sites/museosugbo3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/9/93/Facade_of_Museo_Sugbo.jpg",
     ],
     rating: 4.6,
     tags: ["museum", "provincial", "carcel", "jail", "history"],
@@ -302,7 +316,7 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
     accessibilityStatus: 'Accessible',
-    entranceFee: '₱75 (Adults) / ₱50 (Students)'
+    entranceFee: "₱30–75 (local/foreigner)",
   },
   {
     id: 'cebu-uspf-jose-rizal-museum',
@@ -355,7 +369,7 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
     accessibilityStatus: 'Accessible',
-    entranceFee: '₱50'
+    entranceFee: "₱30–75 (free for USC students)",
   },
   {
     id: 'cebu-fort-san-pedro',
@@ -371,7 +385,10 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/fortsanpedro1.jpg",
       "/heritage-sites/fortsanpedro2.jpg",
-      "/heritage-sites/fortsanpedro3.jpg"
+      "/heritage-sites/fortsanpedro3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/5/52/Fort_San_Pedro_-_main_entrance.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/2/24/Fort_San_Pedro_scenery.jpg",
+
     ],
     rating: 4.6,
     tags: ["military", "bastion"],
@@ -381,7 +398,7 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     status: 'Active',
     demolitionStatus: 'Non-Demolished',
     accessibilityStatus: 'Accessible',
-    entranceFee: '₱50 (Adults) / ₱20 (Students & Seniors)'
+    entranceFee: "₱40–50",
   },
   {
     id: 'cebu-heritage-monument',
@@ -397,7 +414,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/heritageofcebumonument1.jpg",
       "/heritage-sites/heritageofcebumonument2.jpg",
-      "/heritage-sites/heritageofcebumonument3.jpg"
+      "/heritage-sites/heritageofcebumonument3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/d/d7/Heritage_of_Cebu_Monument_in_Cebu_city.jpg",
     ],
     rating: 4.7,
     tags: ["sculpture", "parian"],
@@ -423,7 +441,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/colonstreetandhistoricalmarker1.jpg",
       "/heritage-sites/colonstreetandhistoricalmarker2.jpg",
-      "/heritage-sites/colonstreetandhistoricalmarker3.jpg"
+      "/heritage-sites/colonstreetandhistoricalmarker3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/1/1c/Colon_Street_1961_NHCP_Historical_Marker.jpg",
     ],
     rating: 4.3,
     tags: ["oldest-street", "commercial"],
@@ -449,7 +468,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/battleoftresdeabril1.jpg",
       "/heritage-sites/battleoftresdeabril2.jpg",
-      "/heritage-sites/battleoftresdeabril3.jpg"
+      "/heritage-sites/battleoftresdeabril3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/c/c8/Tres_de_Abril_Street,_Cebu_City,_historical_marker.jpg",
     ],
     rating: 4.4,
     tags: ["revolution", "leon-kilat", "katipunan", "marker", "san-nicolas"],
@@ -475,7 +495,10 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/plazaindenpencia1.jpg",
       "/heritage-sites/plazaindenpencia2.jpg",
-      "/heritage-sites/plazaindenpencia3.jpg"
+      "/heritage-sites/plazaindenpencia3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/6/62/Plaza_Independencia,_Cebu_City_-_Welcome_1.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/6/6e/Exploring_Cebu_Plaza_Independencia_and_National_Museum_of_the_Philippines_in_Cebu_City,_Cebu,_Philippines_1.jpg",
+
     ],
     rating: 4.5,
     tags: ["plaza", "park"],
@@ -501,7 +524,10 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/plazasugbo1.jpg",
       "/heritage-sites/plazasugbo2.jpg",
-      "/heritage-sites/plazasugbo3.jpg"
+      "/heritage-sites/plazasugbo3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/d/dc/Cebu_City_Hall,_Plaza_Sugbo_night_view_(P._Burgos,_Cebu_City;_01-23-2024).jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/1/18/Plaza_Sugbu,_Cebu_City,_Jan_2024.jpg",
+
     ],
     rating: 4.4,
     tags: ["plaza", "civic"],
@@ -553,7 +579,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/fuenteosmenacircle1.jpg",
       "/heritage-sites/fuenteosmenacircle2.jpg",
-      "/heritage-sites/fuenteosmenacircle3.jpg"
+      "/heritage-sites/fuenteosmenacircle3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/4/4e/Cebu_Fuente_Osmeña_Circle_top_view_(Cebu_City;_09-09-2022).jpg",
     ],
     rating: 4.5,
     tags: ["fountain", "osmeña"],
@@ -579,7 +606,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/cebucityhall1.jpg",
       "/heritage-sites/cebucityhall2.jpg",
-      "/heritage-sites/cebucityhall3.jpg"
+      "/heritage-sites/cebucityhall3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/8/86/Cebu_City_Hall.jpg",
     ],
     rating: 4.1,
     tags: ["government", "civic"],
@@ -605,7 +633,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/cebuprovincialhall1.jpg.jpg",
       "/heritage-sites/cebuprovincialhall2.jpg.jpg",
-      "/heritage-sites/cebuprovincialhall3.jpg"
+      "/heritage-sites/cebuprovincialhall3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/1/13/Cebu_Provincial_Capitol_Building.jpg",
     ],
     rating: 4.8,
     tags: ["capitol", "neoclassical"],
@@ -631,7 +660,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/patriadecebu1.jpg",
       "/heritage-sites/patriadecebu2.jpg",
-      "/heritage-sites/patriadecebu3.jpg"
+      "/heritage-sites/patriadecebu3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/3/3f/Patria_de_Cebu,_Aug_2026.jpg",
     ],
     rating: 4.0,
     tags: ["catholic", "commercial"],
@@ -660,6 +690,7 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
       "https://commons.wikimedia.org/wiki/Special:FilePath/Taoist%20temple%2C%20Cebu%20%289237707280%29.jpg?width=1400"
     ],
     rating: 4.6,
+    entranceFee: "Free Admission",
     tags: ["temple", "chinese"],
     coordinates: { lat: 10.33442, lng: 123.88831 },
     isMustVisit: true,
@@ -682,7 +713,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/rizalmemoriallibraryandmuseum1.jpg",
       "/heritage-sites/rizalmemoriallibraryandmuseum2.jpg",
-      "/heritage-sites/rizalmemoriallibraryandmuseum3.jpg"
+      "/heritage-sites/rizalmemoriallibraryandmuseum3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/8/87/Rizal_Memorial_Library_and_Museum_in_Cebu_City,_Cebu,_Philippines.jpg",
     ],
     rating: 4.6,
     tags: ["library", "museum", "arellano", "cebu-city-public-library", "rizal"],
@@ -710,9 +742,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/talisaylandingsite1.jpg",
       "/heritage-sites/talisaylandingsite2.jpg",
-      "/heritage-sites/talisaylandingsite3.jpg"
+      "/heritage-sites/talisaylandingsite3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/7/74/Talisay_Landing_Historical_Marker.jpg",
     ],
     rating: 4.7,
+    entranceFee: "Free Admission",
     tags: ["WWII", "memorial", "liberation"],
     coordinates: { lat: 10.241786, lng: 123.848947 },
     isMustVisit: true,
@@ -735,9 +769,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/stateresadeavilaparishchurch1.jpg",
       "/heritage-sites/stateresadeavilaparishchurch2.jpg",
-      "/heritage-sites/stateresadeavilaparishchurch3.jpg"
+      "/heritage-sites/stateresadeavilaparishchurch3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/f/f2/Santa._Teresa_de_Avila_Church,_Talisay_City,_Cebu.jpg",
     ],
     rating: 4.6,
+    entranceFee: "Free Admission",
     tags: ["church", "religious", "heritage"],
     coordinates: { lat: 10.243770, lng: 123.848012 },
     isMustVisit: false,
@@ -763,6 +799,7 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
       "/heritage-sites/talisaycityplaza3.jpg"
     ],
     rating: 4.3,
+    entranceFee: "Free Admission",
     tags: ["plaza", "civic", "gathering"],
     coordinates: { lat: 10.242643, lng: 123.848928 },
     isMustVisit: false,
@@ -781,13 +818,13 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     location: "Biasong-Dumlog, Talisay City",
     city: "Talisay City",
     visitingHours: "Monday to Sunday, 8:00 AM - 5:00 PM",
-    imageUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Talisay%20City%20Hall%20and%20Plaza%20%28CSCR%2C%20Talisay%2C%20Cebu%3B%2009-07-2022%29.jpg?width=1400",
+    imageUrl: "https://scontent-mnl1-1.xx.fbcdn.net/v/t39.30808-6/481917279_955405756777072_6098639633689308509_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=2a1932&_nc_eui2=AeHVn4ImoGrZBk3C2Tlt0WKe8PvCYRBjAcvw-8JhEGMBy57gwnB71BmaOumxIW-XWVO3DJHCjJNeggSvENvmCSBM&_nc_ohc=-i_cMDei8QIQ7kNvwHeinZv&_nc_oc=AdpDas466HxICzxrrKl6qBF9svaB4m_yEVBJ7Vu58nkmkMR3bWu_IGaFgY3QCC5jWVY&_nc_zt=23&_nc_ht=scontent-mnl1-1.xx&_nc_gid=jo-Ux59i_yiBxHgj7ARueQ&_nc_ss=7b2a8&oh=00_Af5ydnQtXwUu2GxXbcS9UILKQCRp9jPHr3e1zIXC6zXXqg&oe=6A09022B",
     galleryImages: [
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Talisay%20Cebu%201.jpg?width=1400",
-      "https://commons.wikimedia.org/wiki/Special:FilePath/Halad%20sa%20Talisay.jpg?width=1400",
-      "https://commons.wikimedia.org/wiki/Special:FilePath/A%20street%20of%20Talisay%2C%20Cebu%202017.jpg?width=1400"
+      "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEh31VytXEXxCFSHgWioUoRGDIjEbyLzgYlyz_XRupUgCAn5MiNlmI_tNQPOdK0Y-4OIq8UxNlFKdhQRBLFoGe_oXiTrTu6NPV2xNVwk0JkJn_m6-wKrx8zxMITw7FwSQneyCtwXP0mCn-xh/s1600/Talisay.jpg",
+      "https://d3fphkxyf5o5bm.cloudfront.net/image-resize/format=webp,w=1920/QwRY54Li1HMwD7oNfohTXA9vkVQ3gtUneIMRDxpWKv"
     ],
     rating: 4.2,
+    entranceFee: "Free Admission",
     tags: ["government", "civic", "modern"],
     coordinates: { lat: 10.253285, lng: 123.829350 },
     isMustVisit: false,
@@ -812,9 +849,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/nationalshrineofsaintjoseph1.jpg",
       "/heritage-sites/nationalshrineofsaintjoseph2.jpg",
-      "/heritage-sites/nationalshrineofsaintjoseph3.jpg"
+      "/heritage-sites/nationalshrineofsaintjoseph3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/c/ca/Mandaue_Saint_Joseph_National_Shrine_2026-07-11.jpg",
     ],
     rating: 4.8,
+    entranceFee: "Free Admission",
     tags: ["shrine", "religious", "jesuit"],
     coordinates: { lat: 10.327479, lng: 123.942176 },
     isMustVisit: true,
@@ -837,9 +876,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/mandauecitypubliclibary1.jpg",
       "/heritage-sites/mandauecitypubliclibary2.jpg",
-      "/heritage-sites/mandauecitypubliclibary3.jpg"
+      "/heritage-sites/mandauecitypubliclibary3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/3/3e/Mandaue_City_Public_Library,_Cebu,_Jan_2024.jpg",
     ],
     rating: 4.2,
+    entranceFee: "Free Admission",
     tags: ["library", "educational", "architecture"],
     coordinates: { lat: 10.325832, lng: 123.942101 },
     isMustVisit: false,
@@ -862,9 +903,13 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/bantayansahari1.jpg",
       "/heritage-sites/bantayansahari2.jpg",
-      "/heritage-sites/bantayansahari3.jpg"
+      "/heritage-sites/bantayansahari3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/b/b7/Petron_Mandaue_Depot_and_Bantayan_sa_Hari_(Looc,_Mandaue,_Cebu;_01-19-2024).jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/a/a8/Petron_Mandaue_Depot_and_Bantayan_sa_Hari_(Looc,_Mandaue,_Cebu;_09-04-2022).jpg",
+
     ],
     rating: 4.0,
+    entranceFee: "Free Admission",
     tags: ["watchtower", "spanish", "military"],
     coordinates: { lat: 10.322712, lng: 123.954833 },
     isMustVisit: false,
@@ -887,9 +932,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/mandauepresidencia1.jpg",
       "/heritage-sites/mandauepresidencia2.jpg",
-      "/heritage-sites/mandauepresidencia3jpg.jpg"
+      "/heritage-sites/mandauepresidencia3jpg.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/6/65/Mandaue_Presidencia_Marker,_Cebu.jpg",
     ],
     rating: 4.6,
+    entranceFee: "Free Admission",
     tags: ["government", "neoclassical", "cityhall"],
     coordinates: { lat: 10.327418, lng: 123.943134 },
     isMustVisit: true,
@@ -912,9 +959,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/mandauemactanbridge1.jpg",
       "/heritage-sites/mandauemactanbridge2.jpg",
-      "/heritage-sites/mandauemactanbridge3.jpg"
+      "/heritage-sites/mandauemactanbridge3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/3/36/Mandaue-Mactan_Bridge_I.jpg",
     ],
     rating: 4.4,
+    entranceFee: "Free Admission",
     tags: ["bridge", "iconic", "channel"],
     coordinates: { lat: 10.319733, lng: 123.955731 },
     isMustVisit: false,
@@ -937,7 +986,8 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/marcelofernanbridge1.jpg",
       "/heritage-sites/marcelofernanbridge2.jpg",
-      "/heritage-sites/marcelofernanbridge3.jpg"
+      "/heritage-sites/marcelofernanbridge3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/e/e9/MARCELO_FERNAN_BRIDGE_(6259265564).jpg"
     ],
     rating: 4.7,
     tags: ["bridge", "cable-stayed", "mandaue", "lapu-lapu", "mactan-channel", "marcelo-fernan", "second-bridge"],
@@ -965,9 +1015,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/mandauecityheritageplaza1.jpg",
       "/heritage-sites/mandauecityheritageplaza2.jpg",
-      "/heritage-sites/mandauecityheritageplaza3.jpg"
+      "/heritage-sites/mandauecityheritageplaza3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/9/98/Mandaue_City_Plaza_(2024-10-27).jpg",
     ],
     rating: 4.3,
+    entranceFee: "Free Admission",
     tags: ["plaza", "civic", "park"],
     coordinates: { lat: 10.327944, lng: 123.942767 },
     isMustVisit: false,
@@ -992,9 +1044,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/virgendelareglanationalshrine1.jpg",
       "/heritage-sites/virgendelareglanationalshrine2.jpg",
-      "/heritage-sites/virgendelareglanationalshrine3.jpg"
+      "/heritage-sites/virgendelareglanationalshrine3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/6/6b/Virgen_de_la_Regla_church.JPG"
     ],
     rating: 4.9,
+    entranceFee: "Free Admission",
     tags: ["shrine", "pilgrimage", "devotion"],
     coordinates: { lat: 10.312571, lng: 123.948726 },
     isMustVisit: true,
@@ -1017,9 +1071,13 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/mactanshrine1.jpg",
       "/heritage-sites/mactanshrine2.jpg",
-      "/heritage-sites/mactanshrine3.jpg"
+      "/heritage-sites/mactanshrine3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/f/f4/Mactan_Shrine_in_Lapu-Lapu_City.JPG",
+      "https://upload.wikimedia.org/wikipedia/commons/f/f0/Mactan_Shrine,_Cebu_city.jpg",
+
     ],
     rating: 4.9,
+    entranceFee: "Free Admission",
     tags: ["hero", "battle", "liberty"],
     coordinates: { lat: 10.310855, lng: 124.015244 },
     isMustVisit: true,
@@ -1042,9 +1100,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/magellansmarker1.jpg",
       "/heritage-sites/magellansmarker2.jpg",
-      "/heritage-sites/magellansmarker3.jpg"
+      "/heritage-sites/magellansmarker3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/d/d3/Magellan's_marker_(9237742220).jpg",
     ],
     rating: 4.6,
+    entranceFee: "Free Admission",
     tags: ["magellan", "obelisk", "history"],
     coordinates: { lat: 10.310949, lng: 124.015283 },
     isMustVisit: false,
@@ -1070,6 +1130,7 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
       "/heritage-sites/plazarizal(rizalpark)3.jpg"
     ],
     rating: 4.2,
+    entranceFee: "Free Admission",
     tags: ["plaza", "rizal", "civic"],
     coordinates: { lat: 10.312681, lng: 123.949028 },
     isMustVisit: false,
@@ -1092,9 +1153,11 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/millenniumpark1.jpg",
       "/heritage-sites/millenniumpark2.jpg",
-      "/heritage-sites/millenniumpark3.jpg"
+      "/heritage-sites/millenniumpark3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/d/d3/Millennium_Park_%2810-30-2022%29.jpg"
     ],
     rating: 4.1,
+    entranceFee: "Free Admission",
     tags: ["park", "coastal", "bridge-view"],
     coordinates: { lat: 10.324856, lng: 123.968125 },
     isMustVisit: false,
@@ -1117,9 +1180,12 @@ const BASE_HERITAGE_SITES: HeritageSite[] = [
     galleryImages: [
       "/heritage-sites/oldbridgepark1.jpg",
       "/heritage-sites/oldbridgepark2.jpg",
-      "/heritage-sites/oldbridgepark3.jpg"
+      "/heritage-sites/oldbridgepark3.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/e/e7/Lapu-Lapu_2026-04-27_001.jpg",
+
     ],
     rating: 4.0,
+    entranceFee: "Free Admission",
     tags: ["park", "industrial-heritage", "community"],
     coordinates: { lat: 10.317816, lng: 123.956807 },
     isMustVisit: false,
@@ -1300,7 +1366,74 @@ const ENRICHED_SITE_CONTENT: Record<string, Pick<HeritageSite, 'overview' | 'sig
 export const HERITAGE_SITES: HeritageSite[] = BASE_HERITAGE_SITES.map(site => ({
   ...site,
   ...(ENRICHED_SITE_CONTENT[site.id] || {}),
+  // Built-in directory scores are not visitor ratings; those come from reviews.
+  rating: undefined,
 }));
+
+export const SITE_IMAGE_ATTRIBUTIONS = {
+  'cebu-cross': [{ url: "https://upload.wikimedia.org/wikipedia/commons/0/05/Magellan's_Cross_Cebu.jpg", creator: 'Kingphoto23', license: 'CC BY-SA 3.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/' }],
+  'mandaue-plaza': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Mandaue_City_Plaza_(2024-10-27).jpg', creator: 'Wide Awake! (PaulGorduiz106)', license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/' }],
+  'cebu-basilica': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/1/1c/Basilica_Minore_del_Santo_Nino.jpg', creator: 'Magalhaes', license: 'Public domain', licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/' }],
+  'cebu-archdiocesan-museum': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/e/e6/The_Archdiocesan_Museum_of_Cebu_3.jpg', creator: 'Bim24', license: 'CC0 1.0', licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/' }],
+  'cebu-jesuit-house': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/5/5f/1730_Jesuit_House_Museum.jpg', creator: 'Filipinayzd', license: 'CC0 1.0', licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/' }],
+  'talisay-church': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/f/f2/Santa._Teresa_de_Avila_Church,_Talisay_City,_Cebu.jpg', creator: 'Francinehihao', license: 'CC0 1.0', licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/' }],
+  'cebu-cathedral': [
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/4/4a/Cebu_Metropolitan_Cathedral.jpg', creator: 'Researcher1982 / Arnold Carl F. Sancover', license: 'CC BY-SA 3.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/' },
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/5/59/Inside_the_Cebu_Metropolitan_Cathedral..jpg', creator: 'GinaD', license: 'CC BY-SA 3.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/' },
+  ],
+  'talisay-landing': [
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/7/74/Talisay_Landing_Historical_Marker.jpg', creator: 'Pavl Anthony / Spacejazz2013', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' },
+  ],
+  'cebu-casa-gorordo': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/9/9e/Casa_Gorordo_Museum_(E._Aboitiz,_Cebu_City;_09-05-2022).jpg', creator: 'Patrickroque01', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'cebu-yap-sandiego': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/f/fe/Yap-Sandiego_Ancestral_House,_Cebu_City.jpg', creator: 'Subhashish Panigrahi', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'cebu-national-museum': [
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/5/59/National_Museum_of_the_Philippines-Cebu.jpg', creator: 'Playdarica', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' },
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Exploring_Cebu_Plaza_Independencia_and_National_Museum_of_the_Philippines_in_Cebu_City,_Cebu,_Philippines_2.jpg', creator: 'RizaCPH', license: 'CC0 1.0', licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/' },
+  ],
+  'cebu-sugbu-chinese-museum': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/1/14/Sugbu_Chinese_Heritage_Museum,_Cebu_City,_Jan_2024.jpg', creator: 'Ralff Nestor Nacor', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'cebu-museo-sugbo': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/9/93/Facade_of_Museo_Sugbo.jpg', creator: 'Carlo Joseph Moskito', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'cebu-fort-san-pedro': [
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/5/52/Fort_San_Pedro_-_main_entrance.jpg', creator: 'Eugene Alvin Villar', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' },
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/2/24/Fort_San_Pedro_scenery.jpg', creator: 'Kozak005', license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/' },
+  ],
+  'cebu-heritage-monument': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/d/d7/Heritage_of_Cebu_Monument_in_Cebu_city.jpg', creator: 'Ms anez', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'cebu-colon-street': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/1/1c/Colon_Street_1961_NHCP_Historical_Marker.jpg', creator: 'Ryomaandres', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'cebu-tres-de-abril-marker': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/c/c8/Tres_de_Abril_Street,_Cebu_City,_historical_marker.jpg', creator: 'Carlo Joseph Moskito', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'cebu-plaza-independencia': [
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/6/62/Plaza_Independencia,_Cebu_City_-_Welcome_1.jpg', creator: 'Defenestrated Juan', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' },
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Exploring_Cebu_Plaza_Independencia_and_National_Museum_of_the_Philippines_in_Cebu_City,_Cebu,_Philippines_1.jpg', creator: 'RizaCPH', license: 'CC0 1.0', licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/' },
+  ],
+  'cebu-plaza-sugbo': [
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/d/dc/Cebu_City_Hall,_Plaza_Sugbo_night_view_(P._Burgos,_Cebu_City;_01-23-2024).jpg', creator: 'Patrickroque01', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' },
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/1/18/Plaza_Sugbu,_Cebu_City,_Jan_2024.jpg', creator: 'Ralff Nestor Nacor', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' },
+  ],
+  'cebu-fuente-osmena': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/4/4e/Cebu_Fuente_Osmeña_Circle_top_view_(Cebu_City;_09-09-2022).jpg', creator: 'Patrickroque01', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'cebu-city-hall': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/8/86/Cebu_City_Hall.jpg', creator: 'Elmer B. Domingo', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'cebu-capitol': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/1/13/Cebu_Provincial_Capitol_Building.jpg', creator: 'Carlo Joseph Moskito', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'cebu-patria': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/3/3f/Patria_de_Cebu,_Aug_2026.jpg', creator: 'A.C.T. Alejandre', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'cebu-rizal-memorial-library': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/8/87/Rizal_Memorial_Library_and_Museum_in_Cebu_City,_Cebu,_Philippines.jpg', creator: 'Verbosmithie', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'mandaue-church': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/c/ca/Mandaue_Saint_Joseph_National_Shrine_2026-07-11.jpg', creator: 'LMP 2001', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'mandaue-library': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/3/3e/Mandaue_City_Public_Library,_Cebu,_Jan_2024.jpg', creator: 'Ralff Nestor Nacor', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'mandaue-watchtower': [
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/b/b7/Petron_Mandaue_Depot_and_Bantayan_sa_Hari_(Looc,_Mandaue,_Cebu;_01-19-2024).jpg', creator: 'Patrickroque01', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' },
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/a/a8/Petron_Mandaue_Depot_and_Bantayan_sa_Hari_(Looc,_Mandaue,_Cebu;_09-04-2022).jpg', creator: 'Patrickroque01', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' },
+  ],
+  'mandaue-presidencia': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/6/65/Mandaue_Presidencia_Marker,_Cebu.jpg', creator: 'Ralffralff', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'mandaue-bridge': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/3/36/Mandaue-Mactan_Bridge_I.jpg', creator: 'Rabosajr', license: 'CC BY-SA 3.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/' }],
+  'llc-mactan-shrine': [
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/f/f4/Mactan_Shrine_in_Lapu-Lapu_City.JPG', creator: 'Badz Patanag', license: 'CC BY-SA 3.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/' },
+    { url: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Mactan_Shrine,_Cebu_city.jpg', creator: 'QuianCagandahan', license: 'CC BY 4.0', licenseUrl: 'https://creativecommons.org/licenses/by/4.0/' },
+  ],
+  'llc-magellan-marker': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/d/d3/Magellan\'s_marker_(9237742220).jpg', creator: 'shankar s.', license: 'CC BY 2.0', licenseUrl: 'https://creativecommons.org/licenses/by/2.0/' }],
+  'marcelo-fernan-bridge': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/e/e9/MARCELO_FERNAN_BRIDGE_(6259265564).jpg', creator: 'whologwhy', license: 'CC BY 2.0', licenseUrl: 'https://creativecommons.org/licenses/by/2.0/' }],
+  'llc-shrine': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/6/6b/Virgen_de_la_Regla_church.JPG', creator: 'Tribu akru', license: 'Public domain', licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/' }],
+  'llc-millennium-park': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/d/d3/Millennium_Park_%2810-30-2022%29.jpg', creator: 'PaulGorduiz106', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+  'llc-bridge-park': [{ url: 'https://upload.wikimedia.org/wikipedia/commons/e/e7/Lapu-Lapu_2026-04-27_001.jpg', creator: 'Martin Michlmayr', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/' }],
+
+
+
+
+};
 
 export function getSiteById(id: string) {
   if (DEPRECATED_HERITAGE_SITE_IDS.includes(id)) return undefined;

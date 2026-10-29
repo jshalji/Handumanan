@@ -12,8 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Sparkles, Calendar, Clock, MapPin, Loader2, Save, Map as MapIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -64,7 +63,7 @@ export default function ItineraryPage() {
     }
   };
 
-  const handleSaveItinerary = () => {
+  const handleSaveItinerary = async () => {
     if (!user || !db || !result) {
       toast({
         title: "Login Required",
@@ -74,18 +73,26 @@ export default function ItineraryPage() {
       return;
     }
 
+    if (isSaving) return;
+
     setIsSaving(true);
-    const itineraryRef = doc(collection(db, 'users', user.uid, 'itineraries'));
+    try {
+      const itineraryRef = doc(collection(db, 'users', user.uid, 'itineraries'));
     
-    setDocumentNonBlocking(itineraryRef, {
+    await setDoc(itineraryRef, {
       userId: user.uid,
       itineraryData: JSON.stringify(result),
       summary: result.routeSuggestion,
       createdAt: serverTimestamp()
     }, { merge: true });
 
-    setIsSaving(false);
-    toast({ title: "Itinerary Saved", description: "You can view this in your profile anytime." });
+      toast({ title: "Itinerary Saved", description: "You can view this in your profile anytime." });
+    } catch (error) {
+      console.error("Failed to save itinerary:", error);
+      toast({ title: "Save Failed", description: "Could not save your itinerary. Please try again.", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

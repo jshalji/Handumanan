@@ -12,7 +12,8 @@ import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageSources } from '@/lib/site-images';
 import { Search, MapPin, X, ExternalLink, Star, Archive, Layers, MapPinned, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { useFirestore, useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { collection, collectionGroup, doc } from 'firebase/firestore';
+import { getRatingSummaryState, groupReviewsBySiteId } from '@/lib/review-ratings';
 import { cn } from '@/lib/utils';
 
 const EXPLORE_STATE_KEY = 'handumanan-explore-state';
@@ -50,10 +51,8 @@ type ExploreState = {
   savedAt: number;
 };
 
-function SiteCard({ site, onOpenSite }: { site: HeritageSite; onOpenSite: () => void }) {
+function SiteCard({ site, ratingSummary, onOpenSite }: { site: HeritageSite; ratingSummary: ReturnType<typeof getRatingSummaryState>; onOpenSite: () => void }) {
   const imageSources = getSiteImageSources(site);
-  const hasRating = Number.isFinite(Number(site?.rating));
-  const ratingDisplay = hasRating ? Number(site.rating).toFixed(1) : 'N/A';
   const mainCategory = (site.category || 'Heritage Site').split(' & ')[0];
 
   return (
@@ -102,8 +101,23 @@ function SiteCard({ site, onOpenSite }: { site: HeritageSite; onOpenSite: () => 
           <span className="truncate text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
             {site.city || 'Heritage'} Landmark
           </span>
-          <div className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-600 border border-amber-100">
-            <Star size={10} fill="currentColor" /> {ratingDisplay}
+          <div className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-600 border border-amber-100" aria-live="polite">
+            {ratingSummary.status === 'rated' ? (
+              <>
+                <Star size={10} fill="currentColor" /> {ratingSummary.average.toFixed(1)} <span className="text-[9px]">({ratingSummary.count})</span>
+              </>
+            ) : ratingSummary.status === 'empty' ? (
+              <>
+                <span className="flex items-center text-slate-300" aria-label="Empty stars">
+                  {[1, 2, 3, 4, 5].map(star => <Star key={star} size={8} />)}
+                </span>
+                <span>No ratings yet</span>
+              </>
+            ) : (
+              <span className="text-slate-500">
+                {ratingSummary.status === 'loading' ? 'Loading ratings…' : 'Ratings unavailable'}
+              </span>
+            )}
           </div>
         </div>
 
@@ -180,6 +194,13 @@ export default function ExplorePage() {
 
   const sitesQuery = useMemoFirebase(() => db ? collection(db, 'heritageSites') : null, [db]);
   const { data: dbSites } = useCollection(sitesQuery);
+  const reviewsQuery = useMemoFirebase(() => db ? collectionGroup(db, 'reviews') : null, [db]);
+  const {
+    data: allSiteReviews,
+    isLoading: areSiteReviewsLoading,
+    error: siteReviewsError,
+  } = useCollection(reviewsQuery, { includeDocumentPath: true });
+  const reviewsBySiteId = useMemo(() => groupReviewsBySiteId(allSiteReviews), [allSiteReviews]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [city, setCity] = useState('All');
@@ -217,14 +238,11 @@ export default function ExplorePage() {
           ? { lat: dbSite.latitude, lng: dbSite.longitude }
           : existingSite.coordinates
       );
-      const rating = Number.isFinite(Number(dbSite.rating))
-        ? Number(dbSite.rating)
-        : (Number.isFinite(Number(existingSite.rating)) ? Number(existingSite.rating) : undefined);
 
       sitesById.set(dbSite.id, {
         ...existingSite,
         ...dbSite,
-        rating,
+        rating: undefined,
         coordinates,
         tags: Array.isArray(dbSite.tags) ? dbSite.tags : (Array.isArray(existingSite.tags) ? existingSite.tags : []),
       } as any);
@@ -509,7 +527,16 @@ export default function ExplorePage() {
         )}>
           {filteredSites.length > 0 ? (
             filteredSites.map((site) => (
-              <SiteCard key={site.id} site={site} onOpenSite={handleOpenSite} />
+              <SiteCard
+                key={site.id}
+                site={site}
+                ratingSummary={getRatingSummaryState(reviewsBySiteId.get(site.id), {
+                  isLoading: areSiteReviewsLoading,
+                  isAvailable: Boolean(reviewsQuery),
+                  error: siteReviewsError,
+                })}
+                onOpenSite={handleOpenSite}
+              />
             ))
           ) : (
             <div className="col-span-full py-16 px-4 text-center rounded-2xl border border-dashed border-slate-200 bg-white">

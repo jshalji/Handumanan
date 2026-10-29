@@ -122,6 +122,20 @@ function isValidGeoPoint(value: unknown): value is GeoPoint {
   );
 }
 
+function compareRatingDescending(left?: number, right?: number): number {
+  const leftHasRating = typeof left === 'number' && Number.isFinite(left);
+  const rightHasRating = typeof right === 'number' && Number.isFinite(right);
+
+  if (leftHasRating && rightHasRating) {
+    return (right as number) - (left as number);
+  }
+
+  if (leftHasRating) return -1;
+  if (rightHasRating) return 1;
+  return 0;
+}
+
+
 function normalizeDirectorySite(site: DirectorySiteInput): HeritageSiteRecord | null {
   if (!site.id || !site.name || DEPRECATED_HERITAGE_SITE_IDS.includes(site.id)) return null;
 
@@ -145,7 +159,7 @@ function normalizeDirectorySite(site: DirectorySiteInput): HeritageSiteRecord | 
     visitingHours: site.visitingHours || 'Visiting hours are not yet available.',
     imageUrl: site.imageUrl || '/logo.png',
     galleryImages: site.galleryImages,
-    rating: Number.isFinite(site.rating) ? Number(site.rating) : 4.5,
+    rating: Number.isFinite(site.rating) ? Number(site.rating) : undefined,
     tags: Array.isArray(site.tags) ? site.tags.filter(Boolean) : [],
     coordinates,
     isMustVisit: Boolean(site.isMustVisit),
@@ -207,7 +221,7 @@ function getBalancedRouteSites(stopCount: number, sites: HeritageSiteRecord[]) {
 
   const sortedSites = [...activeSites].sort((a, b) => {
     if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
-    return b.rating - a.rating;
+    return compareRatingDescending(a.rating, b.rating);
   });
 
   for (const site of sortedSites) {
@@ -439,7 +453,7 @@ function getDirectoryMatches(query: string, limit = 8, sites: HeritageSiteRecord
       if (a.city !== b.city) return a.city.localeCompare(b.city);
       if (a.category !== b.category) return a.category.localeCompare(b.category);
       if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
-      return b.rating - a.rating;
+      return compareRatingDescending(a.rating, b.rating);
     })
     .slice(0, limit);
 }
@@ -507,7 +521,7 @@ function getGuideRecommendationResponse(query: string, sites: HeritageSiteRecord
     .filter(site => isSiteOpenForVisit(site))
     .sort((a, b) => {
       if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
-      return b.rating - a.rating;
+      return compareRatingDescending(a.rating, b.rating);
     });
   const unavailableSites = scopedSites.filter(site => !isSiteOpenForVisit(site));
   const shownSites = openSites.slice(0, limit);
@@ -517,7 +531,7 @@ function getGuideRecommendationResponse(query: string, sites: HeritageSiteRecord
       .filter(site => isSiteOpenForVisit(site))
       .filter(site => !city || site.city === city)
       .filter(site => !category || site.category === category)
-      .sort((a, b) => b.rating - a.rating)
+      .sort((a, b) => compareRatingDescending(a.rating, b.rating))
       .slice(0, limit);
 
     return {
@@ -612,7 +626,7 @@ function getOpenSitesResponse(query: string, sites: HeritageSiteRecord[], limit 
     .sort((a, b) => {
       if (a.city !== b.city) return a.city.localeCompare(b.city);
       if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
-      return b.rating - a.rating;
+      return compareRatingDescending(a.rating, b.rating);
     });
   const closedCount = Math.max(0, scopedSites.length - openSites.length);
   const shownSites = openSites.slice(0, limit);
@@ -701,7 +715,7 @@ function findBestSiteForRouteEndpoint(query: string, excludedIds = new Set<strin
     .filter(site => isSiteOpenForVisit(site) && !excludedIds.has(site.id))
     .map(site => ({ site, score: scoreSiteMatch(site, query) }))
     .filter(result => result.score >= 20)
-    .sort((a, b) => b.score - a.score || b.site.rating - a.site.rating)[0];
+    .sort((a, b) => b.score - a.score || compareRatingDescending(a.site.rating, b.site.rating))[0];
 
   return match?.site ?? null;
 }
@@ -711,7 +725,7 @@ function findRepresentativeSiteForCity(city: string, excludedIds = new Set<strin
     .filter(site => isSiteOpenForVisit(site) && site.city === city && !excludedIds.has(site.id))
     .sort((a, b) => {
       if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
-      return b.rating - a.rating || a.name.localeCompare(b.name);
+      return compareRatingDescending(a.rating, b.rating) || a.name.localeCompare(b.name);
     })[0] ?? null;
 }
 
@@ -832,7 +846,7 @@ function getNearbySites(userLocation: GeoPoint, query: string, limit = 5, sites:
       site,
       distanceKm: calculateStraightLineDistanceKm(userLocation, site.coordinates),
     }))
-    .sort((a, b) => a.distanceKm - b.distanceKm || b.site.rating - a.site.rating)
+    .sort((a, b) => a.distanceKm - b.distanceKm || compareRatingDescending(a.site.rating, b.site.rating))
     .slice(0, limit);
 }
 
@@ -1029,7 +1043,7 @@ function findMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[]
   const cityMatches = candidates
     .map(site => ({ site, score: scoreSiteMatch(site, query) }))
     .filter(result => result.score > 0)
-    .sort((a, b) => b.score - a.score || b.site.rating - a.site.rating)
+    .sort((a, b) => b.score - a.score || compareRatingDescending(a.site.rating, b.site.rating))
     .map(result => result.site);
 
   if (cityMatches.length > 0) {
@@ -1043,7 +1057,7 @@ function findMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[]
   const scopedMatches = candidates
     .map(site => ({ site, score: scoreSiteMatch(site, query) }))
     .filter(result => result.score > 0)
-    .sort((a, b) => b.score - a.score || b.site.rating - a.site.rating)
+    .sort((a, b) => b.score - a.score || compareRatingDescending(a.site.rating, b.site.rating))
     .slice(0, limit)
     .map(result => result.site);
 
@@ -1060,7 +1074,7 @@ function getStrongMatchingSites(query: string, limit = 3, sites: HeritageSiteRec
       if (result.score >= 50) return true;
       return result.normalizedName.length > 4 && normalizedQuery.includes(result.normalizedName);
     })
-    .sort((a, b) => b.score - a.score || b.site.rating - a.site.rating)
+    .sort((a, b) => b.score - a.score || compareRatingDescending(a.site.rating, b.site.rating))
     .slice(0, limit)
     .map(result => result.site);
 }
@@ -1194,7 +1208,7 @@ function getSiteFactResponse(query: string, site: HeritageSiteRecord, sites: Her
       .filter(candidate => candidate.id !== site.id)
       .filter(candidate => candidate.city === site.city)
       .filter(candidate => isSiteOpenForVisit(candidate))
-      .sort((a, b) => b.rating - a.rating)
+      .sort((a, b) => compareRatingDescending(a.rating, b.rating))
       .slice(0, 3);
   const alternativeText = alternativeSites.length > 0
     ? ` Since it is unavailable, nearby open alternatives in ${site.city} include ${alternativeSites.map(candidate => candidate.name).join(', ')}.`
@@ -1251,7 +1265,7 @@ function getSiteFactResponse(query: string, site: HeritageSiteRecord, sites: Her
 
   if (/\b(rating|rated|must visit|recommended|worth|best)\b/.test(normalizedQuery)) {
     return {
-      text: `${site.name} has a directory rating of ${site.rating}/5${site.isMustVisit ? ' and is marked as a must-visit site' : ''}. It is listed under ${site.category} in ${site.city}.`,
+      text: `${site.name} has ${typeof site.rating === 'number' ? `a directory rating of ${site.rating}/5` : 'no visitor rating yet'}${site.isMustVisit ? ' and is marked as a must-visit site' : ''}. It is listed under ${site.category} in ${site.city}.`,
       suggestedSiteIds: [site.id],
     };
   }
@@ -1423,13 +1437,13 @@ function getComparisonResponse(query: string, sites: HeritageSiteRecord[], conte
 
   if (/\b(rating|rated|higher rating|best rated)\b/.test(normalizedQuery)) {
     return {
-      text: `Rating comparison:\n\n- **${siteA.name}**: ⭐ ${siteA.rating}/5\n- **${siteB.name}**: ⭐ ${siteB.rating}/5`,
+      text: `Rating comparison:\n\n- **${siteA.name}**: ⭐ ${typeof siteA.rating === 'number' ? `${siteA.rating}/5` : 'No visitor rating yet'}\n- **${siteB.name}**: ⭐ ${typeof siteB.rating === 'number' ? `${siteB.rating}/5` : 'No visitor rating yet'}`,
       suggestedSiteIds: [siteA.id, siteB.id],
     };
   }
 
   return {
-    text: `Comparison between **${siteA.name}** and **${siteB.name}**:\n\n- **${siteA.name}**: ${siteA.city} · ${siteA.category} · ⭐ ${siteA.rating}/5 · Admission: ${siteA.entranceFee || 'Free/Unspecified'}\n- **${siteB.name}**: ${siteB.city} · ${siteB.category} · ⭐ ${siteB.rating}/5 · Admission: ${siteB.entranceFee || 'Free/Unspecified'}\n\nVisiting Hours:\n- ${siteA.name}: ${siteA.visitingHours}\n- ${siteB.name}: ${siteB.visitingHours}`,
+    text: `Comparison between **${siteA.name}** and **${siteB.name}**:\n\n- **${siteA.name}**: ${siteA.city} · ${siteA.category} · ⭐ ${typeof siteA.rating === 'number' ? `${siteA.rating}/5` : 'No visitor rating yet'} · Admission: ${siteA.entranceFee || 'Free/Unspecified'}\n- **${siteB.name}**: ${siteB.city} · ${siteB.category} · ⭐ ${typeof siteB.rating === 'number' ? `${siteB.rating}/5` : 'No visitor rating yet'} · Admission: ${siteB.entranceFee || 'Free/Unspecified'}\n\nVisiting Hours:\n- ${siteA.name}: ${siteA.visitingHours}\n- ${siteB.name}: ${siteB.visitingHours}`,
     suggestedSiteIds: [siteA.id, siteB.id],
   };
 }
@@ -1533,7 +1547,7 @@ function getNearbySitesForReference(targetSite: HeritageSiteRecord, sites: Herit
       site,
       distanceKm: calculateStraightLineDistanceKm(targetSite.coordinates, site.coordinates),
     }))
-    .sort((a, b) => a.distanceKm - b.distanceKm || b.site.rating - a.site.rating)
+    .sort((a, b) => a.distanceKm - b.distanceKm || compareRatingDescending(a.site.rating, b.site.rating))
     .slice(0, limit);
 
   if (nearbyList.length === 0) {
@@ -1560,7 +1574,7 @@ function getNearbySitesForPoint(point: GeoPoint & { name: string; city: string }
       site,
       distanceKm: calculateStraightLineDistanceKm(point, site.coordinates),
     }))
-    .sort((a, b) => a.distanceKm - b.distanceKm || b.site.rating - a.site.rating)
+    .sort((a, b) => a.distanceKm - b.distanceKm || compareRatingDescending(a.site.rating, b.site.rating))
     .slice(0, limit);
 
   if (nearbyList.length === 0) {
@@ -1590,7 +1604,7 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
   const activeSites = sites.filter(site => isSiteOpenForVisit(site));
   const mustVisitSites = activeSites
     .filter(site => site.isMustVisit)
-    .sort((a, b) => b.rating - a.rating)
+    .sort((a, b) => compareRatingDescending(a.rating, b.rating))
     .slice(0, 3);
 
   if (isPromptInjectionQuery(lastMessage)) {

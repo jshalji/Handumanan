@@ -59,7 +59,7 @@ function compactSiteForChat(site: any): ChatDirectorySite | null {
     city: site?.city ? String(site.city) : undefined,
     visitingHours: site?.visitingHours ? String(site.visitingHours) : undefined,
     imageUrl: site?.imageUrl ? String(site.imageUrl) : undefined,
-    rating: Number.isFinite(Number(site?.rating)) ? Number(site.rating) : undefined,
+    rating: undefined,
     tags: Array.isArray(site?.tags) ? site.tags.map(String).filter(Boolean) : undefined,
     coordinates: { lat, lng },
     latitude: lat,

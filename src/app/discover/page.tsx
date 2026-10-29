@@ -27,6 +27,7 @@ import {
   Menu,
   Trash2,
   MapPin,
+  ExternalLink,
   ChevronDown,
   Sparkles,
   Save as SaveIcon,
@@ -77,6 +78,113 @@ const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), {
   ssr: false,
   loading: () => <div className="h-full w-full bg-slate-100 flex items-center justify-center font-black uppercase tracking-widest text-[10px] opacity-30">Map Initializing...</div>
 });
+
+// Keyless Google Maps URL builders. Keep trip segments within the universal
+// Maps URLs limit of three waypoints so the same links work on mobile.
+type GoogleMapsRoutePoint = { lat: number; lng: number };
+type GoogleMapsItinerarySegment = {
+  url: string;
+  firstStopNumber: number;
+  lastStopNumber: number;
+  originStopNumber?: number;
+};
+
+const GOOGLE_MAPS_MAX_WAYPOINTS = 3;
+
+function getGoogleMapsSitePoint(site: any): GoogleMapsRoutePoint | null {
+  const rawLat = site?.coordinates?.lat ?? site?.latitude;
+  const rawLng = site?.coordinates?.lng ?? site?.longitude;
+  if (
+    rawLat === null || rawLat === undefined || (typeof rawLat === 'string' && rawLat.trim() === '') ||
+    rawLng === null || rawLng === undefined || (typeof rawLng === 'string' && rawLng.trim() === '')
+  ) {
+    return null;
+  }
+  const lat = Number(rawLat);
+  const lng = Number(rawLng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return null;
+  }
+  return { lat, lng };
+}
+
+function getGoogleMapsTravelMode(mode: TravelMode): string | undefined {
+  if (mode === 'DRIVE') return 'driving';
+  if (mode === 'WALK') return 'walking';
+  if (mode === 'TRANSIT') return 'transit';
+  // Maps URLs do not consistently support the app's two-wheel route mode.
+  return undefined;
+}
+
+function buildGoogleMapsDirectionsUrl({
+  destination,
+  origin,
+  waypoints = [],
+  mode,
+}: {
+  destination: GoogleMapsRoutePoint | string;
+  origin?: GoogleMapsRoutePoint;
+  waypoints?: GoogleMapsRoutePoint[];
+  mode: TravelMode;
+}): string | null {
+  if (waypoints.length > GOOGLE_MAPS_MAX_WAYPOINTS) return null;
+  const locationValue = (point: GoogleMapsRoutePoint) => `${point.lat},${point.lng}`;
+  const url = new URL('https://www.google.com/maps/dir/');
+  url.searchParams.set('api', '1');
+  url.searchParams.set('destination', typeof destination === 'string' ? destination : locationValue(destination));
+  if (origin) url.searchParams.set('origin', locationValue(origin));
+  if (waypoints.length > 0) url.searchParams.set('waypoints', waypoints.map(locationValue).join('|'));
+  const travelMode = getGoogleMapsTravelMode(mode);
+  if (travelMode) url.searchParams.set('travelmode', travelMode);
+  return url.toString();
+}
+
+function buildGoogleMapsItinerarySegments(
+  sites: any[],
+  currentLocation: GoogleMapsRoutePoint | null,
+  mode: TravelMode
+): GoogleMapsItinerarySegment[] | null {
+  if (sites.length === 0) return [];
+  const points = sites.map(getGoogleMapsSitePoint);
+  if (points.some(point => point === null)) return null;
+
+  const validPoints = points as GoogleMapsRoutePoint[];
+  const segments: GoogleMapsItinerarySegment[] = [];
+  let nextStopIndex = 0;
+  let segmentOrigin = currentLocation || undefined;
+  let originStopNumber: number | undefined;
+
+  while (nextStopIndex < validPoints.length) {
+    const lastStopIndex = Math.min(
+      nextStopIndex + GOOGLE_MAPS_MAX_WAYPOINTS,
+      validPoints.length - 1
+    );
+    const destination = validPoints[lastStopIndex];
+    const waypoints = validPoints.slice(nextStopIndex, lastStopIndex);
+    const url = buildGoogleMapsDirectionsUrl({ destination, origin: segmentOrigin, waypoints, mode });
+    if (!url) return null;
+
+    segments.push({
+      url,
+      firstStopNumber: nextStopIndex + 1,
+      lastStopNumber: lastStopIndex + 1,
+      originStopNumber,
+    });
+
+    if (lastStopIndex >= validPoints.length - 1) break;
+    segmentOrigin = validPoints[lastStopIndex];
+    originStopNumber = lastStopIndex + 1;
+    nextStopIndex = lastStopIndex + 1;
+  }
+
+  return segments;
+}
+
+function buildGoogleMapsSiteDirectionsUrl(site: any, currentLocation: GoogleMapsRoutePoint | null, mode: TravelMode): string | null {
+  const destination = getGoogleMapsSitePoint(site) || [site?.name, site?.city].filter(Boolean).join(', ');
+  if (!destination) return null;
+  return buildGoogleMapsDirectionsUrl({ destination, origin: currentLocation || undefined, mode });
+}
 
 const CITIES = ["Cebu City", "Mandaue City", "Talisay City", "Lapu-Lapu City"];
 
@@ -179,6 +287,7 @@ function ExploreRouteContent() {
 
   const [isNavDrawerOpen, setIsNavDrawerOpen] = useState(false);
   const routeRequestIdRef = useRef(0);
+  const shouldRestorePlannerOnSiteCloseRef = useRef(false);
 
   // LOAD DYNAMIC SITES FROM FIRESTORE
   const sitesQuery = useMemoFirebase(() => db ? collection(db, 'heritageSites') : null, [db]);
@@ -199,6 +308,7 @@ function ExploreRouteContent() {
       sitesById.set(dbSite.id, {
         ...existingSite,
         ...dbSite,
+        rating: undefined,
         coordinates,
         tags: Array.isArray(dbSite.tags) ? dbSite.tags : (Array.isArray(existingSite.tags) ? existingSite.tags : []),
       } as any);
@@ -308,6 +418,9 @@ function ExploreRouteContent() {
 
   const focusSingleSite = useCallback((site: any, options: { updateSearch?: boolean; openExplorer?: boolean } = {}) => {
     const coords = site.coordinates || { lat: (site as any).latitude, lng: (site as any).longitude };
+    if (!selectedMapSiteId) {
+      shouldRestorePlannerOnSiteCloseRef.current = !options.openExplorer && activeTab === 'planner' && isPanelExpanded;
+    }
     setSelectedMapSiteId(site.id);
     setFocusedLocation({ lat: coords.lat, lng: coords.lng });
     if (options.openExplorer) {
@@ -319,13 +432,22 @@ function ExploreRouteContent() {
     if (options.updateSearch) {
       setSearchQuery(site.name);
     }
-  }, [isMobile]);
+  }, [activeTab, isMobile, isPanelExpanded, selectedMapSiteId]);
 
   const clearSingleSiteFocus = useCallback(() => {
     setSelectedMapSiteId(null);
     setIsolatedItinerarySiteId(null);
     setFocusedLocation(null);
+    shouldRestorePlannerOnSiteCloseRef.current = false;
   }, []);
+
+  const closeSitePanel = useCallback(() => {
+    const shouldRestorePlanner = shouldRestorePlannerOnSiteCloseRef.current;
+    clearSingleSiteFocus();
+    if (shouldRestorePlanner) {
+      setIsPanelExpanded(true);
+    }
+  }, [clearSingleSiteFocus]);
 
   const resetMapView = useCallback(() => {
     setSearchQuery('');
@@ -573,6 +695,11 @@ function ExploreRouteContent() {
   const itinerarySites = useMemo(() => {
     return itineraryIds.map(id => availableSites.find(s => s.id === id)).filter(Boolean) as any[];
   }, [itineraryIds, availableSites]);
+
+  const googleMapsItinerarySegments = useMemo(
+    () => buildGoogleMapsItinerarySegments(itinerarySites, userLocation, travelMode),
+    [itinerarySites, userLocation, travelMode]
+  );
 
   const selectedCitySites = useMemo(() => {
     if (!selectedCity) return [];
@@ -1331,8 +1458,10 @@ function ExploreRouteContent() {
           site={selectedMapSite}
           userLocation={userLocation}
           isInItinerary={itineraryIds.includes(selectedMapSite.id)}
-          onClose={clearSingleSiteFocus}
+          onClose={closeSitePanel}
           onInitializeRoute={(siteToRoute) => {
+            const googleMapsUrl = buildGoogleMapsSiteDirectionsUrl(siteToRoute, userLocation, travelMode);
+            if (googleMapsUrl) window.open(googleMapsUrl, '_blank', 'noopener,noreferrer');
             setIsolatedItinerarySiteId(siteToRoute.id);
             setIsTripMapFocused(false);
             setIsPanelExpanded(false);
@@ -1531,6 +1660,46 @@ function ExploreRouteContent() {
                       </div>
                     ))}
                     <div className="flex flex-col gap-3 mt-6">
+                       <div className="space-y-2 rounded-2xl border border-slate-100 bg-white p-3">
+                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Google Maps directions</p>
+                         {googleMapsItinerarySegments === null ? (
+                           <p className="text-[10px] font-medium leading-relaxed text-amber-700">
+                             A complete Maps route is unavailable because one or more stops has invalid coordinates. No stops were omitted.
+                           </p>
+                         ) : (
+                           <>
+                             {googleMapsItinerarySegments.length > 1 && (
+                               <p className="text-[10px] font-medium leading-relaxed text-slate-500">
+                                 Maps URLs support up to three waypoints on mobile. Open these segments in order; each continues from the previous segment’s last stop.
+                               </p>
+                             )}
+                             {googleMapsItinerarySegments.map((segment, index) => (
+                               <a
+                                 key={`${segment.firstStopNumber}-${segment.lastStopNumber}`}
+                                 href={segment.url}
+                                 target="_blank"
+                                 rel="noopener noreferrer"
+                                 className="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-center text-[9px] font-black uppercase tracking-widest text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                               >
+                                 <ExternalLink size={14} />
+                                 {googleMapsItinerarySegments.length === 1
+                                   ? 'Open itinerary in Google Maps'
+                                   : segment.originStopNumber
+                                     ? `Segment ${index + 1}: from stop ${segment.originStopNumber} through stops ${segment.firstStopNumber}–${segment.lastStopNumber}`
+                                     : `Segment ${index + 1}: stops 1–${segment.lastStopNumber}`}
+                               </a>
+                             ))}
+                             <p className="text-[9px] leading-relaxed text-slate-400">
+                               Opens without Handumanan location permission. If Maps cannot use your location, enter your starting point there.
+                             </p>
+                             {travelMode === 'TWO_WHEELER' && (
+                               <p className="text-[9px] leading-relaxed text-amber-700">
+                                 Google Maps may not carry over Handumanan’s two-wheel mode; choose the mode in Google Maps if needed.
+                               </p>
+                             )}
+                           </>
+                         )}
+                       </div>
                        <Button onClick={handleStartNavigation} className="w-full h-12 bg-slate-900 text-[10px] font-black uppercase tracking-widest rounded-[1.25rem] shadow-xl"><Route size={18} className="mr-2" /> Start Navigation</Button>
                        <Button variant="ghost" onClick={() => {
                          setIsTripMapFocused(false);

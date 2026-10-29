@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useCollection, useDoc, useMemoFirebase, useFirebaseApp } from '@/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
-import { collection, collectionGroup, deleteDoc, doc, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, collectionGroup, deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Navbar } from '@/components/layout/Navbar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,12 +18,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import {
   AlertCircle,
+  ArrowLeft,
   Camera,
   CheckCircle2,
   Clock,
   Database,
   Edit2,
   FileEdit,
+  FolderOpen,
   Image as ImageIcon,
   LayoutDashboard,
   Loader2,
@@ -58,6 +60,17 @@ import { useToast } from '@/hooks/use-toast';
 import { HERITAGE_SITES, VerificationStatus, isSiteVisibleToUser } from '@/lib/heritage-data';
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageFallback, normalizeImageSource } from '@/lib/site-images';
+import { isValidRating } from '@/lib/review-ratings';
+import {
+  buildHeritageSiteCityMap,
+  buildHeritageSiteNameMap,
+  CITY_ALBUM_NAMES,
+  groupCommunityPhotosByCity,
+  normalizeCommunityPhotos,
+  resolveHeritageSiteName,
+  sortCommunityReviews,
+  type CityAlbumName,
+} from '@/lib/admin-community';
 
 type AdminTab = 'dashboard' | 'sites' | 'categories' | 'feedback' | 'users' | 'community' | 'settings';
 
@@ -123,7 +136,7 @@ const EMPTY_SITE_FORM: SiteFormState = {
   significance: '',
   latitude: '',
   longitude: '',
-  rating: '4.5',
+  rating: '',
   tags: '',
   status: 'Active',
   demolitionStatus: 'Non-Demolished',
@@ -205,7 +218,7 @@ function getInitialFormState(site?: any): SiteFormState {
     significance: site.significance || '',
     latitude: coords?.lat !== undefined && coords?.lat !== null ? String(coords.lat) : '',
     longitude: coords?.lng !== undefined && coords?.lng !== null ? String(coords.lng) : '',
-    rating: site.rating ? String(site.rating) : '4.5',
+    rating: site.rating !== undefined && site.rating !== null ? String(site.rating) : '',
     tags: Array.isArray(site.tags) ? site.tags.join(', ') : '',
     status: site.status || (site.isActive === false ? 'Inactive' : 'Active'),
     demolitionStatus: site.demolitionStatus || 'Non-Demolished',
@@ -404,37 +417,40 @@ export default function AdminDashboardPage() {
   // Community Content: Reviews & Visitor Photos
   const [communityContentTab, setCommunityContentTab] = useState<'reviews' | 'photos'>('reviews');
   const [communitySearchQuery, setCommunitySearchQuery] = useState('');
+  const [selectedPhotoAlbum, setSelectedPhotoAlbum] = useState<CityAlbumName | null>(null);
   const [isDeletingCommunityItem, setIsDeletingCommunityItem] = useState<string | null>(null);
 
   const canQueryCommunity = !!(db && user && userData?.role === 'admin' && activeTab === 'community');
 
   const reviewsGroupQuery = useMemoFirebase(
-    () => canQueryCommunity ? query(collectionGroup(db, 'reviews'), orderBy('createdAt', 'desc')) : null,
+    () => canQueryCommunity ? collectionGroup(db, 'reviews') : null,
     [db, user, userData?.role, activeTab, canQueryCommunity]
   );
-  const { data: allReviews, isLoading: isReviewsGroupLoading } = useCollection(reviewsGroupQuery);
+  const {
+    data: allReviews,
+    isLoading: isReviewsGroupLoading,
+    error: reviewsGroupError,
+  } = useCollection(reviewsGroupQuery);
+  const communityReviews = useMemo(() => sortCommunityReviews(allReviews), [allReviews]);
 
   const photosGroupQuery = useMemoFirebase(
-    () => canQueryCommunity ? query(collectionGroup(db, 'visitorPhotos'), orderBy('uploadedAt', 'desc')) : null,
+    () => canQueryCommunity ? collectionGroup(db, 'visitorPhotos') : null,
     [db, user, userData?.role, activeTab, canQueryCommunity]
   );
-  const { data: allPhotos, isLoading: isPhotosGroupLoading } = useCollection(photosGroupQuery);
+  const {
+    data: allPhotos,
+    isLoading: isPhotosGroupLoading,
+    error: photosGroupError,
+  } = useCollection(photosGroupQuery, { includeDocumentPath: true });
+  const communityPhotos = useMemo(() => normalizeCommunityPhotos(allPhotos), [allPhotos]);
 
   const filteredReviews = useMemo(() => {
     const q = communitySearchQuery.trim().toLowerCase();
-    return (allReviews || []).filter((r: any) => {
+    return communityReviews.filter((r: any) => {
       if (!q) return true;
       return [r.userName, r.userEmail, r.text, r.comment, r.siteId].join(' ').toLowerCase().includes(q);
     });
-  }, [allReviews, communitySearchQuery]);
-
-  const filteredPhotos = useMemo(() => {
-    const q = communitySearchQuery.trim().toLowerCase();
-    return (allPhotos || []).filter((p: any) => {
-      if (!q) return true;
-      return [p.userName, p.userEmail, p.caption, p.siteId].join(' ').toLowerCase().includes(q);
-    });
-  }, [allPhotos, communitySearchQuery]);
+  }, [communityReviews, communitySearchQuery]);
 
   const handleDeleteReview = async (review: any) => {
     if (!db || !review?.siteId || !review?.id) return;
@@ -691,6 +707,37 @@ export default function AdminDashboardPage() {
 
     return Array.from(sitesById.values()).sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   }, [dbSites]);
+  const heritageSiteNameById = useMemo(
+    () => buildHeritageSiteNameMap(dbSites, HERITAGE_SITES),
+    [dbSites]
+  );
+  const heritageSiteCityById = useMemo(
+    () => buildHeritageSiteCityMap(dbSites, HERITAGE_SITES),
+    [dbSites]
+  );
+  const communityPhotoAlbums = useMemo(
+    () => groupCommunityPhotosByCity(communityPhotos, heritageSiteCityById),
+    [communityPhotos, heritageSiteCityById]
+  );
+  const selectedAlbumPhotos = selectedPhotoAlbum ? communityPhotoAlbums[selectedPhotoAlbum] : [];
+  const filteredPhotos = useMemo(() => {
+    const q = communitySearchQuery.trim().toLowerCase();
+    return selectedAlbumPhotos.filter((photo: any) => {
+      if (!q) return true;
+      return [
+        photo.userDisplayName,
+        photo.userName,
+        photo.displayName,
+        photo.userEmail,
+        photo.email,
+        photo.userId,
+        photo.caption,
+        photo.description,
+        photo.siteId,
+        resolveHeritageSiteName(photo.siteId, heritageSiteNameById),
+      ].filter(Boolean).join(' ').toLowerCase().includes(q);
+    });
+  }, [communitySearchQuery, heritageSiteNameById, selectedAlbumPhotos]);
 
   const filteredSites = useMemo(() => {
     const queryText = searchQuery.trim().toLowerCase();
@@ -817,9 +864,12 @@ export default function AdminDashboardPage() {
       return 'Longitude must be a valid number between -180 and 180.';
     }
 
-    const rating = Number(formState.rating);
-    if (!Number.isFinite(rating) || rating < 0 || rating > 5) {
-      return 'Rating must be between 0 and 5.';
+    const ratingText = formState.rating.trim();
+    if (ratingText) {
+      const rating = Number(ratingText);
+      if (!Number.isFinite(rating) || rating < 0 || rating > 5) {
+        return 'Rating must be between 0 and 5.';
+      }
     }
 
     if (formState.entranceFee && formState.entranceFee.trim().length > 200) {
@@ -869,7 +919,7 @@ export default function AdminDashboardPage() {
       latitude,
       longitude,
       coordinates: { lat: latitude, lng: longitude },
-      rating: Number(formState.rating),
+      ...(formState.rating.trim() ? { rating: Number(formState.rating) } : {}),
       tags: splitList(formState.tags),
       status: isActive ? 'Active' : 'Inactive',
       isActive,
@@ -1338,7 +1388,9 @@ export default function AdminDashboardPage() {
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600"><MessageSquare size={20} /></div>
                       <div>
                         <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">Total Reviews</p>
-                        <p className="text-2xl font-black text-slate-950">{allReviews?.length ?? 0}</p>
+                        <p className="text-2xl font-black text-slate-950">
+                          {!canQueryCommunity || isReviewsGroupLoading ? '—' : reviewsGroupError ? 'Unavailable' : communityReviews.length}
+                        </p>
                       </div>
                     </CardContent>
                   </Card>
@@ -1347,37 +1399,61 @@ export default function AdminDashboardPage() {
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-purple-50 text-purple-600"><Camera size={20} /></div>
                       <div>
                         <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-400">Visitor Photos</p>
-                        <p className="text-2xl font-black text-slate-950">{allPhotos?.length ?? 0}</p>
+                        <p className="text-2xl font-black text-slate-950">
+                          {!canQueryCommunity || isPhotosGroupLoading ? '—' : photosGroupError ? 'Unavailable' : communityPhotos.length}
+                        </p>
                       </div>
                     </CardContent>
                   </Card>
                 </div>
+                {reviewsGroupError && (
+                  <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <p className="font-bold">Visitor reviews could not be loaded. The count is unavailable, not zero.</p>
+                    <p className="mt-1 break-words text-xs">{reviewsGroupError.message || 'Firestore returned an unknown query error.'}</p>
+                  </div>
+                )}
+                {photosGroupError && (
+                  <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <p className="font-bold">Visitor photos could not be loaded. The count is unavailable, not zero.</p>
+                    <p className="mt-1 break-words text-xs">{photosGroupError.message || 'Firestore returned an unknown query error.'}</p>
+                  </div>
+                )}
 
                 {/* Sub-tab switcher */}
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setCommunityContentTab('reviews')}
+                    onClick={() => {
+                      setCommunityContentTab('reviews');
+                      setSelectedPhotoAlbum(null);
+                      setCommunitySearchQuery('');
+                    }}
                     className={cn('flex h-9 items-center gap-2 rounded-md px-4 text-xs font-bold transition-colors', communityContentTab === 'reviews' ? 'bg-primary text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50')}
                   >
                     <MessageSquare size={14} /> Visitor Reviews
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCommunityContentTab('photos')}
+                    onClick={() => {
+                      setCommunityContentTab('photos');
+                      setSelectedPhotoAlbum(null);
+                      setCommunitySearchQuery('');
+                    }}
                     className={cn('flex h-9 items-center gap-2 rounded-md px-4 text-xs font-bold transition-colors', communityContentTab === 'photos' ? 'bg-primary text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50')}
                   >
                     <Camera size={14} /> Visitor Photos
                   </button>
-                  <div className="ml-auto relative min-w-[220px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                    <Input
-                      value={communitySearchQuery}
-                      onChange={e => setCommunitySearchQuery(e.target.value)}
-                      placeholder={communityContentTab === 'reviews' ? 'Search reviews...' : 'Search photos...'}
-                      className="h-9 rounded-md border-slate-200 pl-9 text-xs"
-                    />
-                  </div>
+                  {(communityContentTab === 'reviews' || selectedPhotoAlbum) && (
+                    <div className="relative w-full sm:ml-auto sm:w-auto sm:min-w-[220px]">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                      <Input
+                        value={communitySearchQuery}
+                        onChange={e => setCommunitySearchQuery(e.target.value)}
+                        placeholder={communityContentTab === 'reviews' ? 'Search reviews...' : `Search ${selectedPhotoAlbum} photos...`}
+                        className="h-9 rounded-md border-slate-200 pl-9 text-xs"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Reviews Table */}
@@ -1389,6 +1465,12 @@ export default function AdminDashboardPage() {
                     <CardContent className="p-0">
                       {isReviewsGroupLoading ? (
                         <div className="flex min-h-[200px] items-center justify-center"><Loader2 className="animate-spin text-primary" size={28} /></div>
+                      ) : reviewsGroupError ? (
+                        <div role="alert" className="flex min-h-[200px] flex-col items-center justify-center p-8 text-center">
+                          <MessageSquare size={28} className="mb-3 text-red-400" />
+                          <p className="font-bold text-slate-700">Could not load visitor reviews.</p>
+                          <p className="mt-1 text-xs text-slate-500">See the error notice above. The empty state is not being treated as zero reviews.</p>
+                        </div>
                       ) : filteredReviews.length === 0 ? (
                         <div className="flex min-h-[200px] flex-col items-center justify-center p-8 text-center">
                           <MessageSquare size={28} className="mb-3 text-slate-300" />
@@ -1421,9 +1503,15 @@ export default function AdminDashboardPage() {
                                   </TableCell>
                                   <TableCell>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-amber-500 text-sm">{'★'.repeat(Math.round(r.rating || 0))}</span>
-                                      <span className="text-xs font-bold text-slate-700">{r.rating ?? '—'}</span>
-                                    </div>
+  {isValidRating(r.rating) ? (
+    <>
+      <span className="text-amber-500 text-sm">{'★'.repeat(Math.round(r.rating))}</span>
+      <span className="text-xs font-bold text-slate-700">{r.rating}</span>
+    </>
+  ) : (
+    <span className="text-xs font-bold text-slate-400">No rating</span>
+  )}
+</div>
                                   </TableCell>
                                   <TableCell className="text-xs text-slate-600 max-w-xs">
                                     <p className="line-clamp-2">{r.text || r.comment || r.review || '(no text)'}</p>
@@ -1457,42 +1545,135 @@ export default function AdminDashboardPage() {
                 {communityContentTab === 'photos' && (
                   <Card className="rounded-lg border-slate-200 bg-white">
                     <CardHeader className="border-b border-slate-100 p-5">
-                      <CardTitle className="text-base font-black">Visitor Photos</CardTitle>
+                      <div className="flex flex-wrap items-center gap-3">
+                        {selectedPhotoAlbum && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="min-h-10 rounded-lg"
+                            onClick={() => {
+                              setSelectedPhotoAlbum(null);
+                              setCommunitySearchQuery('');
+                            }}
+                          >
+                            <ArrowLeft size={15} className="mr-2" /> Back to albums
+                          </Button>
+                        )}
+                        <div>
+                          <CardTitle className="text-base font-black">
+                            {selectedPhotoAlbum ? `${selectedPhotoAlbum} Visitor Photos` : 'Visitor Photo Albums'}
+                          </CardTitle>
+                          {selectedPhotoAlbum && (
+                            <p className="mt-1 text-xs text-slate-500">
+                              {selectedAlbumPhotos.length} {selectedAlbumPhotos.length === 1 ? 'photo' : 'photos'}
+                              {communitySearchQuery.trim() && ` · ${filteredPhotos.length} matching`}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </CardHeader>
                     <CardContent className="p-5">
                       {isPhotosGroupLoading ? (
                         <div className="flex min-h-[200px] items-center justify-center"><Loader2 className="animate-spin text-primary" size={28} /></div>
+                      ) : photosGroupError ? (
+                        <div role="alert" className="flex min-h-[200px] flex-col items-center justify-center p-8 text-center">
+                          <Camera size={28} className="mb-3 text-red-400" />
+                          <p className="font-bold text-slate-700">Could not load visitor photos.</p>
+                          <p className="mt-1 text-xs text-slate-500">See the error notice above. The empty state is not being treated as zero photos.</p>
+                        </div>
+                      ) : !selectedPhotoAlbum ? (
+                        <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-3">
+                          {CITY_ALBUM_NAMES.map(albumName => {
+                            const albumPhotos = communityPhotoAlbums[albumName];
+                            const coverPhoto = albumPhotos.find(photo => photo.imageUrl);
+                            return (
+                              <button
+                                key={albumName}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPhotoAlbum(albumName);
+                                  setCommunitySearchQuery('');
+                                }}
+                                aria-label={`Open ${albumName} album, ${albumPhotos.length} photos`}
+                                className="group overflow-hidden rounded-2xl border border-emerald-100 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                              >
+                                <div className="relative aspect-[16/9] overflow-hidden bg-emerald-50">
+                                  {coverPhoto ? (
+                                    <SafeImage
+                                      src={coverPhoto.imageUrl}
+                                      alt={`${albumName} visitor photo album cover`}
+                                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-primary/50">
+                                      <FolderOpen size={38} aria-hidden="true" />
+                                    </div>
+                                  )}
+                                  <span className="absolute bottom-3 left-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white/90 text-primary shadow-sm backdrop-blur">
+                                    <FolderOpen size={20} aria-hidden="true" />
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-3 p-4">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-black text-slate-900">{albumName}</p>
+                                    <p className="mt-1 text-xs font-medium text-slate-500">
+                                      {albumPhotos.length} {albumPhotos.length === 1 ? 'photo' : 'photos'}
+                                    </p>
+                                  </div>
+                                  <FolderOpen size={18} className="shrink-0 text-primary" aria-hidden="true" />
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
                       ) : filteredPhotos.length === 0 ? (
                         <div className="flex min-h-[200px] flex-col items-center justify-center text-center">
                           <Camera size={28} className="mb-3 text-slate-300" />
-                          <p className="font-bold text-slate-700">No visitor photos found.</p>
-                          <p className="mt-1 text-xs text-slate-500">Photos uploaded by visitors on heritage site pages appear here.</p>
+                          <p className="font-bold text-slate-700">
+                            {communitySearchQuery.trim() ? 'No matching visitor photos.' : 'No visitor photos in this album.'}
+                          </p>
+                          {communitySearchQuery.trim() && (
+                            <Button type="button" variant="ghost" className="mt-2" onClick={() => setCommunitySearchQuery('')}>
+                              Clear search
+                            </Button>
+                          )}
                         </div>
                       ) : (
-                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
                           {filteredPhotos.map((p: any) => (
-                            <div key={p.id} className="group relative overflow-hidden rounded-lg border border-slate-200 bg-slate-100 aspect-square">
-                              <SafeImage
-                                src={p.imageUrl || p.photoUrl || ''}
-                                alt={p.caption || 'Visitor photo'}
-                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                              />
-                              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
-                                <div>
-                                  <p className="text-white text-[10px] font-bold truncate">{p.userName || 'Visitor'}</p>
-                                  <p className="text-white/70 text-[9px] truncate">{p.siteId}</p>
-                                  {p.caption && <p className="text-white/80 text-[10px] mt-1 line-clamp-2 italic">{p.caption}</p>}
+                            <div key={`${p.siteId}:${p.id}`} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                              <div className="group relative aspect-square bg-slate-100">
+                                <SafeImage
+                                  src={p.imageUrl || p.photoUrl || ''}
+                                  alt={p.caption || `Visitor photo of ${resolveHeritageSiteName(p.siteId, heritageSiteNameById)}`}
+                                  className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                />
+                                <div className="absolute inset-0 flex items-end justify-end bg-transparent p-2 opacity-100 transition-opacity sm:bg-black/30 sm:opacity-0 sm:group-hover:opacity-100">
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    className="h-7 text-[11px] font-bold"
+                                    onClick={() => handleDeletePhoto(p)}
+                                    disabled={!p.siteId || isDeletingCommunityItem === p.id}
+                                    title={!p.siteId ? 'This photo has no reliable heritage-site ID, so it cannot be deleted from its site collection.' : undefined}
+                                  >
+                                    {isDeletingCommunityItem === p.id ? <Loader2 size={12} className="animate-spin mr-1" /> : <Trash2 size={12} className="mr-1" />}
+                                    Delete
+                                  </Button>
                                 </div>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  className="h-7 text-[11px] font-bold w-full mt-1"
-                                  onClick={() => handleDeletePhoto(p)}
-                                  disabled={isDeletingCommunityItem === p.id}
-                                >
-                                  {isDeletingCommunityItem === p.id ? <Loader2 size={12} className="animate-spin mr-1" /> : <Trash2 size={12} className="mr-1" />}
-                                  Delete
-                                </Button>
+                              </div>
+                              <div className="space-y-1 p-3">
+                                <p className="line-clamp-2 text-xs font-black text-slate-900">
+                                  {resolveHeritageSiteName(p.siteId, heritageSiteNameById)}
+                                </p>
+                                <p className="truncate text-[11px] font-semibold text-slate-600">
+                                  {p.userDisplayName || p.userName || p.displayName || 'Visitor'}
+                                </p>
+                                <p className="truncate text-[10px] text-slate-400">Site ID: {p.siteId}</p>
+                                {(p.caption || p.description) && (
+                                  <p className="line-clamp-2 text-[11px] italic text-slate-500">{p.caption || p.description}</p>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -2353,8 +2534,7 @@ function SiteTable({
   deletingSiteId: string | null;
 }) {
   return (
-    <div className="overflow-x-auto">
-      <Table>
+    <Table stickyScrollbar>
         <TableHeader>
           <TableRow className="bg-slate-50">
             <TableHead className="min-w-[280px]">Site</TableHead>
@@ -2454,6 +2634,5 @@ function SiteTable({
           })}
         </TableBody>
       </Table>
-    </div>
   );
 }

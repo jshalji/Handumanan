@@ -2,18 +2,79 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-const Table = React.forwardRef<
-  HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
-    <table
-      ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
-      {...props}
-    />
-  </div>
-))
+type TableProps = React.HTMLAttributes<HTMLTableElement> & {
+  stickyScrollbar?: boolean;
+};
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, stickyScrollbar = false, children, ...props }, forwardedRef) => {
+    const tableRef = React.useRef<HTMLTableElement>(null);
+    const tableScrollerRef = React.useRef<HTMLDivElement>(null);
+    const stickyScrollerRef = React.useRef<HTMLDivElement>(null);
+    const [tableWidth, setTableWidth] = React.useState(0);
+
+    React.useEffect(() => {
+      if (!stickyScrollbar) return;
+
+      const updateTableWidth = () => {
+        setTableWidth(tableRef.current?.offsetWidth ?? 0);
+      };
+
+      updateTableWidth();
+      const observer = new ResizeObserver(updateTableWidth);
+      if (tableRef.current) observer.observe(tableRef.current);
+      return () => observer.disconnect();
+    }, [stickyScrollbar]);
+
+    const setTableRef = React.useCallback((node: HTMLTableElement | null) => {
+      tableRef.current = node;
+      if (typeof forwardedRef === "function") forwardedRef(node);
+      else if (forwardedRef) forwardedRef.current = node;
+    }, [forwardedRef]);
+
+    const syncScroll = (source: HTMLDivElement | null, target: HTMLDivElement | null) => {
+      if (source && target && source.scrollLeft !== target.scrollLeft) {
+        target.scrollLeft = source.scrollLeft;
+      }
+    };
+
+    const table = (
+      <table
+        ref={setTableRef}
+        className={cn("w-full caption-bottom text-sm", className)}
+        {...props}
+      >
+        {children}
+      </table>
+    );
+
+    if (!stickyScrollbar) {
+      return <div className="relative w-full overflow-auto">{table}</div>;
+    }
+
+    return (
+      <div className="relative w-full">
+        <div
+          ref={tableScrollerRef}
+          className="w-full overflow-x-auto scrollbar-hide"
+          onScroll={() => syncScroll(tableScrollerRef.current, stickyScrollerRef.current)}
+        >
+          {table}
+        </div>
+        <div
+          ref={stickyScrollerRef}
+          className="sticky bottom-0 z-10 w-full overflow-x-auto overflow-y-hidden border-t border-slate-200 bg-white/95"
+          aria-label="Scroll table horizontally"
+          role="region"
+          tabIndex={0}
+          onScroll={() => syncScroll(stickyScrollerRef.current, tableScrollerRef.current)}
+        >
+          <div style={{ width: Math.max(tableWidth, 1), height: 12 }} />
+        </div>
+      </div>
+    );
+  }
+);
 Table.displayName = "Table"
 
 const TableHeader = React.forwardRef<

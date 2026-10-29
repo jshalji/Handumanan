@@ -60,7 +60,7 @@ function normalizeLguSite(site: any, dbOverride?: any): HeritageSite & { _source
     visitingHours: merged.visitingHours || 'Visiting hours unspecified',
     imageUrl: merged.imageUrl || '',
     galleryImages: Array.isArray(merged.galleryImages) ? merged.galleryImages : [],
-    rating: Number.isFinite(Number(merged.rating)) ? Number(merged.rating) : 4.5,
+    rating: Number.isFinite(Number(merged.rating)) ? Number(merged.rating) : undefined,
     tags: Array.isArray(merged.tags) ? merged.tags : [],
     coordinates: {
       lat: Number.isFinite(latitude) ? latitude : 0,
@@ -506,8 +506,7 @@ export default function LguDashboardPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
+                <Table stickyScrollbar>
                     <TableHeader>
                       <TableRow className="bg-slate-50">
                         <TableHead className="min-w-[280px]">Landmark Name</TableHead>
@@ -590,7 +589,6 @@ export default function LguDashboardPage() {
                       ))}
                     </TableBody>
                   </Table>
-                </div>
               </CardContent>
             </Card>
           </div>

@@ -1,15 +1,15 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
-import { getSiteById, isSiteVisibleToUser, type HeritageSite } from '@/lib/heritage-data';
+import { getSiteById, isSiteVisibleToUser, type HeritageSite, SITE_IMAGE_ATTRIBUTIONS } from '@/lib/heritage-data';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, query, where, serverTimestamp, doc, orderBy, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, serverTimestamp, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Route, Heart, Loader2, ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight, Maximize2, X, CheckCircle2, AlertCircle, Ticket } from 'lucide-react';
 import NextImage from 'next/image';
@@ -20,6 +20,7 @@ import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageFallback, getSiteImageSources } from '@/lib/site-images';
 import { getDailyVisitingTime, WEEKLY_VISITING_DAYS } from '@/lib/visiting-hours';
 import { VisitorPhotoSection } from '@/components/site/VisitorPhotoSection';
+import { getRatingSummaryState } from '@/lib/review-ratings';
 
 function mergeSiteRecord(baseSite: HeritageSite | undefined, overrideSite: any): HeritageSite | null {
   if (!baseSite && !overrideSite) return null;
@@ -41,8 +42,12 @@ function mergeSiteRecord(baseSite: HeritageSite | undefined, overrideSite: any):
     city: merged.city || 'Cebu City',
     visitingHours: merged.visitingHours || 'Open hours require verification',
     imageUrl: merged.imageUrl || '',
-    galleryImages: Array.isArray(merged.galleryImages) ? merged.galleryImages : [],
-    rating: Number.isFinite(Number(merged.rating)) ? Number(merged.rating) : 4.5,
+    galleryImages: Array.from(new Set([
+        ...(Array.isArray(baseSite?.galleryImages) ? baseSite.galleryImages : []),
+        ...(Array.isArray(overrideSite?.galleryImages) ? overrideSite.galleryImages : []),
+        ...(Array.isArray(merged.galleryImages) ? merged.galleryImages : []),
+      ].filter((u) => typeof u === 'string' && u.trim().length > 0))),
+    rating: undefined,
     tags: Array.isArray(merged.tags) ? merged.tags : [],
     coordinates: {
       lat: Number.isFinite(latitude) ? latitude : 0,
@@ -95,6 +100,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   const imageFallback = getSiteImageFallback(site);
   const siteImageSources = site ? getSiteImageSources(site) : [];
   const allImages = siteImageSources.length > 0 ? siteImageSources : [imageFallback];
+  const activeImageAttribution = ((SITE_IMAGE_ATTRIBUTIONS as Record<string, { url: string; creator: string; license: string; licenseUrl: string }[]>)[site?.id || ''] || []).find((a: { url: string }) => a.url === allImages[activeImageIndex]);
   const getImageFallbackSources = (_index: number) => [
     imageFallback,
   ];
@@ -135,12 +141,28 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   // Fetch Reviews
   const reviewsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(
-      collection(db, 'heritageSites', id, 'reviews'),
-      orderBy('createdAt', 'desc')
-    );
+    return collection(db, 'heritageSites', id, 'reviews');
   }, [db, id]);
-  const { data: reviews, isLoading: isReviewsLoading } = useCollection(reviewsQuery);
+  const { data: reviews, isLoading: isReviewsLoading, error: reviewsError } = useCollection(reviewsQuery);
+  const sortedReviews = useMemo(() => {
+    return [...(reviews || [])].sort((a, b) => {
+      const getTime = (value: any) =>
+        typeof value?.toDate === "function" ? value.toDate().getTime() : value ? new Date(value).getTime() : 0;
+      const timeA = getTime(a?.createdAt);
+      const timeB = getTime(b?.createdAt);
+      const hasA = Number.isFinite(timeA);
+      const hasB = Number.isFinite(timeB);
+      if (hasA && hasB) return timeB - timeA;
+      if (hasA) return -1;
+      if (hasB) return 1;
+      return 0;
+    });
+  }, [reviews]);
+  const ratingSummary = getRatingSummaryState(reviews, {
+    isLoading: isReviewsLoading,
+    isAvailable: Boolean(reviewsQuery),
+    error: reviewsError,
+  });
 
   // Fetch User Favorites status
   const favoritesQuery = useMemoFirebase(() => {
@@ -204,9 +226,6 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
     );
   }
 
-  const averageRating = reviews && reviews.length > 0 
-    ? (reviews.reduce((acc, rev) => acc + (rev.rating || 0), 0) / reviews.length).toFixed(1)
-    : (Number.isFinite(Number(site?.rating)) ? Number(site.rating).toFixed(1) : 'N/A');
   const siteLatitude = Number(site.coordinates?.lat);
   const siteLongitude = Number(site.coordinates?.lng);
   const hasExactCoordinates = Number.isFinite(siteLatitude) && Number.isFinite(siteLongitude) && siteLatitude !== 0 && siteLongitude !== 0;
@@ -317,8 +336,24 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
                     <MapPin size={10} /> {site.city}
                   </span>
-                  <div className="flex items-center gap-1 text-yellow-500 font-black text-xs">
-                     <Star size={12} fill="currentColor" /> {averageRating} / 5.0
+                  <div className="flex items-center gap-1 text-yellow-500 font-black text-xs" aria-live="polite">
+                    {ratingSummary.status === 'rated' ? (
+                      <>
+                        <Star size={12} fill="currentColor" /> {ratingSummary.average.toFixed(1)} / 5.0
+                        <span className="ml-1 text-[10px] text-slate-400">({ratingSummary.count} {ratingSummary.count === 1 ? 'rating' : 'ratings'})</span>
+                      </>
+                    ) : ratingSummary.status === 'empty' ? (
+                      <>
+                        <span className="flex items-center text-slate-300" aria-label="Empty stars">
+                          {[1, 2, 3, 4, 5].map(star => <Star key={star} size={11} />)}
+                        </span>
+                        <span className="ml-1 text-slate-400">No ratings yet</span>
+                      </>
+                    ) : (
+                      <span className="text-slate-400">
+                        {ratingSummary.status === 'loading' ? 'Loading ratings…' : 'Ratings unavailable'}
+                      </span>
+                    )}
                   </div>
                   {site.isMustVisit && (
                     <Badge variant="secondary" className="bg-accent text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1">Must Visit</Badge>
@@ -366,6 +401,9 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                     <div className="flex items-end justify-between gap-4">
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Photo {activeImageIndex + 1} of {allImages.length}</p>
+                        {activeImageAttribution ? (
+                          <p className="text-[10px] text-white/70 mt-1">Photo: {activeImageAttribution.creator} · {activeImageAttribution.license} (changes may have been made) · <a href={activeImageAttribution.licenseUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-white">license</a></p>
+                        ) : null}
                         <p className="text-sm md:text-base font-black leading-tight">{site.name}</p>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-white/70 flex items-center gap-1 mt-1">
                           <MapPin size={10} /> {site.city}
@@ -495,8 +533,9 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                 <VisitorPhotoSection
                   siteId={site.id}
                   siteName={site.name}
-                  reviews={reviews || []}
+                  reviews={sortedReviews}
                   isReviewsLoading={isReviewsLoading}
+                  isReviewsError={Boolean(reviewsError)}
                   reviewPrompt={(
                     <>
                       <p className="mb-4 font-medium text-slate-600">Want to share your story or photos? Sign in to contribute to the community feed.</p>

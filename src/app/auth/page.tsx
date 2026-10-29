@@ -3,16 +3,18 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Navbar } from '@/components/layout/Navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { requestPasswordReset, type PasswordResetResult } from '@/lib/password-reset';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -21,6 +23,9 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPasswordResetMode, setIsPasswordResetMode] = useState(false);
+  const [isResetSubmitting, setIsResetSubmitting] = useState(false);
+  const [resetFeedback, setResetFeedback] = useState<PasswordResetResult | null>(null);
 
   const auth = useAuth();
   const db = useFirestore();
@@ -85,6 +90,29 @@ export default function AuthPage() {
     }
   };
 
+  const handlePasswordResetSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setResetFeedback(null);
+    const result = await requestPasswordReset(
+      email,
+      normalizedEmail => sendPasswordResetEmail(auth, normalizedEmail),
+      setIsResetSubmitting,
+    );
+    setResetFeedback(result);
+  };
+
+  const openPasswordResetForm = () => {
+    setIsPasswordResetMode(true);
+    setResetFeedback(null);
+    setPassword('');
+  };
+
+  const returnToLogin = () => {
+    setIsPasswordResetMode(false);
+    setResetFeedback(null);
+    setIsLogin(true);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Navbar />
@@ -95,16 +123,18 @@ export default function AuthPage() {
               <Image src="/logo.png" alt="Handumanan" width={56} height={56} className="w-full h-full object-cover" />
             </div>
             <CardTitle className="font-headline text-3xl">
-              {isLogin ? 'Welcome Back' : 'Create Account'}
+              {isPasswordResetMode ? 'Reset your password' : isLogin ? 'Welcome Back' : 'Create Account'}
             </CardTitle>
             <CardDescription>
-              {isLogin
-                ? 'Login to access your saved itineraries and reviews.'
-                : 'Join the Handumanan community to explore and preserve Cebuano heritage.'}
+              {isPasswordResetMode
+                ? 'Enter the email address you used to register. We will show the same confirmation either way.'
+                : isLogin
+                  ? 'Login to access your saved itineraries and reviews.'
+                  : 'Join the Handumanan community to explore and preserve Cebuano heritage.'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {user && (
+            {user && !isPasswordResetMode && (
               <div className="mb-6 rounded-xl bg-blue-50 border border-blue-200 p-3 flex items-start gap-3 text-xs text-blue-800">
                 <div>
                   <p className="font-bold">Currently signed in as {user.email}</p>
@@ -115,7 +145,57 @@ export default function AuthPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            {isPasswordResetMode ? (
+              <form noValidate onSubmit={handlePasswordResetSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email">Registered email</Label>
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="juan@example.com"
+                    value={email}
+                    onChange={event => {
+                      setEmail(event.target.value);
+                      setResetFeedback(null);
+                    }}
+                    aria-invalid={resetFeedback?.status === 'invalid'}
+                    aria-describedby={resetFeedback ? 'password-reset-feedback' : undefined}
+                    required
+                  />
+                </div>
+                {resetFeedback && (
+                  <div
+                    id="password-reset-feedback"
+                    role={resetFeedback.status === 'success' ? 'status' : 'alert'}
+                    aria-live="polite"
+                    className={cn(
+                      'rounded-xl border px-3 py-3 text-sm leading-relaxed',
+                      resetFeedback.status === 'success'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                        : 'border-red-200 bg-red-50 text-red-800'
+                    )}
+                  >
+                    {resetFeedback.message}
+                  </div>
+                )}
+                <Button type="submit" className="h-11 w-full rounded-full font-bold" disabled={isResetSubmitting}>
+                  {isResetSubmitting ? <Loader2 className="mr-2 animate-spin" size={18} /> : null}
+                  {isResetSubmitting ? 'Sending request…' : 'Send reset link'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="min-h-11 w-full rounded-full font-bold text-primary"
+                  onClick={returnToLogin}
+                  disabled={isResetSubmitting}
+                >
+                  <ArrowLeft size={16} className="mr-2" /> Back to Login
+                </Button>
+              </form>
+            ) : (
+              <>
+                <form onSubmit={handleSubmit} className="space-y-4">
               {!isLogin && (
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
@@ -140,7 +220,18 @@ export default function AuthPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="password">Password</Label>
+                  {isLogin && (
+                    <button
+                      type="button"
+                      onClick={openPasswordResetForm}
+                      className="min-h-9 rounded-md px-2 text-sm font-bold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    >
+                      Forgot Password?
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <Input
                     id="password"
@@ -171,13 +262,19 @@ export default function AuthPage() {
               <p className="text-muted-foreground">
                 {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
                 <button
-                  onClick={() => setIsLogin(!isLogin)}
+                  type="button"
+                  onClick={() => {
+                    setIsLogin(!isLogin);
+                    setResetFeedback(null);
+                  }}
                   className="text-primary font-bold hover:underline"
                 >
                   {isLogin ? 'Sign up now' : 'Log in here'}
                 </button>
               </p>
             </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
