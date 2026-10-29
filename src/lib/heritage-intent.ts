@@ -136,11 +136,34 @@ export interface TourPlanningState {
   wantsEverySite: boolean;
 }
 
+export function isConversationalMessage(normalized: string): boolean {
+  // Greetings
+  if (/^(hi|hello|hey|good day|good morning|good afternoon|good evening|maayong adlaw|kumusta|kamusta)$/.test(normalized)) return true;
+  if (/^(hi|hello|hey)\s+(there|everyone|all)$/.test(normalized)) return true;
+  // Thanks
+  if (/^(thank you|thanks|thank u|salamat|salamat po|maraming salamat)$/.test(normalized)) return true;
+  if (/^(thank you|thanks|salamat)\s+(so much|very much|a lot)$/.test(normalized)) return true;
+  // Farewells
+  if (/^(bye|goodbye|see you|see ya|paalam|paalam po|take care)$/.test(normalized)) return true;
+  if (/^(bye|goodbye|see you)\s+(for now|everyone|all)$/.test(normalized)) return true;
+  // Clearly unrelated single words or phrases
+  if (/^(my name is|my name's|i am|i'm)\s/.test(normalized)) return true;
+  if (/^(china|india|chinia|japan|korea|america|europe|africa)$/.test(normalized)) return true;
+  return false;
+}
+
 export function isTourPlanningMode(
   history: Array<{ role: string; content: Array<{ text: string }> }> = [],
   query: string = ''
 ): boolean {
   const normQuery = normalizeSearchText(query);
+
+  // Early exit: conversational messages (greetings, thanks, farewells) should
+  // never trigger or continue tour-planning mode, even if the conversation
+  // history contains tour-related keywords from a previous interaction.
+  if (isConversationalMessage(normQuery)) return false;
+
+  // Explicit tour request always activates planning
   if (isExplicitTourRequestStandalone(normQuery)) return true;
 
   if (history && history.length > 0) {
@@ -154,13 +177,14 @@ export function isTourPlanningMode(
         if (
           /\b(heritage tour|tour for you|itinerary|starting near|starting from|stops|total: approximately|fits within your|what are you most interested in|how much time do you have)\b/i.test(text)
         ) {
-          return true;
+          // Only stay in planning mode if the current query is a planning update
+          if (isPlanningUpdatePhrase(normQuery)) return true;
         }
       }
     }
 
     const state = deriveTourPlanningState(history);
-    if (state.planningActive) return true;
+    if (state.planningActive && isPlanningUpdatePhrase(normQuery)) return true;
   }
 
   return false;
@@ -358,8 +382,10 @@ export function deriveTourPlanningState(
   }
 
   if (!state.planningActive) {
-    const fullText = history.map(t => t.content[0]?.text ?? '').join(' ');
-    if (/\b(tour|trip|itinerary|route)\b/i.test(fullText)) {
+    const hasExplicitTourRequest = history.some(turn =>
+      turn.role === 'user' && isExplicitTourRequestStandalone(normalizeSearchText(turn.content[0]?.text ?? ''))
+    );
+    if (hasExplicitTourRequest) {
       state.planningActive = true;
     }
   }

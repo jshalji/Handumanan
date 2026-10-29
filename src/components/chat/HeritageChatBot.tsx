@@ -203,10 +203,26 @@ function getClientFallbackResponse(text: string, sites: any[], input?: any): { t
     .sort((a, b) => Number(b.rating ?? 0) - Number(a.rating ?? 0))
     .slice(0, 3);
 
-  if (/^(hi|hello|hey|good day|good morning|good afternoon|good evening|maayong adlaw)$/.test(query)) {
+  if (/^(hi|hello|hey|good day|good morning|good afternoon|good evening|maayong adlaw|kumusta|kamusta)$/.test(query) || /^(hi|hello|hey)\s+(there|everyone|all)$/.test(query)) {
     return {
       text: "Hello! Maayong adlaw. I can still help you explore Handumanan's Metro Cebu heritage directory, routes, and must-visit sites.",
       suggestedSiteIds: mustVisitSites.map(site => site.id),
+      isGeneratedItinerary: false,
+    };
+  }
+
+  if (/^(thank you|thanks|thank u|salamat|salamat po|maraming salamat)$/.test(query) || /^(thank you|thanks|salamat)\s+(so much|very much|a lot)$/.test(query)) {
+    return {
+      text: "You're welcome! Salamat! I'm here to help you explore Metro Cebu's heritage sites, routes, and itineraries whenever you need.",
+      suggestedSiteIds: [],
+      isGeneratedItinerary: false,
+    };
+  }
+
+  if (/^(bye|goodbye|see you|see ya|paalam|paalam po|take care)$/.test(query) || /^(bye|goodbye|see you)\s+(for now|everyone|all)$/.test(query)) {
+    return {
+      text: "Goodbye! Salamat for visiting Handumanan. Come back anytime to explore more of Metro Cebu's heritage.",
+      suggestedSiteIds: [],
       isGeneratedItinerary: false,
     };
   }

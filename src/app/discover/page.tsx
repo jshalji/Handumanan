@@ -27,7 +27,6 @@ import {
   Menu,
   Trash2,
   MapPin,
-  ExternalLink,
   ChevronDown,
   Sparkles,
   Save as SaveIcon,
@@ -82,12 +81,6 @@ const HeritageMap = dynamic(() => import('@/components/map/HeritageMap'), {
 // Keyless Google Maps URL builders. Keep trip segments within the universal
 // Maps URLs limit of three waypoints so the same links work on mobile.
 type GoogleMapsRoutePoint = { lat: number; lng: number };
-type GoogleMapsItinerarySegment = {
-  url: string;
-  firstStopNumber: number;
-  lastStopNumber: number;
-  originStopNumber?: number;
-};
 
 const GOOGLE_MAPS_MAX_WAYPOINTS = 3;
 
@@ -137,47 +130,6 @@ function buildGoogleMapsDirectionsUrl({
   const travelMode = getGoogleMapsTravelMode(mode);
   if (travelMode) url.searchParams.set('travelmode', travelMode);
   return url.toString();
-}
-
-function buildGoogleMapsItinerarySegments(
-  sites: any[],
-  currentLocation: GoogleMapsRoutePoint | null,
-  mode: TravelMode
-): GoogleMapsItinerarySegment[] | null {
-  if (sites.length === 0) return [];
-  const points = sites.map(getGoogleMapsSitePoint);
-  if (points.some(point => point === null)) return null;
-
-  const validPoints = points as GoogleMapsRoutePoint[];
-  const segments: GoogleMapsItinerarySegment[] = [];
-  let nextStopIndex = 0;
-  let segmentOrigin = currentLocation || undefined;
-  let originStopNumber: number | undefined;
-
-  while (nextStopIndex < validPoints.length) {
-    const lastStopIndex = Math.min(
-      nextStopIndex + GOOGLE_MAPS_MAX_WAYPOINTS,
-      validPoints.length - 1
-    );
-    const destination = validPoints[lastStopIndex];
-    const waypoints = validPoints.slice(nextStopIndex, lastStopIndex);
-    const url = buildGoogleMapsDirectionsUrl({ destination, origin: segmentOrigin, waypoints, mode });
-    if (!url) return null;
-
-    segments.push({
-      url,
-      firstStopNumber: nextStopIndex + 1,
-      lastStopNumber: lastStopIndex + 1,
-      originStopNumber,
-    });
-
-    if (lastStopIndex >= validPoints.length - 1) break;
-    segmentOrigin = validPoints[lastStopIndex];
-    originStopNumber = lastStopIndex + 1;
-    nextStopIndex = lastStopIndex + 1;
-  }
-
-  return segments;
 }
 
 function buildGoogleMapsSiteDirectionsUrl(site: any, currentLocation: GoogleMapsRoutePoint | null, mode: TravelMode): string | null {
@@ -695,11 +647,6 @@ function ExploreRouteContent() {
   const itinerarySites = useMemo(() => {
     return itineraryIds.map(id => availableSites.find(s => s.id === id)).filter(Boolean) as any[];
   }, [itineraryIds, availableSites]);
-
-  const googleMapsItinerarySegments = useMemo(
-    () => buildGoogleMapsItinerarySegments(itinerarySites, userLocation, travelMode),
-    [itinerarySites, userLocation, travelMode]
-  );
 
   const selectedCitySites = useMemo(() => {
     if (!selectedCity) return [];
@@ -1660,46 +1607,6 @@ function ExploreRouteContent() {
                       </div>
                     ))}
                     <div className="flex flex-col gap-3 mt-6">
-                       <div className="space-y-2 rounded-2xl border border-slate-100 bg-white p-3">
-                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Google Maps directions</p>
-                         {googleMapsItinerarySegments === null ? (
-                           <p className="text-[10px] font-medium leading-relaxed text-amber-700">
-                             A complete Maps route is unavailable because one or more stops has invalid coordinates. No stops were omitted.
-                           </p>
-                         ) : (
-                           <>
-                             {googleMapsItinerarySegments.length > 1 && (
-                               <p className="text-[10px] font-medium leading-relaxed text-slate-500">
-                                 Maps URLs support up to three waypoints on mobile. Open these segments in order; each continues from the previous segment’s last stop.
-                               </p>
-                             )}
-                             {googleMapsItinerarySegments.map((segment, index) => (
-                               <a
-                                 key={`${segment.firstStopNumber}-${segment.lastStopNumber}`}
-                                 href={segment.url}
-                                 target="_blank"
-                                 rel="noopener noreferrer"
-                                 className="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-center text-[9px] font-black uppercase tracking-widest text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                               >
-                                 <ExternalLink size={14} />
-                                 {googleMapsItinerarySegments.length === 1
-                                   ? 'Open itinerary in Google Maps'
-                                   : segment.originStopNumber
-                                     ? `Segment ${index + 1}: from stop ${segment.originStopNumber} through stops ${segment.firstStopNumber}–${segment.lastStopNumber}`
-                                     : `Segment ${index + 1}: stops 1–${segment.lastStopNumber}`}
-                               </a>
-                             ))}
-                             <p className="text-[9px] leading-relaxed text-slate-400">
-                               Opens without Handumanan location permission. If Maps cannot use your location, enter your starting point there.
-                             </p>
-                             {travelMode === 'TWO_WHEELER' && (
-                               <p className="text-[9px] leading-relaxed text-amber-700">
-                                 Google Maps may not carry over Handumanan’s two-wheel mode; choose the mode in Google Maps if needed.
-                               </p>
-                             )}
-                           </>
-                         )}
-                       </div>
                        <Button onClick={handleStartNavigation} className="w-full h-12 bg-slate-900 text-[10px] font-black uppercase tracking-widest rounded-[1.25rem] shadow-xl"><Route size={18} className="mr-2" /> Start Navigation</Button>
                        <Button variant="ghost" onClick={() => {
                          setIsTripMapFocused(false);
