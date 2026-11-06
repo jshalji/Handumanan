@@ -76,7 +76,7 @@ export default function Home() {
         />
         <div className="container relative z-10 px-4 text-center text-white">
           <Badge className="bg-accent/20 text-accent mb-6 border-accent/30 px-4 py-1.5 backdrop-blur-md">
-            <Sparkles size={14} className="mr-2 inline" /> Intelligent Heritage Explorer
+            <Sparkles size={14} className="mr-2 inline" /> Heritage Explorer
           </Badge>
           <h1 className="mx-auto mb-6 max-w-full break-words font-headline text-4xl font-bold leading-none sm:text-6xl md:text-8xl animate-in fade-in slide-in-from-bottom-6 duration-1000">
             Handumanan
@@ -117,49 +117,49 @@ export default function Home() {
               const imageSources = getSiteImageSources(site);
 
               return (
-              <Card key={site.id} className="group overflow-hidden border border-slate-200/80 shadow-lg hover:shadow-2xl hover:border-primary/30 transition-all duration-500 flex flex-col h-full bg-white rounded-3xl">
-                <div className="relative h-72 overflow-hidden bg-slate-100">
-                  <SafeImage
-                    src={imageSources[0]}
-                    alt={site.name}
-                    fill
-                    fallbackSrc={imageSources.slice(1)}
-                    fallbackClassName="object-cover"
-                    className="object-cover group-hover:scale-105 transition-transform duration-700"
-                  />
-                  <div className="absolute top-4 left-4">
-                    <Badge variant="secondary" className="border-none bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-primary shadow-sm backdrop-blur-md">
-                      {site.category.split(' & ')[0]}
-                    </Badge>
-                  </div>
-                  <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5">
-                    {site.verificationStatus === 'LGU Verified' && (
-                      <Badge className="border-none bg-emerald-600 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-white shadow-md flex items-center gap-1">
-                        LGU Verified
+                <Card key={site.id} className="group overflow-hidden border border-slate-200/80 shadow-lg hover:shadow-2xl hover:border-primary/30 transition-all duration-500 flex flex-col h-full bg-white rounded-3xl">
+                  <div className="relative h-72 overflow-hidden bg-slate-100">
+                    <SafeImage
+                      src={imageSources[0]}
+                      alt={site.name}
+                      fill
+                      fallbackSrc={imageSources.slice(1)}
+                      fallbackClassName="object-cover"
+                      className="object-cover group-hover:scale-105 transition-transform duration-700"
+                    />
+                    <div className="absolute top-4 left-4">
+                      <Badge variant="secondary" className="border-none bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-primary shadow-sm backdrop-blur-md">
+                        {site.category.split(' & ')[0]}
                       </Badge>
-                    )}
+                    </div>
+                    <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5">
+                      {site.verificationStatus === 'LGU Verified' && (
+                        <Badge className="border-none bg-emerald-600 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-white shadow-md flex items-center gap-1">
+                          LGU Verified
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                <CardHeader className="pb-2 pt-6">
-                  <div className="flex items-center gap-2 text-primary text-xs font-black mb-2 uppercase tracking-widest">
-                    <MapPin size={14} /> {site.city}
-                  </div>
-                  <CardTitle className="font-headline text-2xl font-bold group-hover:text-primary transition-colors">
-                    {site.name}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="flex-1 pb-6">
-                  <p className="text-muted-foreground line-clamp-3 text-sm leading-relaxed">
-                    {site.description}
-                  </p>
-                </CardContent>
-                <CardFooter className="pt-4 border-t border-slate-100">
-                  <Button variant="link" asChild className="p-0 h-auto text-primary font-black group-hover:translate-x-1 transition-transform text-sm">
-                    <Link href={`/site/${site.id}`}>Learn more <ArrowRight size={16} className="ml-1.5" /></Link>
-                  </Button>
-                </CardFooter>
-              </Card>
+                  <CardHeader className="pb-2 pt-6">
+                    <div className="flex items-center gap-2 text-primary text-xs font-black mb-2 uppercase tracking-widest">
+                      <MapPin size={14} /> {site.city}
+                    </div>
+                    <CardTitle className="font-headline text-2xl font-bold group-hover:text-primary transition-colors">
+                      {site.name}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex-1 pb-6">
+                    <p className="text-muted-foreground line-clamp-3 text-sm leading-relaxed">
+                      {site.description}
+                    </p>
+                  </CardContent>
+                  <CardFooter className="pt-4 border-t border-slate-100">
+                    <Button variant="link" asChild className="p-0 h-auto text-primary font-black group-hover:translate-x-1 transition-transform text-sm">
+                      <Link href={`/site/${site.id}`}>Learn more <ArrowRight size={16} className="ml-1.5" /></Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
               );
             })}
           </div>

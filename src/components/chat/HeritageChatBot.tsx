@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -620,7 +620,9 @@ export function HeritageChatBot() {
                         const site = directorySites.find((s: any) => s.id === siteId);
                         if (!site) return null;
                         const imageSources = getSiteImageSources(site);
-                        return (
+                        if (pathname === '/auth' || pathname === '/admin-login' || pathname === '/lgu-login') return null;
+
+  return (
                           <Card key={siteId} className="w-full rounded-[1.5rem] overflow-hidden border-none shadow-md bg-white ring-1 ring-black/5">
                             <div className="relative h-32 w-full">
                               <SafeImage
@@ -735,3 +737,4 @@ export function HeritageChatBot() {
     </>
   );
 }
+

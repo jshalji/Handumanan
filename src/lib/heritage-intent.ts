@@ -136,22 +136,45 @@ export interface TourPlanningState {
   wantsEverySite: boolean;
 }
 
-export function isConversationalMessage(normalized: string): boolean {
-  // Greetings
-  if (/^(hi|hello|hey|good day|good morning|good afternoon|good evening|maayong adlaw|kumusta|kamusta)$/.test(normalized)) return true;
-  if (/^(hi|hello|hey)\s+(there|everyone|all)$/.test(normalized)) return true;
-  // Thanks
-  if (/^(thank you|thanks|thank u|salamat|salamat po|maraming salamat)$/.test(normalized)) return true;
-  if (/^(thank you|thanks|salamat)\s+(so much|very much|a lot)$/.test(normalized)) return true;
-  // Farewells
-  if (/^(bye|goodbye|see you|see ya|paalam|paalam po|take care)$/.test(normalized)) return true;
-  if (/^(bye|goodbye|see you)\s+(for now|everyone|all)$/.test(normalized)) return true;
-  // Clearly unrelated single words or phrases
-  if (/^(my name is|my name's|i am|i'm)\s/.test(normalized)) return true;
-  if (/^(china|india|chinia|japan|korea|america|europe|africa)$/.test(normalized)) return true;
-  return false;
+export function isBroadLocationQuery(normalized: string): boolean {
+  return /^(cebu|cebu city|city|mandaue|mandaue city|talisay|talisay city|lapu lapu|lapu-lapu|lapulapu)$/.test(normalized);
 }
 
+export function isConversationalMessage(normalized: string): boolean {
+  // Greetings
+  if (/^(hi|hello|hey|good day|good morning|good afternoon|good evening|maayong adlaw|kumusta|kamusta|yo|howdy)$/.test(normalized)) return true;
+  if (/^(hi|hello|hey)\s+(there|everyone|all|friend|guide)$/.test(normalized)) return true;
+  // Thanks
+  if (/^(thank you|thanks|thank u|salamat|salamat po|maraming salamat|appreciate it)$/.test(normalized)) return true;
+  if (/^(thank you|thanks|salamat)\s+(so much|very much|a lot|po)$/.test(normalized)) return true;
+  // Farewells
+  if (/^(bye|goodbye|see you|see ya|paalam|paalam po|take care|later)$/.test(normalized)) return true;
+  if (/^(bye|goodbye|see you)\s+(for now|everyone|all|soon)$/.test(normalized)) return true;
+  // Introductions / identity
+  if (/^(my name is|my name's|i am|i'm)\s/.test(normalized)) return true;
+  if (/^(i am|i'm)\s+(from|a)\b/.test(normalized)) return true;
+  // Clearly unrelated single words or phrases
+  if (/^(china|india|chinia|japan|korea|america|europe|africa|ok|okay|sure|great|cool|nice|awesome|got it|understood)$/.test(normalized)) return true;
+  // Small talk
+  if (/^(how are you|what's up|how do you do|who are you|what are you)$/.test(normalized)) return true;
+  // System identity questions
+  if (/^(what is handumanan|what's handumanan|tell me about handumanan)$/.test(normalized)) return true;
+  return false;
+}
+export function isInformationQuery(normalized: string): boolean {
+  return (
+    /\b(visiting hours|opening hours|entrance fee|admission|history of|tell me about|where is|what is|who built|background|significance|details about|about the)\b/.test(normalized) &&
+    !/\b(plan|itinerary|tour|route|trip)\b/.test(normalized)
+  );
+}
+
+export function isFollowUpQuery(normalized: string): boolean {
+  return /^(what about|and |also |then |next |how about|what else)\b/.test(normalized);
+}
+
+export function isCorrectionQuery(normalized: string): boolean {
+  return /^(no|nope|actually|i meant|i mean|not that|rather)\b/.test(normalized);
+}
 export function isTourPlanningMode(
   history: Array<{ role: string; content: Array<{ text: string }> }> = [],
   query: string = ''
@@ -162,6 +185,10 @@ export function isTourPlanningMode(
   // never trigger or continue tour-planning mode, even if the conversation
   // history contains tour-related keywords from a previous interaction.
   if (isConversationalMessage(normQuery)) return false;
+
+  // Informational questions should not be forced into tour-planning mode
+  // just because the conversation previously discussed a tour.
+  if (isInformationQuery(normQuery)) return false;
 
   // Explicit tour request always activates planning
   if (isExplicitTourRequestStandalone(normQuery)) return true;
@@ -396,9 +423,15 @@ export function deriveTourPlanningState(
     const norm = normalizeSearchText(text);
 
     // 1. Duration extraction
-    const hrMatch = norm.match(/\b(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/);
-    const minMatch = norm.match(/\b(\d+(?:\.\d+)?)\s*(?:min|mins|minute|minutes)\b/);
-    const standaloneNumMatch = norm.match(/^(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours|min|mins|minutes)?$/);
+    const durationNorm = norm
+      .replace(/\bone\b/g, '1')
+      .replace(/\btwo\b/g, '2')
+      .replace(/\bthree\b/g, '3')
+      .replace(/\bfour\b/g, '4')
+      .replace(/\bfive\b/g, '5');
+    const hrMatch = durationNorm.match(/\b(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/);
+    const minMatch = durationNorm.match(/\b(\d+(?:\.\d+)?)\s*(?:min|mins|minute|minutes)\b/);
+    const standaloneNumMatch = durationNorm.match(/^(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours|min|mins|minutes)?$/);
 
     if (hrMatch) {
       state.durationMinutes = Math.max(15, Math.round(Number(hrMatch[1]) * 60));
@@ -542,6 +575,41 @@ export function deriveTourPlanningState(
   return state;
 }
 
+export function extractConversationContext(
+  history: Array<{ role: string; content: Array<{ text: string }> }> = [],
+  sites: any[] = []
+): { lastSiteId: string | null; lastCity: string | null; lastCategory: string | null; lastIntent: 'information' | 'itinerary' | 'conversation' | null } {
+  let lastSiteId: string | null = null;
+  let lastCity: string | null = null;
+  let lastCategory: string | null = null;
+  let lastIntent: 'information' | 'itinerary' | 'conversation' | null = null;
+
+  for (let i = history.length - 1; i >= 0; i--) {
+    const turn = history[i];
+    const text = turn?.content?.[0]?.text ?? '';
+    const norm = normalizeSearchText(text);
+    if (!lastIntent) {
+      if (/\b(plan|itinerary|tour|route|trip)\b/.test(norm)) lastIntent = 'itinerary';
+      else if (isInformationQuery(norm)) lastIntent = 'information';
+      else if (isConversationalMessage(norm)) lastIntent = 'conversation';
+    }
+    if (!lastSiteId && sites.length) {
+      const match = sites.find((s: any) => (s?.name || '').length > 2 && norm.includes(normalizeSearchText(s.name || '')));
+      if (match) lastSiteId = match.id || null;
+    }
+    if (!lastCity) {
+      const c = Object.keys(CITY_ALIASES).find(a => norm.includes(a));
+      if (c) lastCity = CITY_ALIASES[c];
+    }
+    if (!lastCategory) {
+      const cat = getCategoryFromQuery(text);
+      if (cat) lastCategory = cat;
+    }
+    if (lastSiteId && lastCity && lastCategory && lastIntent) break;
+  }
+
+  return { lastSiteId, lastCity, lastCategory, lastIntent };
+}
 export function extractPlanningContext(
   history: Array<{ role: string; content: Array<{ text: string }> }>,
   userLocation?: { lat: number; lng: number } | null
@@ -781,7 +849,7 @@ export function generateProximityBasedItineraryState(
 
 ${stopsFormatted.join('\n\n')}
 
-Estimated duration: ~${formattedTotalTime} (${totalVisitMinutes} min visiting stops + ~${bufferMinutes} min travel/buffer).${foodNote}`;
+Estimated duration: ~${formattedTotalTime} (${totalVisitMinutes} min visiting stops + ~${bufferMinutes} min travel/buffer).${foodNote}` + (durationMinutes > calculatedTotalMinutes + 15 ? `\n\nYou still have about ${durationMinutes - calculatedTotalMinutes} minutes remaining. I can add another nearby stop or keep this as a more relaxed schedule.` : '');
 
   return {
     text: structuredText,

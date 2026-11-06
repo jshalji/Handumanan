@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { MapPin, User as UserIcon, LogOut, Search, Menu, Settings, Shield, ShieldCheck, Home, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
@@ -38,10 +39,12 @@ export function Navbar() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const db = useFirestore();
+  const { toast } = useToast();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     setIsDropdownOpen(false);
@@ -58,11 +61,23 @@ export function Navbar() {
   const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: userData } = useDoc(userDocRef);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsDropdownOpen(false);
     setIsSheetOpen(false);
-    signOut(auth);
-    router.push('/');
+    setIsLoggingOut(true);
+    try {
+      await signOut(auth);
+      router.push('/');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Logout Failed',
+        description: 'We could not sign you out. Please try again.',
+      });
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   const handleNavClick = (href: string) => {
@@ -205,7 +220,9 @@ export function Navbar() {
                     <MessageSquare size={18} className="text-primary" /> Send Feedback
                   </button>
                   <div className="pt-4 border-t mt-4 flex flex-col gap-2">
-                    {user ? (
+                    {isUserLoading ? (
+                      <div className="h-12 w-full animate-pulse rounded-xl bg-slate-100" />
+                    ) : user ? (
                       <>
                         <Link href="/profile" onClick={() => setIsSheetOpen(false)} className="flex items-center gap-4 text-sm font-black p-4 rounded-xl hover:bg-slate-100">
                           <UserIcon size={18} className="text-primary" /> Profile
@@ -220,8 +237,8 @@ export function Navbar() {
                              <ShieldCheck size={18} className="text-primary" /> LGU Portal
                            </Link>
                         )}
-                        <Button onClick={handleLogout} variant="outline" className="w-full h-12 rounded-xl font-black uppercase text-[10px] tracking-widest border-2">
-                          Logout
+                        <Button onClick={handleLogout} variant="outline" className="w-full h-12 rounded-xl font-black uppercase text-[10px] tracking-widest border-2" disabled={isLoggingOut}>
+                          {isLoggingOut ? "Logging out..." : "Logout"}
                         </Button>
                       </>
                     ) : (
@@ -241,3 +258,4 @@ export function Navbar() {
     </>
   );
 }
+

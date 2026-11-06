@@ -213,6 +213,7 @@ export default function ItineraryPage() {
                         <div className="flex items-center gap-2">
                           <Clock size={20} className="opacity-80" />
                           <span className="font-bold">Total Time: {Math.round(result.totalEstimatedDurationMinutes / 60 * 10) / 10} hours</span>
+                          <span className="text-xs opacity-80">({result.itinerary.reduce((t, i) => t + i.estimatedVisitDurationMinutes, 0)} min visiting + {result.totalEstimatedTravelDurationMinutes ?? 0} min travel + {result.bufferMinutes ?? 0} min buffer)</span>
                         </div>
                         <h2 className="font-headline text-3xl font-bold leading-tight">Your Custom Day Plan</h2>
                         <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/10">
@@ -250,6 +251,11 @@ export default function ItineraryPage() {
                           <Badge variant="secondary" className="bg-primary/10 text-primary font-bold px-3">
                             {item.estimatedVisitDurationMinutes} min visit
                           </Badge>
+                          {((item as any).estimatedTravelDurationMinutes || 0) > 0 && (
+                            <Badge variant='outline' className='font-bold px-3'>
+                              {(item as any).estimatedTravelDurationMinutes} min travel
+                            </Badge>
+                          )}
                         </CardHeader>
                         <CardContent className="px-6 py-4">
                           <p className="text-slate-600 text-sm leading-relaxed">

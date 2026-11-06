@@ -22,6 +22,8 @@ import {
   checkAllOpeningHoursQuery,
   getAllOpeningHoursResponse,
   generateStructuredTourResponse,
+  extractConversationContext,
+  isBroadLocationQuery,
 } from '@/lib/heritage-intent';
 
 const MessageSchema = z.object({
@@ -1035,34 +1037,63 @@ function scoreSiteMatch(site: HeritageSiteRecord, query: string) {
 }
 
 function findMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[] = HERITAGE_SITES) {
+
   const city = getCityFromQuery(query);
+
   const category = getCategoryFromQuery(query);
 
+
+
   let candidates = sites.filter(site => site.status !== 'Inactive' && site.demolitionStatus !== 'Demolished');
+
   if (city) candidates = candidates.filter(site => site.city === city);
 
+  if (category) {
+
+    const categoryCandidates = candidates.filter(site => site.category === category);
+
+    if (categoryCandidates.length > 0) candidates = categoryCandidates;
+
+  }
+
+
+
   const cityMatches = candidates
+
     .map(site => ({ site, score: scoreSiteMatch(site, query) }))
+
     .filter(result => result.score > 0)
+
     .sort((a, b) => b.score - a.score || compareRatingDescending(a.site.rating, b.site.rating))
+
     .map(result => result.site);
+
+
 
   if (cityMatches.length > 0) {
+
     return cityMatches.slice(0, limit);
+
   }
 
-  if (category) {
-    candidates = candidates.filter(site => site.category === category);
-  }
+
 
   const scopedMatches = candidates
+
     .map(site => ({ site, score: scoreSiteMatch(site, query) }))
+
     .filter(result => result.score > 0)
+
     .sort((a, b) => b.score - a.score || compareRatingDescending(a.site.rating, b.site.rating))
+
     .slice(0, limit)
+
     .map(result => result.site);
 
+
+
   return scopedMatches;
+
 }
 
 function getStrongMatchingSites(query: string, limit = 3, sites: HeritageSiteRecord[] = HERITAGE_SITES, requireOpen = true) {
@@ -1596,10 +1627,20 @@ function getNearbySitesForPoint(point: GeoPoint & { name: string; city: string }
 }
 
 async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageChatOutput> {
-  const lastMessage = input.history[input.history.length - 1]?.content[0]?.text ?? '';
+  let lastMessage = input.history[input.history.length - 1]?.content[0]?.text ?? '';
+  const sites = getSiteCorpus(input);
+
+  const conversationContext = extractConversationContext(input.history.slice(0, -1), sites);
+  const ctxSite = conversationContext.lastSiteId ? sites.find((s: any) => s.id === conversationContext.lastSiteId) : null;
+  if (ctxSite && /\b(it|its|this|that|the site|the place|this place)\b/i.test(lastMessage)) {
+    const siteNameNorm = normalizeSearchText(ctxSite.name || '');
+    if (siteNameNorm && !normalizeSearchText(lastMessage).includes(siteNameNorm)) {
+      lastMessage = `${lastMessage} ${ctxSite.name}`;
+    }
+  }
+
   const query = lastMessage.toLowerCase();
   const normalizedQuery = normalizeSearchText(lastMessage);
-  const sites = getSiteCorpus(input);
 
   const context = getConversationContext(input.history.slice(0, -1), sites);
   const activeSites = sites.filter(site => isSiteOpenForVisit(site));
@@ -1635,9 +1676,19 @@ async function getLocalChatResponse(input: HeritageChatInput): Promise<HeritageC
   }
 
   // Friendly greetings
-  if (isSimpleGreetingQuery(lastMessage)) {
+  if (isBroadLocationQuery(normalizedQuery)) {
     return {
-      text: "Hello! Maayong adlaw. I am your Handumanan Guide, ready to help with Metro Cebu heritage sites, routes, and stories.",
+      text: "Are you interested in Cebu City's heritage sites, churches, museums, historical landmarks, or a general overview of Metro Cebu's heritage?",
+      suggestedSiteIds: [],
+    };
+  }
+
+  if (isSimpleGreetingQuery(lastMessage)) {
+    const _h = new Date().getUTCHours() + 8;
+    const _hh = _h >= 24 ? _h - 24 : _h;
+    const _greet = _hh < 12 ? "Maayong buntag" : _hh < 18 ? "Maayong hapon" : "Maayong gabii";
+    return {
+      text: `${_greet}! I am your Handumanan Guide, ready to help with Metro Cebu heritage sites, routes, and stories.`,
       suggestedSiteIds: [],
     };
   }
@@ -2058,6 +2109,7 @@ export async function chatWithHeritageBot(input: HeritageChatInput): Promise<Her
       Only create or describe an itinerary when the user explicitly asks for a route, trip, tour, plan, travel time, or stop sequence. Recommendation questions should return suggestions, not auto-routes.
       If you mention specific sites in response to explicit requests, include their EXACT IDs in "suggestedSiteIds"; otherwise return an empty array.
       Stay conversational, calm, and practical: 2-4 helpful sentences, warm and Cebuano-proud.
+      GREETING: Use the current Manila time to greet appropriately (Maayong buntag before noon, Maayong hapon in the afternoon, Maayong gabii in the evening).
 
       Active Handumanan directory snapshot:
       ${buildDirectoryBrief(sites)}`,
