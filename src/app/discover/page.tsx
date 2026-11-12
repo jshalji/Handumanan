@@ -9,6 +9,11 @@ import { DEPRECATED_HERITAGE_SITE_IDS, HeritageSite, HERITAGE_SITES, isSiteVisib
 import { calculateDistance, getCurrentLocation, watchCurrentLocation, type EvaluatedLocation } from '@/lib/location-utils';
 import { getRouteMulti, RouteStep, getRoute, type TravelMode } from '@/lib/routing-service';
 import { getSiteAvailability, isSiteOpenForVisit } from '@/lib/site-availability';
+import {
+  isSiteOpenAtDateTime,
+  resolveDiscoverFutureCompatibleSites,
+  serializeSitesForPlanner,
+} from '@/lib/itinerary-planner';
 import { generatePersonalizedItinerary, type GeneratePersonalizedItineraryOutput } from '@/ai/flows/generate-personalized-itinerary';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -243,7 +248,7 @@ function ExploreRouteContent() {
 
   // LOAD DYNAMIC SITES FROM FIRESTORE
   const sitesQuery = useMemoFirebase(() => db ? collection(db, 'heritageSites') : null, [db]);
-  const { data: dbSites } = useCollection(sitesQuery);
+  const { data: dbSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
 
   const allSites = useMemo(() => {
     const deprecatedIds = new Set(DEPRECATED_HERITAGE_SITE_IDS);
@@ -332,11 +337,13 @@ function ExploreRouteContent() {
     return orderedIds;
   }, [allSites, getSiteCoords]);
 
-  const saveToLocal = useCallback((ids: string[]) => {
+  const saveToLocal = useCallback((ids: string[], options?: { allowClosed?: boolean }) => {
+    const allowClosed = Boolean(options?.allowClosed);
     const cleanIds = ids.filter(id => {
       if (DEPRECATED_HERITAGE_SITE_IDS.includes(id)) return false;
       const site = allSites.find(candidate => candidate.id === id);
-      return site ? isSiteOpenForVisit(site) : false;
+      if (!site) return false;
+      return allowClosed ? true : isSiteOpenForVisit(site);
     });
     localStorage.setItem('handumanan_draft_itinerary', JSON.stringify(cleanIds));
     setItineraryIds(cleanIds);
@@ -349,24 +356,29 @@ function ExploreRouteContent() {
     [db, user, itineraryIdParam]
   );
   const { data: savedItin } = useDoc(savedItinRef);
+  const hydratedSavedTripIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (savedItin) {
-      if (savedItin.itineraryIds) {
-        saveToLocal(savedItin.itineraryIds);
+    if (!savedItin || isSitesLoading) return;
+    const tripKey = `${itineraryIdParam || savedItin.id || 'saved'}:${dbSites ? 'loaded' : 'static'}`;
+    if (hydratedSavedTripIdRef.current === tripKey) return;
+
+    if (savedItin.itineraryIds) {
+      hydratedSavedTripIdRef.current = tripKey;
+      saveToLocal(savedItin.itineraryIds, { allowClosed: true });
+      toast({ title: "Trip Loaded", description: savedItin.summary });
+    } else if (savedItin.itineraryData) {
+      try {
+        const parsed = JSON.parse(savedItin.itineraryData);
+        const ids = parsed.itinerary.map((stop: any) => stop.siteId);
+        hydratedSavedTripIdRef.current = tripKey;
+        saveToLocal(ids, { allowClosed: true });
         toast({ title: "Trip Loaded", description: savedItin.summary });
-      } else if (savedItin.itineraryData) {
-        try {
-          const parsed = JSON.parse(savedItin.itineraryData);
-          const ids = parsed.itinerary.map((stop: any) => stop.siteId);
-          saveToLocal(ids);
-          toast({ title: "Trip Loaded", description: savedItin.summary });
-        } catch (e) {
-          console.error("Failed to parse legacy itinerary data", e);
-        }
+      } catch (e) {
+        console.error("Failed to parse legacy itinerary data", e);
       }
     }
-  }, [savedItin, saveToLocal, toast]);
+  }, [dbSites, isSitesLoading, itineraryIdParam, savedItin, saveToLocal, toast]);
 
   const focusSingleSite = useCallback((site: any, options: { updateSearch?: boolean; openExplorer?: boolean } = {}) => {
     const coords = site.coordinates || { lat: (site as any).latitude, lng: (site as any).longitude };
@@ -532,7 +544,7 @@ function ExploreRouteContent() {
 
     if (action === 'add') {
       if (!itineraryIds.includes(site.id)) {
-        saveToLocal([...itineraryIds, site.id]);
+        saveToLocal([...itineraryIds, site.id], { allowClosed: true });
         toast({ title: "Added to Itinerary", description: `${site.name} is now in your trip.` });
       }
       setActiveTab('planner');
@@ -597,9 +609,9 @@ function ExploreRouteContent() {
     };
   }, [isNavigating, toast]);
 
-  const saveOptimizedToLocal = useCallback((ids: string[], origin = userLocation) => {
+  const saveOptimizedToLocal = useCallback((ids: string[], origin = userLocation, options?: { allowClosed?: boolean }) => {
     const orderedIds = optimizeItineraryIds(ids, origin);
-    saveToLocal(orderedIds);
+    saveToLocal(orderedIds, options);
     return orderedIds;
   }, [optimizeItineraryIds, saveToLocal, userLocation]);
 
@@ -645,8 +657,10 @@ function ExploreRouteContent() {
   }, [selectedCity, selectedCategory, userLocation, searchQuery, allSites]);
 
   const itinerarySites = useMemo(() => {
-    return itineraryIds.map(id => availableSites.find(s => s.id === id)).filter(Boolean) as any[];
-  }, [itineraryIds, availableSites]);
+    return itineraryIds
+      .map(id => availableSites.find(s => s.id === id) || allSites.find(s => s.id === id))
+      .filter(Boolean) as any[];
+  }, [itineraryIds, availableSites, allSites]);
 
   const selectedCitySites = useMemo(() => {
     if (!selectedCity) return [];
@@ -658,7 +672,7 @@ function ExploreRouteContent() {
 
     const optimizedIds = optimizeItineraryIds(itineraryIds, userLocation);
     if (optimizedIds.join('|') !== itineraryIds.join('|')) {
-      saveToLocal(optimizedIds);
+      saveToLocal(optimizedIds, { allowClosed: true });
     }
   }, [isNavigating, itineraryIds, optimizeItineraryIds, saveToLocal, userLocation]);
 
@@ -875,29 +889,31 @@ function ExploreRouteContent() {
   }, [activeStopIndex, getSiteCoords, hasArrived, isNavigating, itinerarySites, toast, userLocation]);
 
   const toggleSite = async (id: string) => {
-    const selectedSite = allSites.find(site => site.id === id);
-    if (selectedSite && !isSiteOpenForVisit(selectedSite)) {
-      const alternatives = getNearbyOpenAlternatives(selectedSite, 3);
-      setSelectedCity(selectedSite.city || null);
-      setSelectedCategory(null);
-      if (alternatives.length > 0) {
-        focusSingleSite(alternatives[0], { updateSearch: true, openExplorer: true });
+    const isRemoving = itineraryIds.includes(id);
+    if (!isRemoving) {
+      const selectedSite = allSites.find(site => site.id === id);
+      if (selectedSite && !isSiteOpenForVisit(selectedSite)) {
+        const alternatives = getNearbyOpenAlternatives(selectedSite, 3);
+        setSelectedCity(selectedSite.city || null);
+        setSelectedCategory(null);
+        if (alternatives.length > 0) {
+          focusSingleSite(alternatives[0], { updateSearch: true, openExplorer: true });
+        }
+        toast({
+          title: "Site Closed",
+          description: alternatives.length > 0
+            ? `${selectedSite.name} is closed. Try nearby open sites like ${alternatives.map(site => site.name).join(', ')}.`
+            : `${selectedSite.name} is closed. No nearby open alternative was found with the current directory data.`,
+          variant: "destructive"
+        });
+        return;
       }
-      toast({
-        title: "Site Closed",
-        description: alternatives.length > 0
-          ? `${selectedSite.name} is closed. Try nearby open sites like ${alternatives.map(site => site.name).join(', ')}.`
-          : `${selectedSite.name} is closed. No nearby open alternative was found with the current directory data.`,
-        variant: "destructive"
-      });
-      return;
     }
 
-    const isRemoving = itineraryIds.includes(id);
     const nextIds = isRemoving ? itineraryIds.filter(i => i !== id) : [...itineraryIds, id];
 
     if (isRemoving) {
-      saveOptimizedToLocal(nextIds);
+      saveOptimizedToLocal(nextIds, userLocation, { allowClosed: true });
       if (isolatedItinerarySiteId === id) {
         clearSingleSiteFocus();
       }
@@ -908,7 +924,7 @@ function ExploreRouteContent() {
     }
 
     if (nextIds.length < 2) {
-      saveToLocal(nextIds);
+      saveToLocal(nextIds, { allowClosed: true });
       toast({
         title: "Added to Itinerary",
         description: "Add another stop and enable location to optimize the route."
@@ -917,16 +933,16 @@ function ExploreRouteContent() {
     }
 
     if (userLocation) {
-      saveOptimizedToLocal(nextIds, userLocation);
+      saveOptimizedToLocal(nextIds, userLocation, { allowClosed: true });
       toast({ title: "Added to Itinerary", description: "Route order optimized from your current location." });
       return;
     }
 
-    saveToLocal(nextIds);
+    saveToLocal(nextIds, { allowClosed: true });
     const optimizationOrigin = await detectLocation();
 
     if (optimizationOrigin) {
-      saveOptimizedToLocal(nextIds, optimizationOrigin);
+      saveOptimizedToLocal(nextIds, optimizationOrigin, { allowClosed: true });
       toast({ title: "Route Optimized", description: "Stops are now sequenced by nearest destination." });
     }
   };
@@ -947,7 +963,7 @@ function ExploreRouteContent() {
     }
     const optimizedIds = optimizeItineraryIds(itinerarySites.map(site => site.id), loc);
     if (optimizedIds.join('|') !== itineraryIds.join('|')) {
-      saveToLocal(optimizedIds);
+      saveToLocal(optimizedIds, { allowClosed: true });
     }
     const nextStop = allSites.find(site => site.id === optimizedIds[0]);
     setIsNavigating(true);
@@ -1026,7 +1042,6 @@ function ExploreRouteContent() {
 
   const dedupeGeneratedItinerary = (
     itinerary: GeneratePersonalizedItineraryOutput['itinerary'],
-    sourceSites: any[],
     maxStops: number
   ): GeneratePersonalizedItineraryOutput['itinerary'] => {
     const usedKeys = new Set<string>();
@@ -1041,24 +1056,7 @@ function ExploreRouteContent() {
       return true;
     });
 
-    for (const site of sourceSites) {
-      if (cleaned.length >= maxStops) break;
-
-      const key = site.id;
-      const nameKey = normalizeSiteName(site.name);
-      if (usedKeys.has(key) || usedKeys.has(nameKey)) continue;
-
-      cleaned.push({
-        siteId: site.id,
-        siteName: site.name,
-        estimatedVisitDurationMinutes: 40,
-        description: `Added as a unique nearby heritage stop to keep the route varied and avoid duplicate places.`,
-      });
-      usedKeys.add(key);
-      usedKeys.add(nameKey);
-    }
-
-    return cleaned;
+    return cleaned.slice(0, maxStops);
   };
 
   const getRoutePointsForItinerary = (
@@ -1090,19 +1088,32 @@ function ExploreRouteContent() {
       const selectedPlannerCategory = selectedCategory || plannerCategory;
       const maxStops = requestedHours <= 1 ? 2 : requestedHours <= 2 ? 3 : requestedHours <= 4 ? 4 : requestedHours <= 6 ? 5 : 6;
       const isUsingUserPreference = !!(selectedCity || selectedCategory || searchQuery.trim());
-      const candidateSites = effectiveGenerationMode === 'themed'
-        ? availableSites.filter(site => site.category === selectedPlannerCategory && (!selectedCity || site.city === selectedCity))
+      const matchingSites = effectiveGenerationMode === 'themed'
+        ? allSites.filter(site => site.category === selectedPlannerCategory && (!selectedCity || site.city === selectedCity))
         : effectiveGenerationMode === 'balanced'
-          ? availableSites
+          ? allSites
           : isUsingUserPreference
-          ? filteredAndSortedSites.filter(site => isSiteOpenForVisit(site))
-          : availableSites;
-      const openCandidateSites = candidateSites.filter(site => isSiteOpenForVisit(site));
+          ? filteredAndSortedSites
+          : allSites;
+      const openCandidateSites = matchingSites.filter(site => isSiteOpenAtDateTime(site));
+      const openItinerarySites = itinerarySites.filter(site => isSiteOpenAtDateTime(site));
+      const futureCandidateResolution = openItinerarySites.length === 0 && openCandidateSites.length === 0
+        ? resolveDiscoverFutureCompatibleSites(matchingSites, maxStops)
+        : { sites: [] };
+      const futureItineraryResolution = openItinerarySites.length === 0 && openCandidateSites.length === 0
+        ? resolveDiscoverFutureCompatibleSites(itinerarySites, maxStops)
+        : { sites: [] };
+      const isFutureDaytimeFallback =
+        openItinerarySites.length === 0 &&
+        openCandidateSites.length === 0 &&
+        (futureItineraryResolution.sites.length > 0 || futureCandidateResolution.sites.length > 0);
+      const effectiveCandidatePool = isFutureDaytimeFallback ? futureCandidateResolution.sites : openCandidateSites;
       const starterSites = effectiveGenerationMode === 'balanced'
-        ? selectBalancedSites(openCandidateSites, maxStops, plannerLocation)
-        : sortSitesByDistanceAndQuality(openCandidateSites, plannerLocation).slice(0, maxStops);
-      const openItinerarySites = itinerarySites.filter(site => isSiteOpenForVisit(site));
-      const sitesToPlan = openItinerarySites.length > 0 ? openItinerarySites : starterSites;
+        ? selectBalancedSites(effectiveCandidatePool, maxStops, plannerLocation)
+        : sortSitesByDistanceAndQuality(effectiveCandidatePool, plannerLocation).slice(0, maxStops);
+      const sitesToPlan = openItinerarySites.length > 0
+        ? openItinerarySites
+        : (isFutureDaytimeFallback && futureItineraryResolution.sites.length > 0 ? futureItineraryResolution.sites : starterSites);
 
       if (sitesToPlan.length === 0) {
         toast({ title: "No Open Sites Found", description: "Try clearing filters or generating the trip during visiting hours.", variant: "destructive" });
@@ -1110,11 +1121,27 @@ function ExploreRouteContent() {
       }
 
       const output = await generatePersonalizedItinerary({
-        selectedSitesJson: JSON.stringify(sitesToPlan.map(s => ({ id: s.id, name: s.name, city: s.city, coordinates: s.coordinates, visitingHours: s.visitingHours }))),
+        selectedSitesJson: serializeSitesForPlanner(sitesToPlan),
         availableTimeHours: requestedHours
       });
 
-      const cleanedItinerary = dedupeGeneratedItinerary(output.itinerary, sitesToPlan, maxStops);
+      const cleanedItinerary = dedupeGeneratedItinerary(output.itinerary, maxStops);
+      if (cleanedItinerary.length === 0) {
+        toast({
+          title: "No Open Sites Found",
+          description: "No matching heritage sites remain open long enough to complete a visit during this trip window.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (isFutureDaytimeFallback) {
+        toast({
+          title: "Daytime Itinerary Planned",
+          description: "Matching heritage sites are currently closed for the day, so this route is planned for a future daytime visit."
+        });
+      }
+
       const routePoints = getRoutePointsForItinerary(cleanedItinerary, sitesToPlan, plannerLocation);
       const generatedRoute = await getRouteMulti(routePoints, orsKey, travelMode);
       const travelMinutes = generatedRoute?.duration ?? 0;
@@ -1149,9 +1176,7 @@ function ExploreRouteContent() {
       
       const orderedIds = cleanedItinerary.map(item => item.siteId).filter(id => sitesToPlan.some(site => site.id === id));
       if (orderedIds.length > 0) {
-        saveToLocal(orderedIds);
-      } else if (itinerarySites.length === 0) {
-        saveToLocal(sitesToPlan.map(site => site.id));
+        saveToLocal(orderedIds, { allowClosed: isFutureDaytimeFallback });
       }
 
       setSearchQuery('');
@@ -1595,7 +1620,7 @@ function ExploreRouteContent() {
                         <button
                           onClick={(event) => {
                             event.stopPropagation();
-                            saveOptimizedToLocal(itineraryIds.filter(id => id !== site.id));
+                            saveOptimizedToLocal(itineraryIds.filter(id => id !== site.id), userLocation, { allowClosed: true });
                             if (isolatedItinerarySiteId === site.id) {
                               clearSingleSiteFocus();
                             }

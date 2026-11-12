@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -150,7 +150,7 @@ export function Navbar() {
                         </div>
                         <div className="flex flex-col items-start text-left">
                           <span className="text-xs font-black truncate max-w-[100px] leading-tight text-slate-900">
-                            {user.displayName || user.email?.split('@')[0]}
+                            {userData?.displayName || user.displayName || user.email?.split('@')[0]}
                           </span>
                           <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">
                             {getRoleLabel()}

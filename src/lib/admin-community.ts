@@ -47,7 +47,12 @@ function getTimestampMillis(value: unknown): number {
 
 function getVisitorPhotoSiteIdFromPath(path: unknown): string {
   if (typeof path !== 'string') return '';
-  return path.match(/^heritageSites\/([^/]+)\/visitorPhotos\/[^/]+$/)?.[1] || '';
+  return path.match(/(?:^|\/)heritageSites\/([^/]+)\/visitorPhotos\/[^/]+$/)?.[1] || '';
+}
+
+function getReviewSiteIdFromPath(path: unknown): string {
+  if (typeof path !== 'string') return '';
+  return path.match(/(?:^|\/)heritageSites\/([^/]+)\/reviews\/[^/]+$/)?.[1] || '';
 }
 
 export function normalizeCommunityPhotos(records: readonly unknown[] | null | undefined): CommunityRecord[] {
@@ -75,10 +80,68 @@ export function normalizeCommunityPhotos(records: readonly unknown[] | null | un
     });
 }
 
+export function normalizeCommunityReviews(records: readonly unknown[] | null | undefined): CommunityRecord[] {
+  return (records || [])
+    .map((record): CommunityRecord | null => {
+      if (!record || typeof record !== 'object') return null;
+      const review = record as CommunityRecord;
+      const siteId = firstNonEmptyString(
+        review.siteId,
+        review.heritageSiteId,
+        review.heritageSiteID,
+        review.siteID,
+        review.site_id,
+        review.heritage_site_id,
+        getReviewSiteIdFromPath(review.__documentPath),
+      );
+      const siteName = firstNonEmptyString(review.siteName, review.heritageSiteName);
+      return {
+        ...review,
+        siteId,
+        ...(siteName ? { siteName } : {}),
+      };
+    })
+    .filter((review): review is CommunityRecord => review !== null)
+    .sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+}
+
 export function sortCommunityReviews(records: readonly unknown[] | null | undefined): CommunityRecord[] {
   return [...(records || [])]
     .filter((record): record is CommunityRecord => Boolean(record) && typeof record === 'object')
     .sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+}
+
+export interface CommunityPostDeletionPlan {
+  reviewId: string | null;
+  photoIds: string[];
+  storagePaths: string[];
+}
+
+export function getCommunityPostDeletionTargets(post: {
+  rawReviewId?: unknown;
+  photos?: ReadonlyArray<{ id?: unknown; storagePath?: unknown }> | null;
+} | null | undefined): CommunityPostDeletionPlan {
+  if (!post || typeof post !== 'object') {
+    return { reviewId: null, photoIds: [], storagePaths: [] };
+  }
+
+  const reviewId = firstNonEmptyString(post.rawReviewId) || null;
+  const photoIdSet = new Set<string>();
+  const storagePathSet = new Set<string>();
+
+  (post.photos || []).forEach(photo => {
+    if (!photo || typeof photo !== 'object') return;
+    const id = firstNonEmptyString(photo.id);
+    if (id) photoIdSet.add(id);
+    const storagePath = firstNonEmptyString(photo.storagePath);
+    if (storagePath) storagePathSet.add(storagePath);
+  });
+
+  return {
+    reviewId,
+    photoIds: Array.from(photoIdSet),
+    storagePaths: Array.from(storagePathSet),
+  };
 }
 
 export function buildHeritageSiteNameMap(

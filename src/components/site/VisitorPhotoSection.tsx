@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useUser, useFirestore, useFirebaseApp, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,6 +12,7 @@ import { SafeImage } from '@/components/ui/safe-image';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { isValidRating } from '@/lib/review-ratings';
+import { getCommunityPostDeletionTargets } from '@/lib/admin-community';
 import {
   Camera,
   X,
@@ -219,24 +220,19 @@ export function VisitorPhotoSection({
     comment?: string;
     photos?: VisitorPhoto[];
     rawReviewId?: string;
+    uploadBatchId?: string;
   }> = [];
 
   (reviews || []).forEach((review: any) => {
-    const reviewTime = typeof review.createdAt?.toDate === 'function'
-      ? review.createdAt.toDate().getTime()
-      : (review.createdAt ? new Date(review.createdAt).getTime() : 0);
+    const reviewBatchId = typeof review.uploadBatchId === 'string' ? review.uploadBatchId.trim() : '';
 
-    const matchingPhotos = visitorPhotos.filter(photo => {
-      if (claimedPhotoIds.has(photo.id)) return false;
-      if (review.uploadBatchId && photo.uploadBatchId === review.uploadBatchId) return true;
-      if (photo.userId && review.userId && photo.userId === review.userId) {
-        const photoTime = typeof photo.createdAt?.toDate === 'function'
-          ? photo.createdAt.toDate().getTime()
-          : (photo.createdAt ? new Date(photo.createdAt).getTime() : 0);
-        if (Math.abs(photoTime - reviewTime) < 15 * 60 * 1000) return true;
-      }
-      return false;
-    });
+    const matchingPhotos = reviewBatchId
+      ? visitorPhotos.filter(photo => {
+          if (claimedPhotoIds.has(photo.id)) return false;
+          const photoBatchId = typeof photo.uploadBatchId === 'string' ? photo.uploadBatchId.trim() : '';
+          return photoBatchId.length > 0 && photoBatchId === reviewBatchId;
+        })
+      : [];
 
     matchingPhotos.forEach(p => claimedPhotoIds.add(p.id));
 
@@ -249,6 +245,7 @@ export function VisitorPhotoSection({
       comment: review.comment,
       photos: matchingPhotos.length > 0 ? matchingPhotos : undefined,
       rawReviewId: review.id,
+      uploadBatchId: reviewBatchId || undefined,
     });
   });
 
@@ -256,19 +253,22 @@ export function VisitorPhotoSection({
   const remainingPhotos = visitorPhotos.filter(p => !claimedPhotoIds.has(p.id));
   const photoGroupsMap = new Map<string, VisitorPhoto[]>();
   remainingPhotos.forEach(photo => {
-    const key = photo.uploadBatchId || photo.id;
+    const batchKey = typeof photo.uploadBatchId === 'string' ? photo.uploadBatchId.trim() : '';
+    const key = batchKey || photo.id;
     if (!photoGroupsMap.has(key)) photoGroupsMap.set(key, []);
     photoGroupsMap.get(key)!.push(photo);
   });
 
   photoGroupsMap.forEach((photos, key) => {
     const first = photos[0];
+    const firstBatchId = typeof first?.uploadBatchId === 'string' ? first.uploadBatchId.trim() : '';
     communityPosts.push({
       id: `photos-${key}`,
       userName: first?.userDisplayName || 'Visitor',
       userId: first?.userId,
       createdAt: first?.createdAt,
       photos: photos,
+      uploadBatchId: firstBatchId || undefined,
     });
   });
 
@@ -277,6 +277,17 @@ export function VisitorPhotoSection({
     const tB = typeof b.createdAt?.toDate === 'function' ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
     return tB - tA;
   });
+
+  const deleteStorageFileBestEffort = async (storagePath?: string) => {
+    if (!storagePath || !storagePath.trim() || !firebaseApp) return;
+    try {
+      const storage = getStorage(firebaseApp);
+      await deleteObject(ref(storage, storagePath.trim()));
+    } catch (storageErr) {
+      // Do not fail Firestore document cleanup if the Storage object is already missing or inaccessible.
+      console.warn('Storage object cleanup skipped:', storageErr);
+    }
+  };
 
   const handleDeleteReview = async (reviewId: string) => {
     if (!user || !db) return;
@@ -292,7 +303,9 @@ export function VisitorPhotoSection({
   const handleDeleteVisitorPhoto = async (photoId: string) => {
     if (!user || !db) return;
     try {
+      const targetPhoto = visitorPhotos.find(photo => photo.id === photoId);
       await deleteDoc(doc(db, 'heritageSites', siteId, 'visitorPhotos', photoId));
+      await deleteStorageFileBestEffort(targetPhoto?.storagePath);
       if (activeLightboxIndex !== null) {
         setActiveLightboxIndex(null);
       }
@@ -300,6 +313,76 @@ export function VisitorPhotoSection({
     } catch (err: any) {
       console.error('Failed to delete photo:', err);
       toast({ title: 'Delete Failed', description: err?.message || 'Could not delete photo.', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteCommunityPost = async (post: {
+    rawReviewId?: string;
+    uploadBatchId?: string;
+    photos?: VisitorPhoto[];
+  }) => {
+    if (!user || !db) return;
+    const postBatchId = typeof post.uploadBatchId === 'string' ? post.uploadBatchId.trim() : '';
+    const safePhotos = post.rawReviewId
+      ? (postBatchId
+          ? (post.photos || []).filter(photo => typeof photo.uploadBatchId === 'string' && photo.uploadBatchId.trim() === postBatchId)
+          : [])
+      : (post.photos || []);
+    const targets = getCommunityPostDeletionTargets({
+      rawReviewId: post.rawReviewId,
+      photos: safePhotos,
+    });
+    if (!targets.reviewId && targets.photoIds.length === 0) return;
+
+    const hasReview = Boolean(targets.reviewId);
+    const hasPhotos = targets.photoIds.length > 0;
+    const confirmLabel = hasReview && hasPhotos
+      ? 'Delete this contribution (review and attached photos)?'
+      : hasReview
+      ? 'Delete this review?'
+      : targets.photoIds.length > 1
+      ? `Delete all ${targets.photoIds.length} photos in this post?`
+      : 'Delete this photo?';
+
+    if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !window.confirm(confirmLabel)) {
+      return;
+    }
+
+    try {
+      const deleteTasks: Promise<unknown>[] = [];
+      if (targets.reviewId) {
+        deleteTasks.push(deleteDoc(doc(db, 'heritageSites', siteId, 'reviews', targets.reviewId)));
+      }
+      targets.photoIds.forEach(photoId => {
+        deleteTasks.push(deleteDoc(doc(db, 'heritageSites', siteId, 'visitorPhotos', photoId)));
+      });
+      await Promise.all(deleteTasks);
+
+      if (targets.storagePaths.length > 0) {
+        await Promise.all(targets.storagePaths.map(path => deleteStorageFileBestEffort(path)));
+      }
+
+      if (activeLightboxIndex !== null && targets.photoIds.length > 0) {
+        setActiveLightboxIndex(null);
+      }
+
+      toast({
+        title: hasReview && hasPhotos ? 'Contribution Deleted' : hasReview ? 'Review Deleted' : 'Photo Deleted',
+        description: hasReview && hasPhotos
+          ? 'Your review and attached photos have been removed.'
+          : hasReview
+          ? 'Your review has been removed.'
+          : targets.photoIds.length > 1
+          ? 'The photos in this post have been removed.'
+          : 'The photo has been removed.',
+      });
+    } catch (err: any) {
+      console.error('Failed to delete community post:', err);
+      toast({
+        title: 'Delete Failed',
+        description: err?.message || 'Could not delete this contribution.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -369,7 +452,7 @@ export function VisitorPhotoSection({
     setIsSubmitting(true);
     setUploadProgress(0);
     const uploadBatchId = `${user.uid}_${Date.now()}`;
-    const userName = user.displayName || user.email?.split('@')[0] || 'Visitor';
+    const userName = userData?.displayName || user.displayName || user.email?.split('@')[0] || 'Visitor';
 
     try {
       // 1. Submit review if comment is entered
@@ -379,6 +462,7 @@ export function VisitorPhotoSection({
           userId: user.uid,
           userName,
           siteId,
+          siteName,
           rating,
           comment: comment.trim(),
           uploadBatchId,
@@ -413,6 +497,7 @@ export function VisitorPhotoSection({
           const photoDocRef = doc(collection(db, 'heritageSites', siteId, 'visitorPhotos'));
           await setDoc(photoDocRef, {
             siteId,
+            siteName,
             userId: user.uid,
             userDisplayName: userName,
             imageUrl: finalImageUrl,
@@ -707,15 +792,9 @@ export function VisitorPhotoSection({
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={() => {
-                            if (post.rawReviewId) {
-                              handleDeleteReview(post.rawReviewId);
-                            } else if (post.photos && post.photos.length > 0) {
-                              handleDeleteVisitorPhoto(post.photos[0].id);
-                            }
-                          }}
+                          onClick={() => handleDeleteCommunityPost(post)}
                           className="h-8 w-8 rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                          title={post.rawReviewId ? "Delete review" : "Delete photo"}
+                          title={post.rawReviewId && post.photos?.length ? "Delete contribution" : post.rawReviewId ? "Delete review" : "Delete photo"}
                         >
                           <Trash2 size={14} />
                         </Button>

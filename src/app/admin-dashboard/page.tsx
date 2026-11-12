@@ -67,6 +67,7 @@ import {
   CITY_ALBUM_NAMES,
   groupCommunityPhotosByCity,
   normalizeCommunityPhotos,
+  normalizeCommunityReviews,
   resolveHeritageSiteName,
   sortCommunityReviews,
   type CityAlbumName,
@@ -430,8 +431,8 @@ export default function AdminDashboardPage() {
     data: allReviews,
     isLoading: isReviewsGroupLoading,
     error: reviewsGroupError,
-  } = useCollection(reviewsGroupQuery);
-  const communityReviews = useMemo(() => sortCommunityReviews(allReviews), [allReviews]);
+  } = useCollection(reviewsGroupQuery, { includeDocumentPath: true });
+  const communityReviews = useMemo(() => normalizeCommunityReviews(allReviews), [allReviews]);
 
   const photosGroupQuery = useMemoFirebase(
     () => canQueryCommunity ? collectionGroup(db, 'visitorPhotos') : null,
@@ -443,14 +444,6 @@ export default function AdminDashboardPage() {
     error: photosGroupError,
   } = useCollection(photosGroupQuery, { includeDocumentPath: true });
   const communityPhotos = useMemo(() => normalizeCommunityPhotos(allPhotos), [allPhotos]);
-
-  const filteredReviews = useMemo(() => {
-    const q = communitySearchQuery.trim().toLowerCase();
-    return communityReviews.filter((r: any) => {
-      if (!q) return true;
-      return [r.userName, r.userEmail, r.text, r.comment, r.siteId].join(' ').toLowerCase().includes(q);
-    });
-  }, [communityReviews, communitySearchQuery]);
 
   const handleDeleteReview = async (review: any) => {
     if (!db || !review?.siteId || !review?.id) return;
@@ -711,6 +704,27 @@ export default function AdminDashboardPage() {
     () => buildHeritageSiteNameMap(dbSites, HERITAGE_SITES),
     [dbSites]
   );
+  const filteredReviews = useMemo(() => {
+    const q = communitySearchQuery.trim().toLowerCase();
+    return communityReviews.filter((r: any) => {
+      if (!q) return true;
+      const resolvedSiteName = r.siteId
+        ? resolveHeritageSiteName(r.siteId, heritageSiteNameById)
+        : '';
+      return [
+        r.userName,
+        r.displayName,
+        r.userEmail,
+        r.email,
+        r.text,
+        r.comment,
+        r.review,
+        r.siteId,
+        r.siteName,
+        resolvedSiteName,
+      ].filter(Boolean).join(' ').toLowerCase().includes(q);
+    });
+  }, [communityReviews, communitySearchQuery, heritageSiteNameById]);
   const heritageSiteCityById = useMemo(
     () => buildHeritageSiteCityMap(dbSites, HERITAGE_SITES),
     [dbSites]
@@ -1498,8 +1512,12 @@ export default function AdminDashboardPage() {
                                     <p className="text-[11px] text-slate-500">{r.userEmail || r.email || ''}</p>
                                   </TableCell>
                                   <TableCell className="text-xs font-semibold text-slate-700">
-                                    <span className="font-mono text-[10px] text-slate-400 block">{r.siteId}</span>
-                                    {r.siteName || ''}
+                                    <span className="font-mono text-[10px] text-slate-400 block">{r.siteId || '—'}</span>
+                                    {(() => {
+                                      const mappedName = r.siteId ? resolveHeritageSiteName(r.siteId, heritageSiteNameById) : '';
+                                      if (mappedName && mappedName !== 'Unknown heritage site') return mappedName;
+                                      return r.siteName || mappedName || 'Unknown heritage site';
+                                    })()}
                                   </TableCell>
                                   <TableCell>
                                     <div className="flex items-center gap-1">

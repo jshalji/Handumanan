@@ -3,11 +3,17 @@ import { test } from 'node:test';
 import {
   buildHeritageSiteCityMap,
   buildHeritageSiteNameMap,
+  getCommunityPostDeletionTargets,
   groupCommunityPhotosByCity,
   normalizeCommunityPhotos,
+  normalizeCommunityReviews,
   resolveHeritageSiteName,
   sortCommunityReviews,
 } from '../src/lib/admin-community';
+import {
+  buildAutoProvisionUserPayload,
+  resolveProvisionedDisplayName,
+} from '../src/firebase/provider';
 import {
   requestPasswordReset,
   validatePasswordResetEmail,
@@ -182,4 +188,177 @@ test('password reset reports Firebase failures without exposing raw provider det
   assert.equal(result.status, 'error');
   assert.match(result.message, /try again later/i);
   assert.doesNotMatch(result.message, /provider internal detail/i);
+});
+
+test('review normalization recovers missing siteId from __documentPath and legacy aliases while sorting newest first', () => {
+  const reviews = normalizeCommunityReviews([
+    {
+      id: 'path-only',
+      comment: 'Great landmark!',
+      createdAt: '2025-01-01T00:00:00Z',
+      __documentPath: 'heritageSites/cebu-basilica/reviews/path-only',
+    },
+    {
+      id: 'alias-site-id',
+      heritageSiteId: 'llc-mactan-shrine',
+      heritageSiteName: 'Liberty Shrine (Mactan Shrine)',
+      createdAt: '2026-01-01T00:00:00Z',
+    },
+    {
+      id: 'direct-site-id',
+      siteId: 'marcelo-fernan-bridge',
+      siteName: 'Marcelo Fernan Bridge',
+      createdAt: '2024-01-01T00:00:00Z',
+    },
+    {
+      id: 'missing-site-id',
+      siteName: 'Legacy Saved Landmark',
+      comment: 'No recoverable site ID',
+      createdAt: '2023-01-01T00:00:00Z',
+    },
+  ]);
+
+  assert.deepEqual(reviews.map(review => review.id), ['alias-site-id', 'path-only', 'direct-site-id', 'missing-site-id']);
+  assert.equal(reviews[0].siteId, 'llc-mactan-shrine');
+  assert.equal(reviews[0].siteName, 'Liberty Shrine (Mactan Shrine)');
+  assert.equal(reviews[1].siteId, 'cebu-basilica');
+  assert.equal(reviews[2].siteId, 'marcelo-fernan-bridge');
+  assert.equal(reviews[3].siteId, '');
+  assert.equal(reviews[3].siteName, 'Legacy Saved Landmark');
+});
+
+test('community post deletion targets handle review-only, single-photo, multi-photo, and combined posts without duplicates', () => {
+  const reviewOnly = getCommunityPostDeletionTargets({
+    rawReviewId: 'rev-1',
+  });
+  assert.deepEqual(reviewOnly, {
+    reviewId: 'rev-1',
+    photoIds: [],
+    storagePaths: [],
+  });
+
+  const singlePhoto = getCommunityPostDeletionTargets({
+    photos: [{ id: 'photo-1', storagePath: 'visitorPhotos/site-1/p1.jpg' }],
+  });
+  assert.deepEqual(singlePhoto, {
+    reviewId: null,
+    photoIds: ['photo-1'],
+    storagePaths: ['visitorPhotos/site-1/p1.jpg'],
+  });
+
+  const multiPhoto = getCommunityPostDeletionTargets({
+    photos: [
+      { id: 'photo-1', storagePath: 'visitorPhotos/site-1/p1.jpg' },
+      { id: 'photo-2', storagePath: 'visitorPhotos/site-1/p2.jpg' },
+      { id: 'photo-1', storagePath: 'visitorPhotos/site-1/p1.jpg' },
+      { id: 'photo-3', storagePath: '' },
+    ],
+  });
+  assert.deepEqual(multiPhoto, {
+    reviewId: null,
+    photoIds: ['photo-1', 'photo-2', 'photo-3'],
+    storagePaths: ['visitorPhotos/site-1/p1.jpg', 'visitorPhotos/site-1/p2.jpg'],
+  });
+
+  const combinedPost = getCommunityPostDeletionTargets({
+    rawReviewId: 'rev-combined',
+    photos: [
+      { id: 'photo-a', storagePath: 'visitorPhotos/site-1/a.jpg' },
+      { id: 'photo-b', storagePath: 'visitorPhotos/site-1/b.jpg' },
+    ],
+  });
+  assert.deepEqual(combinedPost, {
+    reviewId: 'rev-combined',
+    photoIds: ['photo-a', 'photo-b'],
+    storagePaths: ['visitorPhotos/site-1/a.jpg', 'visitorPhotos/site-1/b.jpg'],
+  });
+});
+
+test('display name resolution and auto-provisioning preserve chosen registration name and existing role', () => {
+  assert.equal(
+    resolveProvisionedDisplayName({
+      pendingDisplayName: 'Maria Clara',
+      authDisplayName: null,
+      email: 'mclara@example.com',
+    }),
+    'Maria Clara',
+  );
+
+  assert.equal(
+    resolveProvisionedDisplayName({
+      existingDisplayName: 'Existing User Name',
+      pendingDisplayName: 'Fallback',
+      authDisplayName: 'Auth Name',
+      email: 'user@example.com',
+    }),
+    'Existing User Name',
+  );
+
+  const newAccountPayload = buildAutoProvisionUserPayload({
+    uid: 'uid-1',
+    email: 'explorer@example.com',
+    authDisplayName: null,
+    pendingDisplayName: 'Juan Dela Cruz',
+    existingData: null,
+    timestampValue: 'NOW',
+  });
+  assert.deepEqual(newAccountPayload, {
+    uid: 'uid-1',
+    displayName: 'Juan Dela Cruz',
+    email: 'explorer@example.com',
+    role: 'user',
+    createdAt: 'NOW',
+    updatedAt: 'NOW',
+  });
+
+  const alreadyCompletePayload = buildAutoProvisionUserPayload({
+    uid: 'uid-admin',
+    email: 'admin@example.com',
+    authDisplayName: 'Ignored Auth Name',
+    pendingDisplayName: 'Ignored Pending Name',
+    existingData: { displayName: 'System Admin', role: 'admin', email: 'admin@example.com' },
+    timestampValue: 'NOW',
+  });
+  assert.equal(alreadyCompletePayload, null);
+
+  // Existing profile missing role: repairs only role without overwriting existing displayName
+  const missingRolePayload = buildAutoProvisionUserPayload({
+    uid: 'uid-missing-role',
+    email: 'elena@example.com',
+    authDisplayName: 'Different Auth Name',
+    pendingDisplayName: 'Different Pending Name',
+    existingData: {
+      displayName: 'Elena Cruz',
+      email: 'elena@example.com',
+      city: 'Cebu City',
+    },
+    timestampValue: 'NOW',
+  });
+  assert.deepEqual(missingRolePayload, {
+    uid: 'uid-missing-role',
+    role: 'user',
+    updatedAt: 'NOW',
+  });
+  assert.equal('displayName' in (missingRolePayload || {}), false);
+
+  // Existing profile missing displayName: repairs only displayName without overwriting existing role
+  const missingDisplayNamePayload = buildAutoProvisionUserPayload({
+    uid: 'uid-missing-name',
+    email: 'officer@cebu.gov.ph',
+    authDisplayName: 'Officer Santos',
+    pendingDisplayName: 'Officer M. Santos',
+    existingData: {
+      displayName: '   ',
+      role: 'lgu',
+      email: 'officer@cebu.gov.ph',
+      assignedCity: 'Cebu City',
+    },
+    timestampValue: 'NOW',
+  });
+  assert.deepEqual(missingDisplayNamePayload, {
+    uid: 'uid-missing-name',
+    displayName: 'Officer M. Santos',
+    updatedAt: 'NOW',
+  });
+  assert.equal('role' in (missingDisplayNamePayload || {}), false);
 });

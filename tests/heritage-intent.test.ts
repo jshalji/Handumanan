@@ -1,6 +1,12 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { isConversationalMessage, isTourPlanningMode, isExplicitTourRequest } from '../src/lib/heritage-intent';
+import {
+  checkMissingFactInSiteRecord,
+  isConversationalMessage,
+  isTourPlanningMode,
+  isExplicitTourRequest,
+} from '../src/lib/heritage-intent';
+import { HERITAGE_SITES } from '../src/lib/heritage-data';
 
 const tourPlanningHistory = [
   { role: 'user', content: [{ text: 'Plan a trip to heritage sites' }] },
@@ -74,4 +80,19 @@ test('empty history does not trigger planning mode for non-tour messages', () =>
   assert.equal(isTourPlanningMode([], 'hello'), false);
   assert.equal(isTourPlanningMode([], 'thank you'), false);
   assert.equal(isTourPlanningMode([], 'bye'), false);
+});
+
+test('canonical heritage site IDs for Marcelo Fernan Bridge and Mactan Shrine exist and resolve in chatbot helpers', () => {
+  const marceloFernan = HERITAGE_SITES.find(site => site.id === 'marcelo-fernan-bridge');
+  const mactanShrine = HERITAGE_SITES.find(site => site.id === 'llc-mactan-shrine');
+
+  assert.ok(marceloFernan, 'marcelo-fernan-bridge must exist in HERITAGE_SITES');
+  assert.ok(mactanShrine, 'llc-mactan-shrine must exist in HERITAGE_SITES');
+
+  const missingFact = checkMissingFactInSiteRecord(
+    'Who designed the Marcelo Fernan Bridge?',
+    HERITAGE_SITES,
+  );
+  assert.ok(missingFact);
+  assert.deepEqual(missingFact.suggestedSiteIds, ['marcelo-fernan-bridge']);
 });

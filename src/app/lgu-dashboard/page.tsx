@@ -204,10 +204,24 @@ export default function LguDashboardPage() {
   ) => {
     if (!db || !user) return;
 
+    const isSelectedInspectSite = Boolean(selectedSite && selectedSite.id === site.id);
+    const feeTrimmed = isSelectedInspectSite ? editingFee.trim() : '';
+
+    if (isSelectedInspectSite) {
+      if (feeTrimmed.length > 200) {
+        toast({ title: 'Invalid Fee Text', description: 'Fee description must be 200 characters or fewer.', variant: 'destructive' });
+        return;
+      }
+      if (/<[^>]*>/g.test(feeTrimmed)) {
+        toast({ title: 'Invalid Fee Text', description: 'Fee description cannot contain HTML tags.', variant: 'destructive' });
+        return;
+      }
+    }
+
     setIsUpdatingStatus(true);
     try {
       const siteRef = doc(db, 'heritageSites', site.id);
-      const reviewerName = user.displayName || user.email?.split('@')[0] || 'LGU Representative';
+      const reviewerName = userData?.displayName || user.displayName || user.email?.split('@')[0] || 'LGU Representative';
 
       const updatePayload: Record<string, any> = {
         verificationStatus: newStatus,
@@ -215,6 +229,7 @@ export default function LguDashboardPage() {
         verifiedByUid: user.uid,
         verifiedAt: new Date().toISOString(),
         verificationNotes: notes.trim(),
+        ...(isSelectedInspectSite ? { entranceFee: feeTrimmed } : {}),
       };
 
       await setDoc(siteRef, updatePayload, { merge: true });
@@ -256,7 +271,7 @@ export default function LguDashboardPage() {
     setIsUpdatingStatus(true);
     try {
       const siteRef = doc(db, 'heritageSites', selectedSite.id);
-      await setDoc(siteRef, { entranceFee: trimmed || undefined }, { merge: true });
+      await setDoc(siteRef, { entranceFee: trimmed }, { merge: true });
       setSelectedSite((prev: any) => prev ? { ...prev, entranceFee: trimmed } : prev);
       toast({
         title: 'Entrance Fee Updated',

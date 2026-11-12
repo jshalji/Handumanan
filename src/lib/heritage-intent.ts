@@ -315,7 +315,7 @@ export function checkMissingFactInSiteRecord(query: string, sites: any[]): Herit
   const normalized = normalizeSearchText(query);
 
   if (normalized.includes('marcelo fernan bridge') && /\b(who|designed|architect|engineer|builder|built)\b/.test(normalized)) {
-    const bridgeSite = sites.find((s: any) => s.id === 'mandaue-marcelo-fernan-bridge');
+    const bridgeSite = sites.find((s: any) => s.id === 'marcelo-fernan-bridge');
     return {
       text: "Handumanan's current record for Marcelo Fernan Bridge doesn't include the designer information, so I don't want to guess.",
       suggestedSiteIds: bridgeSite ? [bridgeSite.id] : [],

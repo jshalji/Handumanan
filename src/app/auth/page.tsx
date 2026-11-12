@@ -1,8 +1,8 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth, useUser, useFirestore } from '@/firebase';
+import { useAuth, useUser, useFirestore, setPendingRegistrationDisplayName, clearPendingRegistrationDisplayName, resolveProvisionedDisplayName } from '@/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -70,31 +70,66 @@ export default function AuthPage() {
           });
         });
     } else {
-      createUserWithEmailAndPassword(auth, email, password)
+      const normalizedEmail = email.trim();
+      const chosenDisplayName = resolveProvisionedDisplayName({
+        pendingDisplayName: name,
+        email: normalizedEmail,
+      });
+      setPendingRegistrationDisplayName(normalizedEmail, chosenDisplayName);
+
+      createUserWithEmailAndPassword(auth, normalizedEmail, password)
         .then(async (userCredential) => {
           const newUid = userCredential.user.uid;
-          if (name) {
-            await updateProfile(userCredential.user, {
-              displayName: name
-            });
+          setPendingRegistrationDisplayName(newUid, chosenDisplayName);
+
+          if (chosenDisplayName) {
+            try {
+              await updateProfile(userCredential.user, {
+                displayName: chosenDisplayName,
+              });
+            } catch (profileAuthErr) {
+              console.error("Failed to update Auth profile displayName:", profileAuthErr);
+            }
           }
+
+          let profileWriteSucceeded = false;
           if (db) {
-            await setDoc(doc(db, 'users', newUid), {
-              uid: newUid,
-              displayName: name.trim() || email.split('@')[0],
-              email: email.trim(),
-              role: 'user',
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
+            try {
+              await setDoc(doc(db, 'users', newUid), {
+                uid: newUid,
+                displayName: chosenDisplayName,
+                email: normalizedEmail,
+                role: 'user',
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              }, { merge: true });
+              profileWriteSucceeded = true;
+            } catch (firestoreErr) {
+              console.error("Firestore profile write failed after account creation:", firestoreErr);
+            }
+          } else {
+            profileWriteSucceeded = true;
+          }
+
+          if (profileWriteSucceeded) {
+            clearPendingRegistrationDisplayName(normalizedEmail);
+            clearPendingRegistrationDisplayName(newUid);
+            toast({
+              title: "Account Created",
+              description: "Welcome to Handumanan!",
+            });
+          } else {
+            toast({
+              title: "Account Created",
+              description: "Your account is ready. Finalizing your profile details in the background.",
             });
           }
-          toast({
-            title: "Account Created",
-            description: "Welcome to Handumanan!",
-          });
+
+          setIsSubmitting(false);
           router.push('/profile');
         })
         .catch((error: any) => {
+          clearPendingRegistrationDisplayName(normalizedEmail);
           setIsSubmitting(false);
           toast({
             variant: "destructive",

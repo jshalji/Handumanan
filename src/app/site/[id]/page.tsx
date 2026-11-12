@@ -288,7 +288,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
     const reviewRef = doc(collection(db, 'heritageSites', id, 'reviews'));
     setDocumentNonBlocking(reviewRef, {
       userId: user.uid,
-      userName: user.displayName || user.email?.split('@')[0],
+      userName: userData?.displayName || user.displayName || user.email?.split('@')[0],
       siteId: id,
       rating: rating,
       comment: comment,

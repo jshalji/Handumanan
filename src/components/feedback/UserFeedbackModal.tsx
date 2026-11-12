@@ -25,7 +25,7 @@ const FEEDBACK_CATEGORIES = [
 ];
 
 export function UserFeedbackModal({ open, onOpenChange }: UserFeedbackModalProps) {
-  const { user } = useUser();
+  const { user, userData } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
 
@@ -37,10 +37,11 @@ export function UserFeedbackModal({ open, onOpenChange }: UserFeedbackModalProps
 
   useEffect(() => {
     if (user) {
-      if (user.displayName) setName(user.displayName);
+      const resolvedName = userData?.displayName || user.displayName || user.email?.split('@')[0] || '';
+      if (resolvedName) setName(resolvedName);
       if (user.email) setEmail(user.email);
     }
-  }, [user]);
+  }, [user, userData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +58,7 @@ export function UserFeedbackModal({ open, onOpenChange }: UserFeedbackModalProps
     setIsSubmitting(true);
     try {
       await addDoc(collection(db, 'userFeedback'), {
-        userName: name.trim() || user?.displayName || 'Anonymous Visitor',
+        userName: name.trim() || userData?.displayName || user?.displayName || user?.email?.split('@')[0] || 'Anonymous Visitor',
         userEmail: email.trim() || user?.email || 'Not provided',
         userId: user?.uid || null,
         category,

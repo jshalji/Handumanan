@@ -1540,7 +1540,7 @@ function getConversationContext(history: HeritageChatInput['history'], sites: He
           } else if (/\b(casa gorordo)\b/.test(normalized)) {
             lastReferencedSite = sites.find(s => s.id === 'cebu-casa-gorordo') || null;
           } else if (/\b(mactan shrine|lapu lapu shrine)\b/.test(normalized)) {
-            lastReferencedSite = sites.find(s => s.id === 'lapu-mactan-shrine') || null;
+            lastReferencedSite = sites.find(s => s.id === 'llc-mactan-shrine') || null;
           }
         }
       }

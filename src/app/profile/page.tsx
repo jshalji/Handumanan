@@ -30,8 +30,15 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { query, collection, collectionGroup, where, orderBy, doc, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { query, collection, collectionGroup, where, orderBy, doc, getDocs, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { isValidRating } from '@/lib/review-ratings';
+import { HERITAGE_SITES } from '@/lib/heritage-data';
+import {
+  buildHeritageSiteNameMap,
+  normalizeCommunityPhotos,
+  normalizeCommunityReviews,
+  resolveHeritageSiteName,
+} from '@/lib/admin-community';
 import { updateProfile, updatePassword, signOut } from 'firebase/auth';
 import {
   User as UserIcon,
@@ -85,28 +92,6 @@ export default function ProfilePage() {
   const [isTestingLocation, setIsTestingLocation] = useState(false);
   const [locationStatusMessage, setLocationStatusMessage] = useState<string | null>(null);
 
-  // Auto-provision Firestore users/{uid} document if missing
-  useEffect(() => {
-    if (!db || !user) return;
-    const userRef = doc(db, 'users', user.uid);
-    getDoc(userRef)
-      .then((snap) => {
-        if (!snap.exists()) {
-          setDoc(userRef, {
-            uid: user.uid,
-            displayName: user.displayName || user.email?.split('@')[0] || 'Registered Explorer',
-            email: user.email || '',
-            role: 'user',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          }).catch(err => console.error('Failed to auto-provision user document:', err));
-        }
-      })
-      .catch((err) => {
-        console.error('Error checking user profile document:', err);
-      });
-  }, [db, user]);
-
   // Redirect if not signed in
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -117,6 +102,14 @@ export default function ProfilePage() {
   // Fetch Firestore user doc for role & metadata
   const userDocRef = useMemoFirebase(() => (db && user) ? doc(db, 'users', user.uid) : null, [db, user]);
   const { data: userData } = useDoc(userDocRef);
+
+  // Fetch Heritage Sites for resolving site names in reviews & photos
+  const sitesQuery = useMemoFirebase(() => db ? collection(db, 'heritageSites') : null, [db]);
+  const { data: dbSites } = useCollection(sitesQuery);
+  const heritageSiteNameById = useMemo(
+    () => buildHeritageSiteNameMap(dbSites, HERITAGE_SITES),
+    [dbSites]
+  );
 
   // Fetch Favorites
   const favoritesQuery = useMemoFirebase(() => {
@@ -149,7 +142,11 @@ export default function ProfilePage() {
     const q = query(collectionGroup(db, 'reviews'), where('userId', '==', user.uid));
     getDocs(q)
       .then((snap) => {
-        const list = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const list = snap.docs.map((doc) => ({
+          id: doc.id,
+          __documentPath: doc.ref.path,
+          ...doc.data(),
+        }));
         setUserReviews(list);
       })
       .catch((err) => {
@@ -174,7 +171,11 @@ export default function ProfilePage() {
     const q = query(collectionGroup(db, 'visitorPhotos'), where('userId', '==', user.uid));
     getDocs(q)
       .then((snap) => {
-        const list = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const list = snap.docs.map((doc) => ({
+          id: doc.id,
+          __documentPath: doc.ref.path,
+          ...doc.data(),
+        }));
         setUserPhotos(list);
       })
       .catch((err) => {
@@ -184,22 +185,14 @@ export default function ProfilePage() {
       .finally(() => setIsPhotosLoading(false));
   }, [db, user]);
 
-  // Sort reviews in memory by createdAt
+  // Normalize and sort reviews in memory by createdAt
   const sortedReviews = useMemo(() => {
-    return (userReviews || []).slice().sort((a: any, b: any) => {
-      const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-      const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-      return timeB - timeA;
-    });
+    return normalizeCommunityReviews(userReviews);
   }, [userReviews]);
 
-  // Sort visitor photos in memory by createdAt
+  // Normalize and sort visitor photos in memory by createdAt
   const sortedPhotos = useMemo(() => {
-    return (userPhotos || []).slice().sort((a: any, b: any) => {
-      const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-      const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-      return timeB - timeA;
-    });
+    return normalizeCommunityPhotos(userPhotos);
   }, [userPhotos]);
 
   if (isUserLoading || !user) {
@@ -216,7 +209,7 @@ export default function ProfilePage() {
   };
 
   const handleOpenEditProfile = () => {
-    setEditDisplayName(user.displayName || userData?.displayName || '');
+    setEditDisplayName(userData?.displayName || user.displayName || '');
     setIsEditProfileOpen(true);
   };
 
@@ -361,6 +354,7 @@ export default function ProfilePage() {
 
   const userRole = userData?.role || 'user';
   const roleLabel = userRole === 'admin' ? 'Administrator' : userRole === 'lgu' ? 'LGU Officer' : 'Registered Explorer';
+  const resolvedProfileName = userData?.displayName || user.displayName || user.email?.split('@')[0] || 'Registered Explorer';
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -373,9 +367,9 @@ export default function ProfilePage() {
             <div className="relative">
               <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border-4 border-white/20 shadow-2xl overflow-hidden text-white font-headline text-3xl font-bold">
                 {user.photoURL ? (
-                  <SafeImage src={user.photoURL} alt={user.displayName || 'Profile Avatar'} fill className="object-cover" />
+                  <SafeImage src={user.photoURL} alt={resolvedProfileName} fill className="object-cover" />
                 ) : (
-                  <span>{(user.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
+                  <span>{(resolvedProfileName || user.email || 'U').charAt(0).toUpperCase()}</span>
                 )}
               </div>
               <div className="absolute bottom-0 right-0 h-7 w-7 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-white" title="Active Account">
@@ -385,7 +379,7 @@ export default function ProfilePage() {
 
             <div className="min-w-0 text-center md:text-left flex-1 space-y-1">
               <h1 className="font-headline text-3xl sm:text-4xl font-black break-words tracking-tight">
-                {user.displayName || user.email?.split('@')[0]}
+                {resolvedProfileName}
               </h1>
               <div className="opacity-90 flex flex-wrap items-center justify-center md:justify-start gap-2.5 text-sm">
                 <span className="break-all font-medium text-white/90">{user.email}</span>
@@ -633,13 +627,24 @@ export default function ProfilePage() {
                     {sortedReviews.map((rev: any) => {
                       const createdDate = rev.createdAt?.toDate ? rev.createdAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Review';
                       const ratingNum = isValidRating(rev.rating) ? rev.rating : null;
+                      const reviewSiteId = typeof rev.siteId === 'string' ? rev.siteId.trim() : '';
+                      const mappedSiteName = reviewSiteId ? resolveHeritageSiteName(reviewSiteId, heritageSiteNameById) : '';
+                      const displaySiteName = (mappedSiteName && mappedSiteName !== 'Unknown heritage site')
+                        ? mappedSiteName
+                        : (rev.siteName || 'Heritage Site');
                       return (
                         <Card key={rev.id} className="border border-slate-200/80 shadow-sm hover:shadow-md transition-all rounded-2xl p-5 space-y-3">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <Link href={`/site/${rev.siteId}#reviews`} className="font-black text-slate-950 hover:text-primary transition-colors text-base line-clamp-1">
-                                {rev.siteName || 'Heritage Site'}
-                              </Link>
+                              {reviewSiteId ? (
+                                <Link href={`/site/${reviewSiteId}#reviews`} className="font-black text-slate-950 hover:text-primary transition-colors text-base line-clamp-1">
+                                  {displaySiteName}
+                                </Link>
+                              ) : (
+                                <p className="font-black text-slate-950 text-base line-clamp-1">
+                                  {displaySiteName}
+                                </p>
+                              )}
                               <span className="text-[11px] text-slate-400 font-medium">{createdDate}</span>
                             </div>
                             <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg text-amber-700 text-xs font-bold shrink-0">
@@ -655,13 +660,15 @@ export default function ProfilePage() {
                             "{rev.comment}"
                           </p>
 
-                          <div className="pt-1 flex justify-end">
-                            <Button asChild variant="ghost" size="sm" className="text-primary font-bold text-xs h-7 px-2">
-                              <Link href={`/site/${rev.siteId}#reviews`}>
-                                View on Site Page <ArrowRight size={12} className="ml-1" />
-                              </Link>
-                            </Button>
-                          </div>
+                          {reviewSiteId && (
+                            <div className="pt-1 flex justify-end">
+                              <Button asChild variant="ghost" size="sm" className="text-primary font-bold text-xs h-7 px-2">
+                                <Link href={`/site/${reviewSiteId}#reviews`}>
+                                  View on Site Page <ArrowRight size={12} className="ml-1" />
+                                </Link>
+                              </Button>
+                            </div>
+                          )}
                         </Card>
                       );
                     })}
@@ -690,23 +697,39 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {sortedPhotos.map((photo: any) => {
                       const createdDate = photo.createdAt?.toDate ? photo.createdAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Photo';
+                      const photoSiteId = typeof photo.siteId === 'string' ? photo.siteId.trim() : '';
+                      const mappedPhotoSiteName = photoSiteId ? resolveHeritageSiteName(photoSiteId, heritageSiteNameById) : '';
+                      const displayPhotoSiteName = (mappedPhotoSiteName && mappedPhotoSiteName !== 'Unknown heritage site')
+                        ? mappedPhotoSiteName
+                        : (photo.siteName || 'Heritage Landmark');
+                      const photoCardContent = (
+                        <>
+                          <div className="relative h-44 bg-slate-100 overflow-hidden">
+                            <SafeImage src={photo.imageUrl} alt={photo.caption || displayPhotoSiteName || 'Visitor photo'} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-80" />
+                            <div className="absolute bottom-2 left-2 right-2 text-white">
+                              <p className="text-xs font-black truncate">{displayPhotoSiteName}</p>
+                              <p className="text-[10px] text-white/80">{createdDate}</p>
+                            </div>
+                          </div>
+                          {photo.caption && (
+                            <div className="p-3 bg-white text-xs text-slate-600 line-clamp-2 italic">
+                              "{photo.caption}"
+                            </div>
+                          )}
+                        </>
+                      );
                       return (
                         <Card key={photo.id} className="overflow-hidden border border-slate-200/80 shadow-sm hover:shadow-md transition-all rounded-2xl group">
-                          <Link href={`/site/${photo.siteId}`}>
-                            <div className="relative h-44 bg-slate-100 overflow-hidden">
-                              <SafeImage src={photo.imageUrl} alt={photo.caption || photo.siteName || 'Visitor photo'} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-80" />
-                              <div className="absolute bottom-2 left-2 right-2 text-white">
-                                <p className="text-xs font-black truncate">{photo.siteName || 'Heritage Landmark'}</p>
-                                <p className="text-[10px] text-white/80">{createdDate}</p>
-                              </div>
+                          {photoSiteId ? (
+                            <Link href={`/site/${photoSiteId}`}>
+                              {photoCardContent}
+                            </Link>
+                          ) : (
+                            <div>
+                              {photoCardContent}
                             </div>
-                            {photo.caption && (
-                              <div className="p-3 bg-white text-xs text-slate-600 line-clamp-2 italic">
-                                "{photo.caption}"
-                              </div>
-                            )}
-                          </Link>
+                          )}
                         </Card>
                       );
                     })}
@@ -741,7 +764,7 @@ export default function ProfilePage() {
                     <CardContent className="p-5 space-y-4 text-xs">
                       <div>
                         <span className="font-black uppercase tracking-wider text-[10px] text-slate-400">Full Name</span>
-                        <p className="text-sm font-bold text-slate-900 mt-0.5">{user.displayName || 'Not specified'}</p>
+                        <p className="text-sm font-bold text-slate-900 mt-0.5">{userData?.displayName || user.displayName || 'Not specified'}</p>
                       </div>
                       <div>
                         <span className="font-black uppercase tracking-wider text-[10px] text-slate-400">Email Address</span>
