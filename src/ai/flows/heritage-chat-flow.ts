@@ -1381,6 +1381,35 @@ function getSiteFactResponse(
     };
   }
 
+  if (/\b(renovat(?:e|ed|ion|ions)|restor(?:e|ed|ation)|rehabilitat(?:e|ed|ion)|reconstruct(?:ed|ion)|refurbish(?:ed|ment))\b/.test(normalizedQuery)) {
+    const combinedRecord = `${site.description} ${site.overview} ${site.significance}`;
+    const sentences = combinedRecord
+      .split(/(?<=[.!?])\s+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    const renovationSentences = sentences.filter(s =>
+      /\b(renovat(?:e|ed|ion|ions)|restor(?:e|ed|ation)|rehabilitat(?:e|ed|ion)|reconstruct(?:ed|ion)|rebuilt)\b/i.test(s)
+    );
+    const asksSupervisor = /\b(who|supervis(?:e|ed|or)|led|architect|engineer|oversee|oversaw)\b/.test(normalizedQuery);
+
+    if (renovationSentences.length > 0) {
+      const hasNamedSupervisor = /\b(by\s+[A-Z]|supervis(?:ed|or)|architect|engineer)\b/.test(renovationSentences.join(' '));
+      const supervisorCaveat =
+        asksSupervisor && !hasNamedSupervisor
+          ? ' Handumanan does not specify who supervised the renovation.'
+          : '';
+      return {
+        text: `${site.name} (${site.city}): ${renovationSentences.join(' ')}${supervisorCaveat}`,
+        suggestedSiteIds: factCardIds,
+      };
+    }
+
+    return {
+      text: `Handumanan's current verified directory records do not specify when ${site.name} was last structurally renovated${asksSupervisor ? ' or who supervised the renovation' : ''}.`,
+      suggestedSiteIds: factCardIds,
+    };
+  }
+
   if (/\b(what year|which year|when was|year built|founded|established|constructed)\b/.test(normalizedQuery)) {
     const combinedRecord = `${site.description} ${site.overview} ${site.significance}`;
     const conservativeDate = extractConservativeConstructionDate(combinedRecord);
@@ -2877,6 +2906,47 @@ function sanitizeChatOutput(
   };
 }
 
+function extractSafeAiErrorCode(error: unknown): string {
+  const errObj = error as { status?: unknown; code?: unknown; name?: unknown; message?: unknown } | null | undefined;
+  const rawStatus = errObj?.status ?? errObj?.code;
+  if (typeof rawStatus === 'number' || (typeof rawStatus === 'string' && rawStatus.trim())) {
+    return String(rawStatus).trim().replace(/[^a-zA-Z0-9_-]/g, '');
+  }
+  const msg = String(errObj?.message || '');
+  const httpMatch = msg.match(/\b(400|401|403|404|408|429|500|502|503|504)\b/);
+  if (httpMatch) return httpMatch[1];
+  if (/\bRESOURCE_EXHAUSTED\b/i.test(msg)) return 'RESOURCE_EXHAUSTED';
+  if (/\b(ETIMEDOUT|ESOCKETTIMEDOUT|AbortError|timeout)\b/i.test(msg)) return 'TIMEOUT';
+  if (errObj?.name && typeof errObj.name === 'string') {
+    return errObj.name.replace(/[^a-zA-Z0-9_-]/g, '') || 'UNKNOWN';
+  }
+  return 'UNKNOWN';
+}
+
+function logChatPath(params: {
+  branch: 'grounded' | 'general' | 'heritage' | 'local';
+  outcome: 'success' | 'error' | 'deterministic';
+  provider?: 'gemini-2.5-flash';
+  intent?: string;
+  code?: string;
+  fallback?: 'local';
+}) {
+  const parts = [
+    `branch=${params.branch}`,
+    params.provider ? `provider=${params.provider}` : null,
+    `outcome=${params.outcome}`,
+    params.code ? `code=${params.code}` : null,
+    params.fallback ? `fallback=${params.fallback}` : null,
+    params.intent ? `intent=${params.intent}` : null,
+  ].filter(Boolean);
+
+  if (params.outcome === 'error') {
+    console.warn(`[Handumanan Chat] ${parts.join(' ')}`);
+  } else {
+    console.info(`[Handumanan Chat] ${parts.join(' ')}`);
+  }
+}
+
 function getCleanAiHistoryMessages(
   history: Array<{ role: 'user' | 'model' | 'system'; content: Array<{ text: string }> }>
 ) {
@@ -2916,14 +2986,24 @@ async function runGroundedCebuResearch(
     if (!groundedText) throw new Error('No response from grounded AI');
     const groundingMetadata = res?.custom?.candidates?.[0]?.groundingMetadata;
     const validatedSources = extractValidatedGroundingSources(groundingMetadata, groundedText);
+    logChatPath({
+      branch: 'grounded',
+      provider: 'gemini-2.5-flash',
+      outcome: 'success',
+    });
     return {
       text: groundedText,
       suggestedSiteIds: [],
       ...(validatedSources.length > 0 ? { sources: validatedSources } : {}),
     };
   } catch (error) {
-    const safeErrorMessage = error instanceof Error ? error.message.replace(/key=[^&\s]+/gi, 'key=[REDACTED]') : 'Unknown error';
-    console.warn('[Handumanan Grounded Research] Grounding failed, using fallback:', safeErrorMessage);
+    logChatPath({
+      branch: 'grounded',
+      provider: 'gemini-2.5-flash',
+      outcome: 'error',
+      code: extractSafeAiErrorCode(error),
+      fallback: 'local',
+    });
     return await fallbackFn();
   }
 }
@@ -3072,13 +3152,32 @@ export async function chatWithHeritageBot(
         Do NOT substitute a list of heritage sites unless asked, and return an empty array [] for suggestedSiteIds.`,
       });
       if (!output) throw new Error('No response from AI');
+      logChatPath({
+        branch: 'general',
+        provider: 'gemini-2.5-flash',
+        outcome: 'success',
+        intent: analyzedIntent.intent,
+      });
       return sanitizeChatOutput(output, sites, analyzedIntent, []);
-    } catch {
+    } catch (error) {
+      logChatPath({
+        branch: 'general',
+        provider: 'gemini-2.5-flash',
+        outcome: 'error',
+        code: extractSafeAiErrorCode(error),
+        fallback: 'local',
+        intent: analyzedIntent.intent,
+      });
       return getLocalChatResponse(input, analyzedIntent);
     }
   }
 
   if (!canUseGeneralAi || shouldAnswerLocally(input, analyzedIntent, canUseGeneralAi)) {
+    logChatPath({
+      branch: 'local',
+      outcome: 'deterministic',
+      intent: analyzedIntent.intent,
+    });
     return getLocalChatResponse(input, analyzedIntent);
   }
 
@@ -3115,9 +3214,22 @@ export async function chatWithHeritageBot(
     });
 
     if (!output) throw new Error('No response from AI');
+    logChatPath({
+      branch: 'heritage',
+      provider: 'gemini-2.5-flash',
+      outcome: 'success',
+      intent: analyzedIntent.intent,
+    });
     return sanitizeChatOutput(output, sites, analyzedIntent, validatedCandidates);
-  } catch (error: any) {
-    console.error("Chat Error:", error.message);
+  } catch (error) {
+    logChatPath({
+      branch: 'heritage',
+      provider: 'gemini-2.5-flash',
+      outcome: 'error',
+      code: extractSafeAiErrorCode(error),
+      fallback: 'local',
+      intent: analyzedIntent.intent,
+    });
     return getLocalChatResponse(input, analyzedIntent);
   }
 }

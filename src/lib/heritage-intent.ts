@@ -1306,7 +1306,7 @@ function isExplicitTourRequestStandalone(normalized: string): boolean {
   if (/\b(make|create|plan|give|build|generate|suggest|design)\b.*\b(tour|trip|itinerary|route)\b/.test(normalized)) return true;
   if (/\b(tour|trip|itinerary|route)\b.*\b(pls|please|no cap|for me|today|rn|right now)\b/.test(normalized)) return true;
   if (/^(make me a tour|make me a trip|create a tour|create a trip|plan a tour|plan my trip|give me a tour|make me a walking tour|bro make me a tour pls|make me a \d+ hr tour no cap|make me a \d+ hour tour|make me a trip|give me a trip|give me a tour)$/.test(normalized)) return true;
-  
+
   if (/\b(i have|got)\s+(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|min|mins|minute|minutes)\b/.test(normalized)) return true;
   if (/^i have \d+\s*(h|hr|hrs|hour|hours|min|mins|minute|minutes)$/.test(normalized)) return true;
 
@@ -1971,8 +1971,9 @@ export function checkMissingFactInSiteRecord(
     }
   }
 
-  // 2. Exact founding / construction year check when missing in record
-  if (asksWhenBuilt) {
+  // 2. Exact founding / construction year check when missing in record (skip for renovation/restoration questions)
+  const asksRenovation = /\b(renovat(?:e|ed|ion|ions)|restor(?:e|ed|ation)|rehabilitat(?:e|ed|ion)|reconstruct(?:ed|ion)|refurbish(?:ed|ment))\b/.test(normalized);
+  if (asksWhenBuilt && !asksRenovation) {
     if (!conservativeDate.year && !conservativeDate.century) {
       return {
         text: `Handumanan's current records do not specify a verified construction or founding year for ${targetSite.name}.`,
@@ -2028,7 +2029,7 @@ export function getBestHeritageSiteResponse(sites: any[]): HeritageChatOutput {
 export function checkAllOpeningHoursQuery(query: string): boolean {
   const normalized = normalizeSearchText(query);
   return /\b(opening hours|visiting hours|hours)\b.*\b(every|all)\b/.test(normalized) ||
-         /\b(tell me|what are)\b.*\b(opening hours|visiting hours)\b.*\b(every|all)\b/.test(normalized);
+    /\b(tell me|what are)\b.*\b(opening hours|visiting hours)\b.*\b(every|all)\b/.test(normalized);
 }
 
 export function getAllOpeningHoursResponse(sites: any[]): HeritageChatOutput {
@@ -3629,10 +3630,17 @@ export function analyzeHeritageQueryIntent(
   }
 
   // 5. Site Comparison ("Compare Basilica and Magellan's Cross", "Which one is older?", "Which of these sites is the oldest?")
+  const isAnaphoricPairComparisonPattern =
+    /\bwhich(?:\s+one)?\s+of\s+(?:the|these|those)\s+(?:two|both)(?:\s+(?:sites?|places?|landmarks?|churches?|museums?|ones?))?\b/.test(
+      normalized
+    ) ||
+    /\b(?:between|among)\s+(?:the|these|those)\s+(?:two|both)(?:\s+(?:sites?|places?|landmarks?|churches?|museums?|ones?))?\b.*\bwhich\b/.test(
+      normalized
+    );
   const isComparativeFollowUpPattern =
     /\bwhich\s+(?:one|of\s+(?:these|those|them))(?:\s+(?:sites?|places?))?\s+(?:is\s+(?:the\s+)?(?:older|oldest|cheaper|free|better|closer)|was\s+(?:established|built|founded)\s+first)\b|\bwhich(?:\s+(?:one|site|place))?\s+was\s+(?:established|built|founded)\s+first\b/.test(
       normalized
-    );
+    ) || isAnaphoricPairComparisonPattern;
   const isComparativeQuestion =
     /\b(compare|comparison|difference\s+between|different\s+from|versus|vs)\b/.test(normalized) ||
     isComparativeFollowUpPattern;
@@ -3765,19 +3773,19 @@ export function analyzeHeritageQueryIntent(
     entities.length === 0 &&
     (hasExplicitModificationCue
       ? Boolean(
-          geo.location ||
-            geo.geographicRegion ||
-            cat.category ||
-            requestedCount !== null ||
-            cat.excludedCategories.length > 0 ||
-            baseConstraints.freeAdmissionOnly
-        )
+        geo.location ||
+        geo.geographicRegion ||
+        cat.category ||
+        requestedCount !== null ||
+        cat.excludedCategories.length > 0 ||
+        baseConstraints.freeAdmissionOnly
+      )
       : !geo.location &&
-        !geo.geographicRegion &&
-        (requestedCount !== null ||
-          Boolean(cat.category) ||
-          cat.excludedCategories.length > 0 ||
-          Boolean(baseConstraints.freeAdmissionOnly)));
+      !geo.geographicRegion &&
+      (requestedCount !== null ||
+        Boolean(cat.category) ||
+        cat.excludedCategories.length > 0 ||
+        Boolean(baseConstraints.freeAdmissionOnly)));
 
   if (isExclusionCorrectionComplaint || isConstraintModification) {
     const isExplicitBroadCityReset =
@@ -4043,7 +4051,50 @@ export function analyzeHeritageQueryIntent(
     }
 
     // Ambiguous pronoun when multiple sites or no sites were previously discussed
+    const hasExplicitPlacePronoun =
+      /\b(that\s+place|that\s+site|this\s+site|this\s+place|here|(?:get|go|going|getting)\s+there|can\s+i\s+walk\s+there|the\s+other\s+one|another\s+one)\b/.test(
+        normalized
+      );
+    const hasHeritageOrVisitingTerms =
+      /\b(heritage|handumanan|parian|mactan|magellan|colon\s+street|ancestral|basilica|cathedral|shrine|church|museum|monument|landmark|plaza|fort|house|library|temple|capitol|hours|fee|fees|admission|open|closed|visit|visiting|directions|route|tour|itinerary|site|place)\b/i.test(
+        normalized
+      );
+    const isSelfContainedGeneralQuestionWithPronoun =
+      !hasExplicitPlacePronoun &&
+      !hasHeritageOrVisitingTerms &&
+      !geo.location &&
+      !geo.geographicRegion &&
+      !cat.category &&
+      requestedInformation.every(r => r === 'overview') &&
+      normalized.split(/\s+/).filter(Boolean).length >= 6 &&
+      /\b(?:why\s+(?:does|do|is|are|did|was|were)|how\s+(?:does|do|did)|what\s+(?:causes|makes))\b/i.test(normalized);
+
     if (hasPronounReference && !context.lastReferencedSite) {
+      if (isSelfContainedGeneralQuestionWithPronoun) {
+        return {
+          intent: 'general_knowledge_question',
+          subject: query.trim(),
+          location: null,
+          excludedLocations: [],
+          neighborhoodOrDistrict: null,
+          geographicRegion: null,
+          outsideScopePlace: null,
+          category: null,
+          subCategoryTopic: 'general_ai',
+          excludedCategories: [],
+          requestedCount: null,
+          outputFormat,
+          entities: [],
+          negatedEntities: [],
+          referenceEntityId: null,
+          constraints: baseConstraints,
+          requestedInformation,
+          requiresSiteCards: false,
+          cardSelectionReason: 'none_historical_explanation',
+          requiresClarification: false,
+          confidence: 0.9,
+        };
+      }
       const candidateNames = context.lastRecommendedSites.slice(0, 3).map(s => s.name);
       return {
         intent: 'ambiguous_clarification',
@@ -4271,47 +4322,47 @@ const THEMATIC_CONCEPT_GROUPS: Array<{
   queryPattern: RegExp;
   siteRecordPattern: RegExp;
 }> = [
-  {
-    concept: 'wwii_liberation',
-    queryPattern: /\b(world\s+war\s+ii|wwii|ww2|japanese\s+occupation|liberation|1945|american\s+landing)\b/i,
-    siteRecordPattern: /\b(world\s+war\s+ii|wwii|liberation|1945|japanese)\b/i,
-  },
-  {
-    concept: 'revolution_katipunan',
-    queryPattern: /\b(philippine\s+revolution|katipunan|katipuneros?|leon\s+kilat|1898|tres\s+de\s+abril|uprising)\b/i,
-    siteRecordPattern: /\b(revolution|katipunan|katipuneros?|leon\s+kilat|1898|tres\s+de\s+abril|uprising)\b/i,
-  },
-  {
-    concept: 'chinese_heritage',
-    queryPattern: /\b(chinese|taoist|parian\s+merchant|chinese[\s-]cebuano|chinese[\s-]filipino)\b/i,
-    siteRecordPattern: /\b(chinese|taoist|gotiaoco)\b/i,
-  },
-  {
-    concept: 'precolonial_magellan_1521',
-    queryPattern: /\b(1521|pre[\s-]?colonial|rajah\s+humabon|lapu[\s-]?lapu|battle\s+of\s+mactan|first\s+baptism|magellan\s+expedition)\b/i,
-    siteRecordPattern: /\b(1521|humabon|lapu[\s-]?lapu|battle\s+of\s+mactan|first\s+baptism|pre[\s-]?colonial)\b/i,
-  },
-  {
-    concept: 'spanish_colonial',
-    queryPattern: /\b(spanish\s+colonial|spanish[\s-]?era|spanish\s+period|spanish\s+architecture|1565|legazpi|coral\s+stone|bahay\s+na\s+bato)\b/i,
-    siteRecordPattern: /\b(spanish|1565|legazpi|coral[\s-]stone|bahay\s+na\s+bato|16th\s+century|17th\s+century|18th\s+century|19th[\s-]century|parian|1730|1739|1595|1601)\b/i,
-  },
-  {
-    concept: 'american_commonwealth',
-    queryPattern: /\b(american\s+period|american\s+colonial|commonwealth|neoclassical|juan\s+arellano|sergio\s+osmena)\b/i,
-    siteRecordPattern: /\b(american|commonwealth|neoclassical|arellano|osmena|1910|1912|1937|1938|1939)\b/i,
-  },
-  {
-    concept: 'rizal',
-    queryPattern: /\b(jose\s+rizal|rizaliana|dr\s+jose\s+rizal)\b/i,
-    siteRecordPattern: /\b(rizal|rizaliana)\b/i,
-  },
-  {
-    concept: 'archaeology_ethnography',
-    queryPattern: /\b(archaeolog(?:y|ical)|ethnograph(?:y|ic)|artifacts?|ceramics?)\b/i,
-    siteRecordPattern: /\b(archaeolog|ethnograph|ethnolog|artifacts|ceramics)\b/i,
-  },
-];
+    {
+      concept: 'wwii_liberation',
+      queryPattern: /\b(world\s+war\s+ii|wwii|ww2|japanese\s+occupation|liberation|1945|american\s+landing)\b/i,
+      siteRecordPattern: /\b(world\s+war\s+ii|wwii|liberation|1945|japanese)\b/i,
+    },
+    {
+      concept: 'revolution_katipunan',
+      queryPattern: /\b(philippine\s+revolution|katipunan|katipuneros?|leon\s+kilat|1898|tres\s+de\s+abril|uprising)\b/i,
+      siteRecordPattern: /\b(revolution|katipunan|katipuneros?|leon\s+kilat|1898|tres\s+de\s+abril|uprising)\b/i,
+    },
+    {
+      concept: 'chinese_heritage',
+      queryPattern: /\b(chinese|taoist|parian\s+merchant|chinese[\s-]cebuano|chinese[\s-]filipino)\b/i,
+      siteRecordPattern: /\b(chinese|taoist|gotiaoco)\b/i,
+    },
+    {
+      concept: 'precolonial_magellan_1521',
+      queryPattern: /\b(1521|pre[\s-]?colonial|rajah\s+humabon|lapu[\s-]?lapu|battle\s+of\s+mactan|first\s+baptism|magellan\s+expedition)\b/i,
+      siteRecordPattern: /\b(1521|humabon|lapu[\s-]?lapu|battle\s+of\s+mactan|first\s+baptism|pre[\s-]?colonial)\b/i,
+    },
+    {
+      concept: 'spanish_colonial',
+      queryPattern: /\b(spanish\s+colonial|spanish[\s-]?era|spanish\s+period|spanish\s+architecture|1565|legazpi|coral\s+stone|bahay\s+na\s+bato)\b/i,
+      siteRecordPattern: /\b(spanish|1565|legazpi|coral[\s-]stone|bahay\s+na\s+bato|16th\s+century|17th\s+century|18th\s+century|19th[\s-]century|parian|1730|1739|1595|1601)\b/i,
+    },
+    {
+      concept: 'american_commonwealth',
+      queryPattern: /\b(american\s+period|american\s+colonial|commonwealth|neoclassical|juan\s+arellano|sergio\s+osmena)\b/i,
+      siteRecordPattern: /\b(american|commonwealth|neoclassical|arellano|osmena|1910|1912|1937|1938|1939)\b/i,
+    },
+    {
+      concept: 'rizal',
+      queryPattern: /\b(jose\s+rizal|rizaliana|dr\s+jose\s+rizal)\b/i,
+      siteRecordPattern: /\b(rizal|rizaliana)\b/i,
+    },
+    {
+      concept: 'archaeology_ethnography',
+      queryPattern: /\b(archaeolog(?:y|ical)|ethnograph(?:y|ic)|artifacts?|ceramics?)\b/i,
+      siteRecordPattern: /\b(archaeolog|ethnograph|ethnolog|artifacts|ceramics)\b/i,
+    },
+  ];
 
 export function retrieveAndValidateSites(
   query: string,
@@ -4416,8 +4467,8 @@ export function retrieveAndValidateSites(
     intent.entities.length > 0;
   const baseSites = restrictToPreviousEntities
     ? intent.entities
-        .map(id => activeSites.find(s => s.id === id))
-        .filter(Boolean)
+      .map(id => activeSites.find(s => s.id === id))
+      .filter(Boolean)
     : activeSites;
 
   let candidates = baseSites.filter(site => {
@@ -4561,7 +4612,7 @@ export function selectSiteCardsForIntent(
 
   const limit =
     intent.intent === 'specific_site_information' ||
-    intent.intent === 'directions_or_location'
+      intent.intent === 'directions_or_location'
       ? 1
       : intent.intent === 'visiting_information'
         ? intent.entities.length > 1
@@ -5329,7 +5380,7 @@ export function generateProximityBasedItineraryState(
       }
       const feeWeight =
         (state.budgetPreference === 'cheaper' || state.freeOnly) &&
-        /^free\b/i.test(String(site.entranceFee || '').trim())
+          /^free\b/i.test(String(site.entranceFee || '').trim())
           ? 0.65
           : 1;
       const weightedDist = (site.isMustVisit ? dist * 0.85 : dist) * feeWeight;
@@ -5402,7 +5453,7 @@ export function generateProximityBasedItineraryState(
 
   const bufferMinutes = Math.max(5, Math.round(totalTravelMinutes));
   const calculatedTotalMinutes = totalVisitMinutes + bufferMinutes;
-  
+
   let formattedTotalTime = `${calculatedTotalMinutes} minutes`;
   if (calculatedTotalMinutes >= 60) {
     const hrs = Math.floor(calculatedTotalMinutes / 60);

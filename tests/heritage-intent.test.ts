@@ -2872,3 +2872,136 @@ test('Founding-date comparisons and 5-candidate oldest-site follow-ups preserve 
   assert.match(oldestRes.text, /1521/);
   assert.match(oldestRes.text, /Magellan/i);
 });
+
+test('Self-contained general-knowledge questions with "it"/"its" classify as general_knowledge_question while genuine ambiguous heritage follow-ups still clarify', async () => {
+  const multiSiteHistory = [
+    { role: 'user' as const, content: [{ text: 'Compare Fort San Pedro and Basilica Minore del Santo Niño.' }] },
+    { role: 'model' as const, content: [{ text: 'Here is a comparison of Fort San Pedro and Basilica Minore del Santo Niño de Cebu.' }] },
+  ];
+
+  const moonQ = 'Why does the moon appear larger near the horizon, even though its actual size does not change?';
+  const moonIntent = analyzeHeritageQueryIntent(moonQ, multiSiteHistory, TEST_CORPUS);
+  assert.equal(moonIntent.intent, 'general_knowledge_question');
+  assert.equal(moonIntent.requiresClarification, false);
+
+  let generalAiCalled = false;
+  const moonRes = await chatWithHeritageBot(
+    {
+      history: [...multiSiteHistory, { role: 'user' as const, content: [{ text: moonQ }] }],
+      directorySites: TEST_CORPUS,
+    },
+    {
+      aiGenerator: async () => {
+        generalAiCalled = true;
+        return {
+          output: {
+            text: 'The moon illusion happens because our brains perceive objects near the horizon as farther away than those overhead.',
+            suggestedSiteIds: [],
+          },
+        };
+      },
+    }
+  );
+  assert.equal(generalAiCalled, true);
+  assert.deepEqual(moonRes.suggestedSiteIds, []);
+  assert.doesNotMatch(moonRes.text, /Which heritage site are you referring to/i);
+
+  // Genuine ambiguous heritage follow-ups must still request clarification
+  const ambiguousQueries = [
+    'What are its visiting hours?',
+    'Is it open today?',
+    'Where is that site located?',
+  ];
+  for (const ambiguousQ of ambiguousQueries) {
+    const ambIntent = analyzeHeritageQueryIntent(ambiguousQ, multiSiteHistory, TEST_CORPUS);
+    assert.equal(ambIntent.intent, 'ambiguous_clarification', `Expected ambiguous_clarification for "${ambiguousQ}"`);
+    assert.equal(ambIntent.requiresClarification, true);
+  }
+});
+
+test('Renovation questions return honest renovation-specific unavailability without overwriting construction-year handling', async () => {
+  // 1. Fort San Pedro renovation year + supervisor -> honest renovation-specific unavailable response (not construction/founding year)
+  const renovRes = await chatWithHeritageBot({
+    history: [
+      {
+        role: 'user',
+        content: [{ text: 'What year was Fort San Pedro last structurally renovated, and who supervised the renovation?' }],
+      },
+    ],
+    directorySites: TEST_CORPUS,
+  });
+  assert.match(renovRes.text, /renovated/i);
+  assert.match(renovRes.text, /supervised|supervisor/i);
+  assert.doesNotMatch(renovRes.text, /construction or founding year/i);
+
+  // 2. Genuine construction/founding-year question still uses existing construction-year handling
+  const builtRes = await chatWithHeritageBot({
+    history: [
+      {
+        role: 'user',
+        content: [{ text: 'What year was Fort San Pedro built?' }],
+      },
+    ],
+    directorySites: TEST_CORPUS,
+  });
+  assert.doesNotMatch(builtRes.text, /renovated/i);
+  assert.match(builtRes.text, /construction or founding year|1565/i);
+});
+
+test('Anaphoric comparison follow-ups resolve to previously compared sites while preserving recommendation count refinements', () => {
+  const comparisonHistory = [
+    {
+      role: 'user',
+      content: [
+        {
+          text: 'Compare Fort San Pedro and Basilica Minore del Santo Niño in terms of Spanish-era architecture and historical significance.',
+        },
+      ],
+    },
+    {
+      role: 'model',
+      content: [
+        {
+          text: 'Fort San Pedro is a Spanish military defense structure while Basilica Minore del Santo Niño is a historic religious basilica.',
+        },
+      ],
+    },
+  ];
+
+  // 1. Anaphoric comparison follow-up resolves "the two sites" to Fort San Pedro and Basilica Minore del Santo Niño
+  const followUpQuery = 'Which of the two sites has stronger military architectural influences?';
+  const followUpIntent = analyzeHeritageQueryIntent(
+    followUpQuery,
+    [...comparisonHistory, { role: 'user', content: [{ text: followUpQuery }] }],
+    TEST_CORPUS
+  );
+  assert.equal(followUpIntent.intent, 'site_comparison');
+  assert.deepEqual(followUpIntent.entities, ['cebu-fort-san-pedro', 'cebu-basilica']);
+  assert.equal(followUpIntent.requiresClarification, false);
+
+  const followUpSites = retrieveAndValidateSites(followUpQuery, TEST_CORPUS, followUpIntent, 5);
+  assert.deepEqual(
+    followUpSites.map((s: any) => s.id),
+    ['cebu-fort-san-pedro', 'cebu-basilica']
+  );
+
+  // 2. Normal recommendation requests with "two" preserve recommendation behavior
+  const twoMuseumsQuery = 'Show me two museums';
+  const twoMuseumsIntent = analyzeHeritageQueryIntent(
+    twoMuseumsQuery,
+    [{ role: 'user', content: [{ text: twoMuseumsQuery }] }],
+    TEST_CORPUS
+  );
+  assert.equal(twoMuseumsIntent.intent, 'category_recommendation');
+  assert.equal(twoMuseumsIntent.category, 'Museums & Cultural Institutions');
+  assert.equal(twoMuseumsIntent.requestedCount, 2);
+
+  const twoMoreQuery = 'Give me two more sites.';
+  const twoMoreIntent = analyzeHeritageQueryIntent(
+    twoMoreQuery,
+    [...comparisonHistory, { role: 'user', content: [{ text: twoMoreQuery }] }],
+    TEST_CORPUS
+  );
+  assert.equal(twoMoreIntent.intent, 'heritage_site_recommendation');
+  assert.equal(twoMoreIntent.requestedCount, 2);
+});
