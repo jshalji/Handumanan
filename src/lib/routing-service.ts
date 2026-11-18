@@ -58,6 +58,20 @@ function estimateDurationFromDistance(distanceKm: number, mode: TravelMode, prov
   return providerDurationMinutes || (distanceKm / 18) * 60;
 }
 
+function isValidRoutePoint(point: any): point is { lat: number; lng: number } {
+  return Boolean(
+    point &&
+    typeof point.lat === 'number' &&
+    typeof point.lng === 'number' &&
+    Number.isFinite(point.lat) &&
+    Number.isFinite(point.lng) &&
+    point.lat >= -90 &&
+    point.lat <= 90 &&
+    point.lng >= -180 &&
+    point.lng <= 180
+  );
+}
+
 async function getGoogleRouteMulti(
   points: { lat: number; lng: number }[],
   profile: string = 'DRIVE'
@@ -67,6 +81,9 @@ async function getGoogleRouteMulti(
   const origin = points[0];
   const destination = points[points.length - 1];
   const intermediates = points.slice(1, -1);
+  if (intermediates.length > 10) {
+    return { route: null, error: 'Too many stops for Google Routes.' };
+  }
   const travelMode = getGoogleTravelMode(profile);
   const isTrafficAwareMode = travelMode === 'DRIVE' || travelMode === 'TWO_WHEELER';
   const canAskForAlternatives = intermediates.length === 0 && travelMode !== 'TRANSIT';
@@ -83,9 +100,8 @@ async function getGoogleRouteMulti(
         intermediates: intermediates.map(point => ({ location: { latLng: point } })),
         travelMode,
         routingPreference: isTrafficAwareMode ? 'TRAFFIC_AWARE' : undefined,
-        departureTime: travelMode === 'WALK' ? undefined : new Date().toISOString(),
         computeAlternativeRoutes: canAskForAlternatives,
-        polylineQuality: 'HIGH_QUALITY',
+        polylineQuality: travelMode === 'TRANSIT' ? undefined : 'HIGH_QUALITY',
       }),
     }).catch(() => null);
 
@@ -189,14 +205,10 @@ export async function getRouteMulti(
   profile: string = 'driving-car'
 ): Promise<RouteData | null> {
   if (!points || points.length < 2) return null;
-  
+
   // Validate coordinates to avoid NaN or invalid data issues
-  const validPoints = points.filter(p => 
-    p && 
-    typeof p.lat === 'number' && !isNaN(p.lat) && 
-    typeof p.lng === 'number' && !isNaN(p.lng)
-  );
-  
+  const validPoints = points.filter(isValidRoutePoint);
+
   if (validPoints.length < 2) return null;
 
   const googleResult = await getGoogleRouteMulti(validPoints, profile);
@@ -215,60 +227,14 @@ export async function getRouteMulti(
     ? `Google Routes unavailable${googleResult.error ? `: ${googleResult.error}` : ''}; using fallback routing provider.`
     : `${requestedMode.replace('_', ' ')} routing unavailable${googleResult.error ? `: ${googleResult.error}` : ''}; using ${fallbackResolvedMode.replace('_', ' ').toLowerCase()} fallback.`;
 
-  // If no API key, use OSRM Public Demo Server
-  if (!apiKey || apiKey.trim() === '' || apiKey.includes('YOUR_')) {
+    const hasOrsApiKey = Boolean(apiKey && apiKey.trim() !== '' && !apiKey.includes('YOUR_'));
+  if (hasOrsApiKey) {
     try {
-      const coordsString = validPoints.map(p => `${p.lng},${p.lat}`).join(';');
-      const osrmProfile = fallbackProfile === 'foot-walking' ? 'foot' : fallbackProfile === 'cycling-regular' ? 'bike' : 'driving';
-      const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${coordsString}?overview=full&geometries=geojson&steps=true`;
 
-      const response = await fetch(url).catch(() => null);
-      if (!response || !response.ok) return null;
-
-      const data = await response.json();
-      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-        const route = data.routes[0];
-        // Leaflet format: [latitude, longitude]
-        const coords = route.geometry.coordinates.map((c: number[]) => [Number(c[1]), Number(c[0])] as [number, number]);
-
-        const allSteps: RouteStep[] = [];
-        route.legs.forEach((leg: any) => {
-          if (leg.steps) {
-            leg.steps.forEach((step: any) => {
-              allSteps.push({
-                instruction: step.maneuver.instruction || 'Continue',
-                distance: step.distance / 1000, // OSRM gives meters
-                duration: step.duration / 60
-              });
-            });
-          }
-        });
-
-        const distanceKm = route.distance / 1000;
-        const durationMinutes = estimateDurationFromDistance(distanceKm, fallbackResolvedMode, route.duration / 60);
-
-        return {
-          coordinates: coords,
-          distance: distanceKm,
-          duration: durationMinutes,
-          steps: allSteps,
-          provider: 'osrm',
-          requestedMode,
-          resolvedMode: fallbackResolvedMode,
-          fallbackReason
-        };
-      }
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  try {
     // ORS format: [longitude, latitude]
     const coordinates = validPoints.map(p => [Number(p.lng), Number(p.lat)]);
     const url = `https://api.openrouteservice.org/v2/directions/${fallbackProfile}/geojson`;
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -283,7 +249,7 @@ export async function getRouteMulti(
       })
     }).catch(() => null);
 
-    if (!response || !response.ok) return null;
+    if (!response || !response.ok) throw new Error('ORS failed');
 
     const data = await response.json();
 
@@ -293,7 +259,7 @@ export async function getRouteMulti(
       const coords = feature.geometry.coordinates.map((c: number[]) => [Number(c[1]), Number(c[0])] as [number, number]);
       const { distance, duration } = feature.properties.summary;
       const durationMinutes = estimateDurationFromDistance(distance, fallbackResolvedMode, duration / 60);
-      
+
       const allSteps: RouteStep[] = [];
       if (feature.properties.segments) {
         feature.properties.segments.forEach((segment: any) => {
@@ -320,10 +286,61 @@ export async function getRouteMulti(
         fallbackReason
       };
     }
-    
+
+
+    } catch {
+      // Fall through to OSRM secondary fallback
+    }
+  }
+
+  // Secondary fallback (or primary fallback when no ORS key is configured): OSRM Public Demo Server
+  {
+
+  try {
+    const coordsString = validPoints.map(p => `${p.lng},${p.lat}`).join(';');
+    const osrmProfile = fallbackProfile === 'foot-walking' ? 'foot' : fallbackProfile === 'cycling-regular' ? 'bike' : 'driving';
+    const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${coordsString}?overview=full&geometries=geojson&steps=true`;
+
+    const response = await fetch(url).catch(() => null);
+    if (!response || !response.ok) return null;
+
+    const data = await response.json();
+    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+      const route = data.routes[0];
+      // Leaflet format: [latitude, longitude]
+      const coords = route.geometry.coordinates.map((c: number[]) => [Number(c[1]), Number(c[0])] as [number, number]);
+
+      const allSteps: RouteStep[] = [];
+      route.legs.forEach((leg: any) => {
+        if (leg.steps) {
+          leg.steps.forEach((step: any) => {
+            allSteps.push({
+              instruction: step.maneuver.instruction || 'Continue',
+              distance: step.distance / 1000, // OSRM gives meters
+              duration: step.duration / 60
+            });
+          });
+        }
+      });
+
+      const distanceKm = route.distance / 1000;
+      const durationMinutes = estimateDurationFromDistance(distanceKm, fallbackResolvedMode, route.duration / 60);
+
+      return {
+        coordinates: coords,
+        distance: distanceKm,
+        duration: durationMinutes,
+        steps: allSteps,
+        provider: 'osrm',
+        requestedMode,
+        resolvedMode: fallbackResolvedMode,
+        fallbackReason
+      };
+    }
     return null;
-  } catch (error) {
+  } catch (e) {
     return null;
+  }
   }
 }
 

@@ -918,3 +918,181 @@ test('getRouteMulti returns null when all routing requests fail without dropping
     globalThis.fetch = origFetch;
   }
 });
+
+test('getRouteMulti omits departureTime and omits HIGH_QUALITY polylineQuality for TRANSIT while preserving it for DRIVE/WALK/TWO_WHEELER', async () => {
+  const { getRouteMulti } = await import('../src/lib/routing-service');
+  const origFetch = globalThis.fetch;
+  const capturedPayloads: Array<{ mode: string; body: Record<string, any> }> = [];
+
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const parsed = JSON.parse(String(init?.body || '{}'));
+    capturedPayloads.push({ mode: parsed.travelMode, body: parsed });
+    return new Response(
+      JSON.stringify({
+        routes: [
+          {
+            distanceMeters: 1200,
+            duration: '300s',
+            polyline: { encodedPolyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' },
+            legs: [{ steps: [] }],
+          },
+        ],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }) as typeof fetch;
+
+  try {
+    const points = [
+      { lat: 10.2936, lng: 123.9019 },
+      { lat: 10.2942, lng: 123.9021 },
+    ];
+
+    for (const mode of ['DRIVE', 'TWO_WHEELER', 'WALK', 'TRANSIT']) {
+      const route = await getRouteMulti(points, '', mode);
+      assert.ok(route, `Expected route for ${mode}`);
+      assert.equal(route.provider, 'google-routes');
+    }
+
+    assert.equal(capturedPayloads.length, 4);
+    for (const entry of capturedPayloads) {
+      assert.equal('departureTime' in entry.body, false, `departureTime must be omitted for ${entry.mode}`);
+      if (entry.mode === 'TRANSIT') {
+        assert.equal('polylineQuality' in entry.body, false, 'polylineQuality must be omitted for TRANSIT');
+      } else {
+        assert.equal(entry.body.polylineQuality, 'HIGH_QUALITY', `polylineQuality must be HIGH_QUALITY for ${entry.mode}`);
+      }
+    }
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('getRouteMulti falls back from ORS failure to OSRM while preserving Google -> ORS -> OSRM priority', async () => {
+  const { getRouteMulti } = await import('../src/lib/routing-service');
+  const origFetch = globalThis.fetch;
+  const calledUrls: string[] = [];
+
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    calledUrls.push(url);
+    if (url.includes('/api/google-routes')) {
+      return new Response(JSON.stringify({ error: { message: 'Quota exceeded' } }), { status: 429 });
+    }
+    if (url.includes('api.openrouteservice.org')) {
+      return new Response(JSON.stringify({ error: 'ORS down' }), { status: 503 });
+    }
+    if (url.includes('router.project-osrm.org')) {
+      return new Response(
+        JSON.stringify({
+          code: 'Ok',
+          routes: [
+            {
+              distance: 1500,
+              duration: 240,
+              geometry: { coordinates: [[123.9019, 10.2936], [123.9021, 10.2942]] },
+              legs: [{ steps: [{ maneuver: { instruction: 'Head north' }, distance: 1500, duration: 240 }] }],
+            },
+          ],
+        }),
+        { status: 200 }
+      );
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  }) as typeof fetch;
+
+  try {
+    const route = await getRouteMulti(
+      [
+        { lat: 10.2936, lng: 123.9019 },
+        { lat: 10.2942, lng: 123.9021 },
+      ],
+      'test-ors-key',
+      'DRIVE'
+    );
+    assert.ok(route);
+    assert.equal(route.provider, 'osrm');
+    assert.deepEqual(
+      calledUrls.map(u =>
+        u.includes('/api/google-routes') ? 'google' : u.includes('openrouteservice') ? 'ors' : 'osrm'
+      ),
+      ['google', 'ors', 'osrm']
+    );
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('getRouteMulti rejects non-finite or out-of-range coordinates before calling any routing API', async () => {
+  const { getRouteMulti } = await import('../src/lib/routing-service');
+  const origFetch = globalThis.fetch;
+  let fetchCalled = false;
+  globalThis.fetch = (async () => {
+    fetchCalled = true;
+    throw new Error('fetch should not be called for invalid coordinates');
+  }) as typeof fetch;
+
+  try {
+    const invalidCases = [
+      [{ lat: Infinity, lng: 123.9 }, { lat: 10.3, lng: 123.9 }],
+      [{ lat: 95, lng: 123.9 }, { lat: 10.3, lng: 123.9 }],
+      [{ lat: -91, lng: 123.9 }, { lat: 10.3, lng: 123.9 }],
+      [{ lat: 10.3, lng: 181 }, { lat: 10.3, lng: 123.9 }],
+      [{ lat: 10.3, lng: -181 }, { lat: 10.3, lng: 123.9 }],
+    ];
+    for (const pts of invalidCases) {
+      const route = await getRouteMulti(pts, '', 'DRIVE');
+      assert.equal(route, null);
+    }
+    assert.equal(fetchCalled, false);
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('getRouteMulti skips Google Routes when intermediates exceed 10 and falls back cleanly for DRIVE and returns null for TRANSIT', async () => {
+  const { getRouteMulti } = await import('../src/lib/routing-service');
+  const origFetch = globalThis.fetch;
+  const calledUrls: string[] = [];
+
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    calledUrls.push(url);
+    if (url.includes('router.project-osrm.org')) {
+      return new Response(
+        JSON.stringify({
+          code: 'Ok',
+          routes: [
+            {
+              distance: 5000,
+              duration: 600,
+              geometry: { coordinates: [[123.9, 10.29], [123.91, 10.3]] },
+              legs: [{ steps: [] }],
+            },
+          ],
+        }),
+        { status: 200 }
+      );
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  }) as typeof fetch;
+
+  try {
+    const thirteenStops = Array.from({ length: 13 }, (_, idx) => ({
+      lat: 10.29 + idx * 0.001,
+      lng: 123.9 + idx * 0.001,
+    }));
+
+    const driveRoute = await getRouteMulti(thirteenStops, '', 'DRIVE');
+    assert.ok(driveRoute);
+    assert.equal(driveRoute.provider, 'osrm');
+    assert.equal(calledUrls.some(u => u.includes('/api/google-routes')), false);
+
+    calledUrls.length = 0;
+    const transitRoute = await getRouteMulti(thirteenStops, '', 'TRANSIT');
+    assert.equal(transitRoute, null);
+    assert.equal(calledUrls.length, 0);
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});

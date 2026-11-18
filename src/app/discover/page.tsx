@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { DEPRECATED_HERITAGE_SITE_IDS, HeritageSite, HERITAGE_SITES, isSiteVisibleToUser } from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation, watchCurrentLocation, type EvaluatedLocation } from '@/lib/location-utils';
 import { getRouteMulti, RouteStep, getRoute, type TravelMode } from '@/lib/routing-service';
-import { getSiteAvailability, isSiteOpenForVisit } from '@/lib/site-availability';
+import { getSiteAvailability, hasVerifiedVisitingHours, isSiteOpenForVisit } from '@/lib/site-availability';
 import {
   isSiteOpenAtDateTime,
   resolveDiscoverFutureCompatibleSites,
@@ -231,6 +231,7 @@ function ExploreRouteContent() {
   
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'open' | 'closed'>('all');
   
   const [isGeneratingPlanner, setIsGeneratingPlanner] = useState(false);
   const [isSavingTrip, setIsSavingTrip] = useState(false);
@@ -384,7 +385,7 @@ function ExploreRouteContent() {
   const focusSingleSite = useCallback((site: any, options: { updateSearch?: boolean; openExplorer?: boolean } = {}) => {
     const coords = site.coordinates || { lat: (site as any).latitude, lng: (site as any).longitude };
     if (!selectedMapSiteId) {
-      shouldRestorePlannerOnSiteCloseRef.current = !options.openExplorer && activeTab === 'planner' && isPanelExpanded;
+      shouldRestorePlannerOnSiteCloseRef.current = Boolean(options.openExplorer || isPanelExpanded);
     }
     setSelectedMapSiteId(site.id);
     setFocusedLocation({ lat: coords.lat, lng: coords.lng });
@@ -397,7 +398,7 @@ function ExploreRouteContent() {
     if (options.updateSearch) {
       setSearchQuery(site.name);
     }
-  }, [activeTab, isMobile, isPanelExpanded, selectedMapSiteId]);
+  }, [isMobile, isPanelExpanded, selectedMapSiteId]);
 
   const clearSingleSiteFocus = useCallback(() => {
     setSelectedMapSiteId(null);
@@ -407,10 +408,12 @@ function ExploreRouteContent() {
   }, []);
 
   const closeSitePanel = useCallback(() => {
-    const shouldRestorePlanner = shouldRestorePlannerOnSiteCloseRef.current;
+    const shouldRestorePanel = shouldRestorePlannerOnSiteCloseRef.current;
     clearSingleSiteFocus();
-    if (shouldRestorePlanner) {
+    if (shouldRestorePanel) {
       setIsPanelExpanded(true);
+    } else {
+      setIsPanelExpanded(false);
     }
   }, [clearSingleSiteFocus]);
 
@@ -657,6 +660,26 @@ function ExploreRouteContent() {
     return mapped;
   }, [selectedCity, selectedCategory, userLocation, searchQuery, allSites]);
 
+  const getDiscoverSiteAvailabilityStatus = useCallback((site: any): 'open' | 'closed' | 'unverified' => {
+    const availability = getSiteAvailability(site);
+    if (availability.isOpen) return 'open';
+    if (!hasVerifiedVisitingHours(site)) return 'unverified';
+    return 'closed';
+  }, []);
+
+  const exploreSites = useMemo(() => {
+    return filteredAndSortedSites
+      .map(site => ({
+        ...site,
+        availabilityStatus: getDiscoverSiteAvailabilityStatus(site),
+      }))
+      .filter(site => {
+        if (availabilityFilter === 'open') return site.availabilityStatus === 'open';
+        if (availabilityFilter === 'closed') return site.availabilityStatus === 'closed';
+        return true;
+      });
+  }, [availabilityFilter, filteredAndSortedSites, getDiscoverSiteAvailabilityStatus]);
+
   const itinerarySites = useMemo(() => {
     return itineraryIds
       .map(id => availableSites.find(s => s.id === id) || allSites.find(s => s.id === id))
@@ -665,8 +688,8 @@ function ExploreRouteContent() {
 
   const selectedCitySites = useMemo(() => {
     if (!selectedCity) return [];
-    return filteredAndSortedSites.filter(site => site.city === selectedCity);
-  }, [filteredAndSortedSites, selectedCity]);
+    return exploreSites.filter(site => site.city === selectedCity);
+  }, [exploreSites, selectedCity]);
 
   useEffect(() => {
     if (!userLocation || isNavigating || itineraryIds.length < 2) return;
@@ -701,7 +724,7 @@ function ExploreRouteContent() {
     }
 
     const sitesById = new Map<string, any>();
-    filteredAndSortedSites.forEach(site => sitesById.set(site.id, site));
+    exploreSites.forEach(site => sitesById.set(site.id, site));
     itinerarySites.forEach(site => sitesById.set(site.id, site));
 
     if (selectedMapSiteId && !sitesById.has(selectedMapSiteId)) {
@@ -712,7 +735,7 @@ function ExploreRouteContent() {
     }
 
     return Array.from(sitesById.values());
-  }, [allSites, filteredAndSortedSites, isolatedItinerarySiteId, isTripMapFocused, itinerarySites, selectedMapSiteId]);
+  }, [allSites, exploreSites, isolatedItinerarySiteId, isTripMapFocused, itinerarySites, selectedMapSiteId]);
 
   const selectedMapSite = useMemo(() => {
     if (!selectedMapSiteId) return null;
@@ -850,10 +873,8 @@ function ExploreRouteContent() {
         }
         
         const data = await getRouteMulti(pointsToRoute, orsKey, travelMode);
-        if (data && isRouteRequestCurrent) {
+        if (isRouteRequestCurrent) {
           applyRouteData(data);
-        } else if (!data) {
-          shouldClearRoute = true;
         }
       } catch (err) {
         console.warn("Routing fetch suppressed:", err);
@@ -1578,21 +1599,69 @@ function ExploreRouteContent() {
                 )}
 
                 <div className="space-y-2">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">Availability</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: 'all', label: 'All' },
+                      { value: 'open', label: 'Open Now' },
+                      { value: 'closed', label: 'Closed' },
+                    ].map(option => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setAvailabilityFilter(option.value as 'all' | 'open' | 'closed')}
+                        className={cn(
+                          "min-h-9 rounded-2xl border px-2 py-2 text-[10px] font-bold leading-tight transition-all",
+                          availabilityFilter === option.value
+                            ? "bg-slate-900 text-white border-slate-900 shadow-lg"
+                            : "bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100"
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-1">{selectedCity ? `${selectedCity} Sites` : 'Nearby Landmarks'}</p>
                   <div className="space-y-2">
-                     {(selectedCity ? selectedCitySites : filteredAndSortedSites.slice(0, 15)).map(site => {
-                       return (
-                         <div key={site.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-[1.25rem] border border-slate-100">
-                            <div className="flex-1 truncate mr-3 cursor-pointer" onClick={() => focusSingleSite(site)}>
-                               <p className="text-[11px] font-bold text-slate-900 truncate">{site.name}</p>
-                               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{site.city}</p>
+                    {(selectedCity ? selectedCitySites : exploreSites.slice(0, 15)).length === 0 ? (
+                      <div className="rounded-[1.25rem] border border-slate-100 bg-slate-50 px-4 py-4 text-center text-[11px] font-semibold text-slate-500">
+                        No heritage sites match this availability filter.
+                      </div>
+                    ) : (
+                      (selectedCity ? selectedCitySites : exploreSites.slice(0, 15)).map(site => {
+                        const statusLabel =
+                          site.availabilityStatus === 'open'
+                            ? 'Open Now'
+                            : site.availabilityStatus === 'closed'
+                              ? 'Closed'
+                              : 'Hours Unverified';
+                        const statusBadgeClass =
+                          site.availabilityStatus === 'open'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : site.availabilityStatus === 'closed'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200';
+                        return (
+                          <div key={site.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-[1.25rem] border border-slate-100">
+                            <div className="flex-1 min-w-0 mr-3 cursor-pointer" onClick={() => focusSingleSite(site)}>
+                              <p className="text-[11px] font-bold text-slate-900 truncate">{site.name}</p>
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{site.city}</span>
+                                <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-wider", statusBadgeClass)}>
+                                  {statusLabel}
+                                </span>
+                              </div>
                             </div>
                             <Button onClick={() => toggleSite(site.id)} size="icon" variant={itineraryIds.includes(site.id) ? "secondary" : "default"} className={cn("h-11 w-11 rounded-xl shrink-0 cursor-pointer", itineraryIds.includes(site.id) ? "bg-slate-200 text-slate-500" : "bg-primary text-white shadow-xl shadow-primary/20")}>
-                               {itineraryIds.includes(site.id) ? <X size={16} /> : <Plus size={16} />}
+                              {itineraryIds.includes(site.id) ? <X size={16} /> : <Plus size={16} />}
                             </Button>
-                         </div>
-                       );
-                     })}
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               </TabsContent>
@@ -1952,7 +2021,22 @@ function ExploreRouteContent() {
            </div>
            <div className="p-6 border-t">
              {user ? (
-               <button onClick={() => { signOut(auth); setIsNavDrawerOpen(false); }} className="flex items-center gap-4 w-full p-4 rounded-2xl text-red-500 hover:bg-red-50 transition-colors">
+               <button
+                 onClick={async () => {
+                   try {
+                     await signOut(auth);
+                     setIsNavDrawerOpen(false);
+                   } catch (error) {
+                     console.error('Logout failed:', error);
+                     toast({
+                       variant: 'destructive',
+                       title: 'Logout Failed',
+                       description: 'Unable to sign out right now. Please try again.',
+                     });
+                   }
+                 }}
+                 className="flex items-center gap-4 w-full p-4 rounded-2xl text-red-500 hover:bg-red-50 transition-colors"
+               >
                  <LogOut size={20} />
                  <span className="text-sm font-black uppercase tracking-widest">Logout</span>
                </button>

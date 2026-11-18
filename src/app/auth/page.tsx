@@ -53,7 +53,7 @@ export default function AuthPage() {
     setIsSubmitting(true);
 
     if (isLogin) {
-      signInWithEmailAndPassword(auth, email, password)
+      signInWithEmailAndPassword(auth, email.trim(), password)
         .then(() => {
           toast({
             title: "Signed In",

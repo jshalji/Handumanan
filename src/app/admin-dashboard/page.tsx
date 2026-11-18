@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useCollection, useDoc, useMemoFirebase, useFirebaseApp } from '@/firebase';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
 import { collection, collectionGroup, deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Navbar } from '@/components/layout/Navbar';
@@ -322,9 +322,26 @@ export default function AdminDashboardPage() {
       return;
     }
 
+    const targetUid = provisionUid.trim();
+    if (!targetUid) {
+      toast({
+        title: 'Firebase Auth UID required',
+        description: 'Enter the user’s existing Firebase Authentication UID before creating a profile.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (/\s|\//.test(targetUid) || targetUid.length > 128) {
+      toast({
+        title: 'Invalid Firebase Auth UID',
+        description: 'UID must be 1–128 characters with no spaces or slashes.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsProvisioning(true);
     try {
-      const targetUid = provisionUid.trim() || `user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       await setDoc(doc(db, 'users', targetUid), {
         uid: targetUid,
         displayName: provisionName.trim() || provisionEmail.split('@')[0],
@@ -459,12 +476,24 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const deleteStorageFileBestEffort = async (storagePath?: string) => {
+    if (!storagePath || !storagePath.trim() || !firebaseApp) return;
+    try {
+      const storage = getStorage(firebaseApp);
+      await deleteObject(ref(storage, storagePath.trim()));
+    } catch (storageErr) {
+      // Do not fail Firestore document cleanup if the Storage object is already missing or inaccessible.
+      console.warn('Storage object cleanup skipped:', storageErr);
+    }
+  };
+
   const handleDeletePhoto = async (photo: any) => {
     if (!db || !photo?.siteId || !photo?.id) return;
     if (!confirm(`Delete this visitor photo? This cannot be undone.`)) return;
     setIsDeletingCommunityItem(photo.id);
     try {
       await deleteDoc(doc(db, 'heritageSites', photo.siteId, 'visitorPhotos', photo.id));
+      await deleteStorageFileBestEffort(photo?.storagePath);
       toast({ title: 'Photo deleted', description: 'The visitor photo has been removed.' });
     } catch (err: any) {
       toast({ title: 'Delete failed', description: err.message || 'Could not delete photo.', variant: 'destructive' });
@@ -595,7 +624,7 @@ export default function AdminDashboardPage() {
     () => (canQueryUsers ? collection(db, 'users') : null),
     [db, user, userData?.role, canQueryUsers]
   );
-  const { data: dbUsers, isLoading: isUsersLoading } = useCollection(usersQuery);
+  const { data: dbUsers, isLoading: isUsersLoading, error: usersError } = useCollection(usersQuery);
 
   const normalizedUsers = useMemo(() => {
     return (dbUsers || []).map((u: any) => ({
@@ -635,7 +664,7 @@ export default function AdminDashboardPage() {
     () => (canQueryFeedback ? collection(db, 'userFeedback') : null),
     [db, user, userData?.role, activeTab, canQueryFeedback]
   );
-  const { data: dbFeedback, isLoading: isFeedbackLoading } = useCollection(feedbackQuery);
+  const { data: dbFeedback, isLoading: isFeedbackLoading, error: feedbackError } = useCollection(feedbackQuery);
 
   const normalizedFeedback = useMemo(() => {
     return (dbFeedback || []).map((f: any) => ({
@@ -682,7 +711,7 @@ export default function AdminDashboardPage() {
   }, [user, isUserLoading, userData, isCheckingRole, router, toast]);
 
   const sitesQuery = useMemoFirebase(() => db ? collection(db, 'heritageSites') : null, [db]);
-  const { data: dbSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
+  const { data: dbSites, isLoading: isSitesLoading, error: sitesError } = useCollection(sitesQuery);
 
   const directorySites = useMemo(() => {
     const sitesById = new Map(
@@ -1131,6 +1160,12 @@ export default function AdminDashboardPage() {
                     <CardTitle className="text-base font-black">Recent Site Records</CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
+                    {sitesError && (
+                      <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-xs text-red-700">
+                        <p className="font-bold">Failed to load live Firestore site records (showing built-in directory fallback).</p>
+                        <p className="mt-0.5 break-words">{sitesError.message || 'Firestore returned an unknown query error.'}</p>
+                      </div>
+                    )}
                     <SiteTable
                       sites={directorySites.slice(0, 6)}
                       isLoading={isSitesLoading && directorySites.length === 0}
@@ -1177,6 +1212,12 @@ export default function AdminDashboardPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
+                  {sitesError && (
+                    <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-xs text-red-700">
+                      <p className="font-bold">Failed to load live Firestore site records (showing built-in directory fallback).</p>
+                      <p className="mt-0.5 break-words">{sitesError.message || 'Firestore returned an unknown query error.'}</p>
+                    </div>
+                  )}
                   <SiteTable
                     sites={filteredSites}
                     isLoading={isSitesLoading && directorySites.length === 0}
@@ -1329,7 +1370,17 @@ export default function AdminDashboardPage() {
                               </TableCell>
                             </TableRow>
                           )}
-                          {!isUsersLoading && filteredUsers.length === 0 && (
+                          {!isUsersLoading && usersError && (
+                            <TableRow>
+                              <TableCell colSpan={5} className="h-40 text-center">
+                                <p className="font-bold text-red-700">Unable to load user records.</p>
+                                <p className="mt-1 break-words text-xs text-red-600">
+                                  {usersError.message || 'Firestore returned an unknown query error.'}
+                                </p>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          {!isUsersLoading && !usersError && filteredUsers.length === 0 && (
                             <TableRow>
                               <TableCell colSpan={5} className="h-40 text-center">
                                 <p className="font-bold text-slate-700">No user records found.</p>
@@ -1337,7 +1388,7 @@ export default function AdminDashboardPage() {
                               </TableCell>
                             </TableRow>
                           )}
-                          {!isUsersLoading && filteredUsers.map((u: any) => (
+                          {!isUsersLoading && !usersError && filteredUsers.map((u: any) => (
                             <TableRow key={u.id}>
                               <TableCell>
                                 <div className="flex items-center gap-3">
@@ -1786,7 +1837,18 @@ export default function AdminDashboardPage() {
                       </div>
                     )}
 
-                    {!isFeedbackLoading && filteredFeedback.length === 0 && (
+                    {!isFeedbackLoading && feedbackError && (
+                      <div className="flex min-h-[260px] flex-col items-center justify-center p-8 text-center">
+                        <div className="max-w-lg rounded-lg border border-red-200 bg-red-50 px-5 py-4 text-red-700">
+                          <p className="text-sm font-black">Unable to load feedback submissions</p>
+                          <p className="mt-1 break-words text-xs">
+                            {feedbackError.message || 'Firestore returned an unknown query error.'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {!isFeedbackLoading && !feedbackError && filteredFeedback.length === 0 && (
                       <div className="flex min-h-[300px] flex-col items-center justify-center p-8 text-center">
                         <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
                           <MessageSquare size={28} />
@@ -1798,7 +1860,7 @@ export default function AdminDashboardPage() {
                       </div>
                     )}
 
-                    {!isFeedbackLoading && filteredFeedback.length > 0 && (
+                    {!isFeedbackLoading && !feedbackError && filteredFeedback.length > 0 && (
                       <div className="overflow-x-auto">
                         <Table>
                           <TableHeader>
@@ -2370,13 +2432,14 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="prov-uid" className="text-xs font-bold text-slate-700">Firebase Auth UID (Optional)</Label>
+              <Label htmlFor="prov-uid" className="text-xs font-bold text-slate-700">Firebase Auth UID (Required)</Label>
               <Input
                 id="prov-uid"
                 value={provisionUid}
                 onChange={e => setProvisionUid(e.target.value)}
-                placeholder="Leave blank to generate UID"
+                placeholder="Paste Firebase Authentication UID"
                 className="font-mono text-xs"
+                required
               />
             </div>
 

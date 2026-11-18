@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { HERITAGE_SITES, HeritageSite, VerificationStatus } from '@/lib/heritage-data';
+import { DEPRECATED_HERITAGE_SITE_IDS, HERITAGE_SITES, HeritageSite, VerificationStatus } from '@/lib/heritage-data';
 import { SafeImage } from '@/components/ui/safe-image';
 
 type FilterTab = 'All' | 'Pending Verification' | 'LGU Verified' | 'Needs Revision' | 'Rejected';
@@ -120,31 +120,37 @@ export default function LguDashboardPage() {
 
   // Hybrid Data Integration: Query Firestore heritageSites collection
   const sitesQuery = useMemoFirebase(() => db ? collection(db, 'heritageSites') : null, [db]);
-  const { data: dbSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
+  const { data: dbSites, isLoading: isSitesLoading, error: sitesError } = useCollection(sitesQuery);
 
   // Combine static HERITAGE_SITES + live Firestore overrides
   const combinedSites = useMemo(() => {
+    const deprecatedIds = new Set(DEPRECATED_HERITAGE_SITE_IDS);
     const siteMap = new Map<string, any>();
 
     // Step 1: Add all static built-in sites first
     HERITAGE_SITES.forEach(site => {
-      siteMap.set(site.id, site);
+      if (!deprecatedIds.has(site.id)) {
+        siteMap.set(site.id, site);
+      }
     });
 
     // Step 2: Overlay live Firestore documents (overrides or custom additions)
     (dbSites || []).forEach((dbSite: any) => {
-      if (!dbSite?.id) return;
+      if (!dbSite?.id || deprecatedIds.has(dbSite.id)) return;
       const staticSite = siteMap.get(dbSite.id);
       siteMap.set(dbSite.id, normalizeLguSite(staticSite || dbSite, dbSite));
     });
 
     // Normalize any static sites that were not in dbSites
     const result: Array<HeritageSite & { _source: string }> = [];
-    siteMap.forEach((val, key) => {
-      if (!val._source) {
-        result.push(normalizeLguSite(val));
-      } else {
-        result.push(val);
+    siteMap.forEach((val) => {
+      const normalized = val._source ? val : normalizeLguSite(val);
+      if (
+        !deprecatedIds.has(normalized.id) &&
+        normalized.isActive !== false &&
+        normalized.status !== 'Inactive'
+      ) {
+        result.push(normalized);
       }
     });
 
@@ -186,8 +192,17 @@ export default function LguDashboardPage() {
   }
 
   const handleLogout = async () => {
-    await signOut(auth);
-    router.push('/lgu-login');
+    try {
+      await signOut(auth);
+      router.push('/lgu-login');
+    } catch (error) {
+      console.error('LGU logout failed:', error);
+      toast({
+        title: 'Logout Failed',
+        description: 'Unable to sign out right now. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleOpenInspect = (site: any) => {
@@ -521,89 +536,95 @@ export default function LguDashboardPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
+                {sitesError && (
+                  <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-xs text-red-700">
+                    <p className="font-bold">Failed to load live Firestore site records (showing built-in directory fallback).</p>
+                    <p className="mt-0.5 break-words">{sitesError.message || 'Firestore returned an unknown query error.'}</p>
+                  </div>
+                )}
                 <Table stickyScrollbar>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50">
-                        <TableHead className="min-w-[280px]">Landmark Name</TableHead>
-                        <TableHead>City</TableHead>
-                        <TableHead className="min-w-[220px]">Category</TableHead>
-                        <TableHead>Verification Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead className="min-w-[280px]">Landmark Name</TableHead>
+                      <TableHead>City</TableHead>
+                      <TableHead className="min-w-[220px]">Category</TableHead>
+                      <TableHead>Verification Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isSitesLoading && combinedSites.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-40 text-center">
+                          <Loader2 className="mx-auto animate-spin text-emerald-600" />
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {isSitesLoading && combinedSites.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-40 text-center">
-                            <Loader2 className="mx-auto animate-spin text-emerald-600" />
-                          </TableCell>
-                        </TableRow>
-                      )}
+                    )}
 
-                      {!isSitesLoading && filteredSites.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-40 text-center">
-                            <p className="font-bold text-slate-700">No site records found.</p>
-                            <p className="mt-1 text-sm text-slate-500">Try selecting another status tab or clearing filters.</p>
-                          </TableCell>
-                        </TableRow>
-                      )}
+                    {!isSitesLoading && filteredSites.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-40 text-center">
+                          <p className="font-bold text-slate-700">No site records found.</p>
+                          <p className="mt-1 text-sm text-slate-500">Try selecting another status tab or clearing filters.</p>
+                        </TableCell>
+                      </TableRow>
+                    )}
 
-                      {!isSitesLoading && filteredSites.map(site => (
-                        <TableRow key={site.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100">
-                                {site.imageUrl ? (
-                                  <SafeImage src={site.imageUrl} alt="" className="h-full w-full object-cover" />
-                                ) : (
-                                  <ImageIcon size={18} className="text-slate-400" />
-                                )}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="truncate font-black text-slate-950">{site.name}</p>
-                                <p className="truncate text-xs text-slate-500">{site.location}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap text-sm font-semibold">{site.city}</TableCell>
-                          <TableCell className="text-sm text-slate-600">{site.category}</TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              {getStatusBadge(site.verificationStatus)}
-                              {site.verifiedBy && (
-                                <p className="text-[10px] text-slate-400 font-medium">
-                                  By {site.verifiedBy}
-                                </p>
+                    {!isSitesLoading && filteredSites.map(site => (
+                      <TableRow key={site.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100">
+                              {site.imageUrl ? (
+                                <SafeImage src={site.imageUrl} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <ImageIcon size={18} className="text-slate-400" />
                               )}
                             </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate font-black text-slate-950">{site.name}</p>
+                              <p className="truncate text-xs text-slate-500">{site.location}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-sm font-semibold">{site.city}</TableCell>
+                        <TableCell className="text-sm text-slate-600">{site.category}</TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            {getStatusBadge(site.verificationStatus)}
+                            {site.verifiedBy && (
+                              <p className="text-[10px] text-slate-400 font-medium">
+                                By {site.verifiedBy}
+                              </p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 rounded-md font-bold text-xs"
+                              onClick={() => handleOpenInspect(site)}
+                            >
+                              <Eye size={14} className="mr-1" /> Inspect
+                            </Button>
+                            {site.verificationStatus !== 'LGU Verified' && (
                               <Button
-                                variant="outline"
                                 size="sm"
-                                className="h-8 rounded-md font-bold text-xs"
-                                onClick={() => handleOpenInspect(site)}
+                                className="h-8 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                                onClick={() => handleQuickVerify(site)}
+                                disabled={isUpdatingStatus}
                               >
-                                <Eye size={14} className="mr-1" /> Inspect
+                                <CheckCircle2 size={14} className="mr-1" /> Verify
                               </Button>
-                              {site.verificationStatus !== 'LGU Verified' && (
-                                <Button
-                                  size="sm"
-                                  className="h-8 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
-                                  onClick={() => handleQuickVerify(site)}
-                                  disabled={isUpdatingStatus}
-                                >
-                                  <CheckCircle2 size={14} className="mr-1" /> Verify
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </div>

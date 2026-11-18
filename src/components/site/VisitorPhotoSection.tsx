@@ -181,6 +181,7 @@ export function VisitorPhotoSection({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingUploadBatchIdRef = useRef<string | null>(null);
 
   const photosQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -190,7 +191,7 @@ export function VisitorPhotoSection({
     );
   }, [db, siteId]);
 
-  const { data: photosData, isLoading: isPhotosLoading } = useCollection(photosQuery);
+  const { data: photosData, isLoading: isPhotosLoading, error: photosError } = useCollection(photosQuery);
 
   const visitorPhotos: VisitorPhoto[] = (photosData || []).map((docData: any) => ({
     id: docData.id,
@@ -451,8 +452,10 @@ export function VisitorPhotoSection({
 
     setIsSubmitting(true);
     setUploadProgress(0);
-    const uploadBatchId = `${user.uid}_${Date.now()}`;
+    const uploadBatchId = pendingUploadBatchIdRef.current || `${user.uid}_${Date.now()}`;
     const userName = userData?.displayName || user.displayName || user.email?.split('@')[0] || 'Visitor';
+    let reviewSaved = false;
+    let uploadedPhotoCount = 0;
 
     try {
       // 1. Submit review if comment is entered
@@ -468,6 +471,13 @@ export function VisitorPhotoSection({
           uploadBatchId,
           createdAt: serverTimestamp(),
         }, { merge: true });
+        reviewSaved = true;
+        // Clear review fields immediately so retrying a failed photo upload cannot duplicate the review
+        setComment('');
+        setRating(5);
+        if (selectedFiles.length > 0) {
+          pendingUploadBatchIdRef.current = uploadBatchId;
+        }
       }
 
       // 2. Upload photos if selected
@@ -491,6 +501,7 @@ export function VisitorPhotoSection({
             finalImageUrl = await getDownloadURL(imageRef);
           } catch (storageErr) {
             console.warn('Firebase Storage upload fallback triggered:', storageErr);
+            storagePath = '';
             finalImageUrl = await blobToDataURL(compressedBlob);
           }
 
@@ -507,6 +518,7 @@ export function VisitorPhotoSection({
             createdAt: serverTimestamp(),
           });
 
+          uploadedPhotoCount++;
           setUploadProgress(Math.round(((index + 1) / selectedFiles.length) * 100));
         }
 
@@ -516,6 +528,7 @@ export function VisitorPhotoSection({
         setSelectedFiles([]);
       }
 
+      pendingUploadBatchIdRef.current = null;
       setComment('');
       setRating(5);
 
@@ -525,11 +538,27 @@ export function VisitorPhotoSection({
       });
     } catch (error: any) {
       console.error('Failed to submit contribution:', error);
-      toast({
-        title: 'Submission Failed',
-        description: error?.message || 'Could not post your contribution. Please try again.',
-        variant: 'destructive',
-      });
+      if (uploadedPhotoCount > 0) {
+        setSelectedFiles(prev => {
+          prev.slice(0, uploadedPhotoCount).forEach(item => {
+            if (item.preview) URL.revokeObjectURL(item.preview);
+          });
+          return prev.slice(uploadedPhotoCount);
+        });
+      }
+      if (reviewSaved) {
+        toast({
+          title: 'Review Saved, Photo Upload Incomplete',
+          description: 'Your review was posted, but the remaining photos failed to upload. You can retry the photos without duplicating your review.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Submission Failed',
+          description: error?.message || 'Could not post your contribution. Please try again.',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setIsSubmitting(false);
       setUploadProgress(0);
@@ -610,6 +639,7 @@ export function VisitorPhotoSection({
                     onClick={() => {
                       selectedFiles.forEach(item => URL.revokeObjectURL(item.preview));
                       setSelectedFiles([]);
+                      pendingUploadBatchIdRef.current = null;
                     }}
                     className="text-[10px] font-black uppercase tracking-widest text-red-500 hover:underline"
                   >
@@ -765,8 +795,20 @@ export function VisitorPhotoSection({
           <div className="flex h-40 items-center justify-center rounded-2xl bg-slate-50">
             <Loader2 className="animate-spin text-primary" size={24} />
           </div>
+        ) : (isReviewsError || photosError) && communityPosts.length === 0 ? (
+          <div role="alert" className="rounded-3xl border border-red-200 bg-red-50 p-8 text-center text-red-700">
+            <p className="text-xs font-black uppercase tracking-widest">Unable to load community insights</p>
+            <p className="mt-1 text-xs text-red-600">
+              {photosError?.message || 'Reviews or visitor photos could not be loaded right now. Please try again later.'}
+            </p>
+          </div>
         ) : communityPosts.length > 0 ? (
           <div className="space-y-4">
+            {(isReviewsError || photosError) && (
+              <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                Some community content could not be loaded right now. Showing available contributions.
+              </div>
+            )}
             {communityPosts.map(post => {
               const isAuthor = Boolean(user && post.userId && post.userId === user.uid);
               const canDelete = isAuthor || isAdmin;
