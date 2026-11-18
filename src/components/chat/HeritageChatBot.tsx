@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -8,7 +8,33 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageCircle, Send, Sparkles, MapPin, Heart, Minimize2, Loader2, Navigation, Compass, ExternalLink, Info } from 'lucide-react';
 import { chatWithHeritageBot } from '@/ai/flows/heritage-chat-flow';
-import { isExplicitTourRequest, isTourPlanningMode, evaluateTourPlanningState } from '@/lib/heritage-intent';
+import {
+  tokenizeInlineChatMarkdown,
+  isTechnicalRouteRequest,
+  type ChatMarkdownOptions,
+} from '@/lib/chat-markdown';
+import { isSafeHttpUrl, type GroundedSource } from '@/lib/chat-grounding';
+import {
+  isExplicitTourRequest,
+  isTourPlanningMode,
+  evaluateTourPlanningState,
+  analyzeHeritageQueryIntent,
+  retrieveAndValidateSites,
+  selectSiteCardsForIntent,
+  buildHistoricalTopicExplanation,
+  answerGeneralKnowledgeQuery,
+  isActiveEmergencyQuery,
+  getEmergencyResponse,
+  isPromptInjectionQuery,
+  getPromptInjectionRefusal,
+  isFoodOrDiningQuery,
+  getFoodRecommendationLimitationResponse,
+  isBroadCebuQuestion,
+  getBroadCebuResponse,
+  checkNonexistentOrUnlistedSite,
+  checkMissingFactInSiteRecord,
+  resolveConversationContext,
+} from '@/lib/heritage-intent';
 import type { HeritageChatInput } from '@/ai/flows/heritage-chat-flow';
 import { cn } from '@/lib/utils';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
@@ -26,6 +52,7 @@ interface Message {
   siteIds?: string[];
   requiresAuth?: boolean;
   isGeneratedItinerary?: boolean;
+  sources?: GroundedSource[];
 }
 
 type ChatDirectorySite = NonNullable<HeritageChatInput['directorySites']>[number];
@@ -195,18 +222,132 @@ function getClientStrongMatches(query: string, sites: any[], limit = 5) {
     .map(result => result.site);
 }
 
+function renderInlineChatMarkdown(text: string, keyPrefix: string, options: ChatMarkdownOptions = {}) {
+  const tokens = tokenizeInlineChatMarkdown(text, options);
+  return tokens.map((token, idx) => {
+    const key = `${keyPrefix}-${idx}`;
+    if (token.type === 'internal_link') {
+      return (
+        <Link
+          key={key}
+          href={token.href}
+          className="font-semibold text-primary underline decoration-primary/40 underline-offset-2 hover:text-primary/80 transition-colors"
+        >
+          {token.label}
+        </Link>
+      );
+    }
+    if (token.type === 'external_link') {
+      return (
+        <a
+          key={key}
+          href={token.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-primary underline decoration-primary/40 underline-offset-2 hover:text-primary/80 transition-colors inline-flex items-center gap-1"
+        >
+          <span>{token.label}</span>
+          <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+        </a>
+      );
+    }
+    if (token.type === 'image') {
+      return (
+        <img
+          key={key}
+          src={token.src}
+          alt={token.alt}
+          loading="lazy"
+          className="my-2 max-h-48 w-auto rounded-xl object-cover border border-slate-200/80"
+        />
+      );
+    }
+    if (token.type === 'code') {
+      return (
+        <code key={key} className="px-1.5 py-0.5 mx-0.5 rounded bg-slate-100 text-slate-900 font-mono text-[0.9em]">
+          {token.value}
+        </code>
+      );
+    }
+    if (token.type === 'bold') {
+      return <strong key={key} className="font-bold text-slate-950">{token.value}</strong>;
+    }
+    if (token.type === 'italic') {
+      return <em key={key} className="italic">{token.value}</em>;
+    }
+    return token.value;
+  });
+}
+
+function renderSafeChatMarkdown(rawText: string, options: ChatMarkdownOptions = {}) {
+  const blocks = String(rawText || '').trim().split(/\n{2,}/);
+  return (
+    <div className="space-y-2.5">
+      {blocks.map((block, blockIdx) => {
+        const lines = block.split('\n').map(l => l.trimEnd()).filter(Boolean);
+        const isBulletList = lines.length > 0 && lines.every(l => /^[-*]\s+/.test(l));
+        const isOrderedList = lines.length > 0 && lines.every(l => /^\d+\.\s+/.test(l));
+
+        if (isBulletList) {
+          return (
+            <ul key={`b-${blockIdx}`} className="list-disc pl-5 space-y-1">
+              {lines.map((line, lineIdx) => (
+                <li key={`li-${blockIdx}-${lineIdx}`}>
+                  {renderInlineChatMarkdown(line.replace(/^[-*]\s+/, ''), `ul-${blockIdx}-${lineIdx}`, options)}
+                </li>
+              ))}
+            </ul>
+          );
+        }
+
+        if (isOrderedList) {
+          return (
+            <ol key={`o-${blockIdx}`} className="list-decimal pl-5 space-y-1">
+              {lines.map((line, lineIdx) => (
+                <li key={`ol-${blockIdx}-${lineIdx}`}>
+                  {renderInlineChatMarkdown(line.replace(/^\d+\.\s+/, ''), `ol-${blockIdx}-${lineIdx}`, options)}
+                </li>
+              ))}
+            </ol>
+          );
+        }
+
+        return (
+          <p key={`p-${blockIdx}`} className="whitespace-pre-wrap">
+            {lines.map((line, lineIdx) => (
+              <span key={`ln-${blockIdx}-${lineIdx}`}>
+                {lineIdx > 0 && <br />}
+                {renderInlineChatMarkdown(line, `p-${blockIdx}-${lineIdx}`, options)}
+              </span>
+            ))}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 function getClientFallbackResponse(text: string, sites: any[], input?: any): { text: string; suggestedSiteIds: string[]; isGeneratedItinerary?: boolean } {
-  const query = normalizeChatText(text);
   const activeSites = sites.filter(site => site?.isActive !== false && site?.status !== 'Inactive');
-  const mustVisitSites = activeSites
-    .filter(site => site?.isMustVisit)
-    .sort((a, b) => Number(b.rating ?? 0) - Number(a.rating ?? 0))
-    .slice(0, 3);
+  const history = input?.history || [{ role: 'user', content: [{ text }] }];
+  const resolvedContext = resolveConversationContext(history.slice(0, -1), activeSites);
+
+  if (isActiveEmergencyQuery(text, resolvedContext)) {
+    const em = getEmergencyResponse(text, resolvedContext);
+    return { text: em.text, suggestedSiteIds: [], isGeneratedItinerary: false };
+  }
+
+  if (isPromptInjectionQuery(text)) {
+    const refusal = getPromptInjectionRefusal(text);
+    return { text: refusal.text, suggestedSiteIds: [], isGeneratedItinerary: false };
+  }
+
+  const query = normalizeChatText(text);
 
   if (/^(hi|hello|hey|good day|good morning|good afternoon|good evening|maayong adlaw|kumusta|kamusta)$/.test(query) || /^(hi|hello|hey)\s+(there|everyone|all)$/.test(query)) {
     return {
-      text: "Hello! Maayong adlaw. I can still help you explore Handumanan's Metro Cebu heritage directory, routes, and must-visit sites.",
-      suggestedSiteIds: mustVisitSites.map(site => site.id),
+      text: "Hello! Maayong adlaw. I can help you explore Handumanan's Metro Cebu heritage directory, routes, and must-visit sites.",
+      suggestedSiteIds: [],
       isGeneratedItinerary: false,
     };
   }
@@ -236,71 +377,147 @@ function getClientFallbackResponse(text: string, sites: any[], input?: any): { t
     };
   }
 
-  if (isOutsideHandumananScope(text)) {
+  const analyzed = analyzeHeritageQueryIntent(text, history, activeSites);
+
+  if (isBroadCebuQuestion(text)) {
+    const broad = getBroadCebuResponse();
+    return { text: broad.text, suggestedSiteIds: [], isGeneratedItinerary: false };
+  }
+
+  if (analyzed.intent === 'out_of_scope') {
+    const scopeMsg =
+      analyzed.geographicRegion === 'outside_metro_cebu_province' || analyzed.geographicRegion === 'metro_cebu_not_covered'
+        ? "Handumanan currently covers verified heritage sites in Cebu City, Mandaue City, Lapu-Lapu City, and Talisay City only, so I don't have verified records for that area."
+        : "I'm currently in offline fallback mode and can best help with Metro Cebu heritage sites, visiting hours, routes, and the Handumanan directory.";
     return {
-      text: "Sorry, I can only answer questions related to Metro Cebu heritage sites, tourism guidance, routes, itineraries, and the Handumanan system.",
+      text: scopeMsg,
       suggestedSiteIds: [],
       isGeneratedItinerary: false,
     };
   }
 
-  const city = ['cebu city', 'mandaue city', 'talisay city', 'lapu-lapu city']
-    .find(cityName => query.includes(cityName));
-  const cityLabel = city
-    ? city.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ').replace('Lapu-lapu', 'Lapu-Lapu')
-    : null;
-  const categoryKeywords = [
-    { keyword: 'church', category: 'Churches & Religious Heritage Sites' },
-    { keyword: 'museum', category: 'Museums & Cultural Institutions' },
-    { keyword: 'ancestral', category: 'Ancestral Houses & Heritage Residences' },
-    { keyword: 'landmark', category: 'Historical Landmarks & Monuments' },
-    { keyword: 'monument', category: 'Historical Landmarks & Monuments' },
-    { keyword: 'plaza', category: 'Plazas, Parks & Public Spaces' },
-    { keyword: 'park', category: 'Plazas, Parks & Public Spaces' },
-    { keyword: 'government', category: 'Government & Historic Buildings' },
-    { keyword: 'temple', category: 'Cultural & Religious (Non-Catholic Sites)' },
-  ];
-  const category = categoryKeywords.find(item => query.includes(item.keyword))?.category;
-  const strongMatches = getClientStrongMatches(text, activeSites, 5);
-  const hasSupportedFallbackIntent =
-    CHAT_HANDUMANAN_CONTEXT_REGEX.test(query) ||
-    Boolean(cityLabel) ||
-    Boolean(category) ||
-    isNearbyLocationRequest(text) ||
-    isTripPlanningRequest(text) ||
-    strongMatches.length > 0;
-
-  if (!hasSupportedFallbackIntent) {
+  if (analyzed.intent === 'general_knowledge_question') {
+    const gkReply = answerGeneralKnowledgeQuery(text, resolvedContext, analyzed.location);
     return {
-      text: "Sorry, I can only answer questions related to Metro Cebu heritage sites, tourism guidance, routes, itineraries, and the Handumanan system.",
+      text: gkReply.text,
       suggestedSiteIds: [],
       isGeneratedItinerary: false,
     };
   }
 
-  const matches = activeSites
-    .filter(site => !cityLabel || site.city === cityLabel)
-    .filter(site => !category || site.category === category)
-    .filter(site => {
-      if (cityLabel || category || /\b(top|best|must|recommend|site|sites|place|places|directory|list|show)\b/.test(query)) return true;
-      return strongMatches.some(match => match.id === site.id);
-    })
-    .sort((a, b) => {
-      if (Boolean(a.isMustVisit) !== Boolean(b.isMustVisit)) return a.isMustVisit ? -1 : 1;
-      return Number(b.rating ?? 0) - Number(a.rating ?? 0);
-    })
-    .slice(0, 5);
-
-  if (matches.length > 0) {
+  if (analyzed.intent === 'conversational') {
     return {
-      text: `Here are relevant Handumanan sites: ${matches.map(site => `${site.name} (${site.city})`).join(', ')}. You can open each card to view details and map directions.`,
-      suggestedSiteIds: matches.map(site => site.id),
+      text: "Thanks for sharing! Whenever you'd like to explore heritage sites, historic architecture, or routes in Metro Cebu, feel free to ask.",
+      suggestedSiteIds: [],
+      isGeneratedItinerary: false,
+    };
+  }
+
+  if (analyzed.intent === 'ambiguous_clarification') {
+    return {
+      text: analyzed.clarificationPrompt || 'Which heritage site or Metro Cebu city would you like to explore?',
+      suggestedSiteIds: [],
+      isGeneratedItinerary: false,
+    };
+  }
+
+  const unlisted = checkNonexistentOrUnlistedSite(text, activeSites);
+  if (unlisted) {
+    return { text: unlisted.text, suggestedSiteIds: [], isGeneratedItinerary: false };
+  }
+
+  const missingFact = checkMissingFactInSiteRecord(text, activeSites, resolvedContext.lastReferencedSite);
+  if (missingFact) {
+    return {
+      text: missingFact.text,
+      suggestedSiteIds: missingFact.suggestedSiteIds || [],
+      isGeneratedItinerary: false,
+    };
+  }
+
+  if (analyzed.intent === 'general_historical_question') {
+    const topicReply = buildHistoricalTopicExplanation(text, activeSites, resolvedContext);
+    return {
+      text: topicReply.text,
+      suggestedSiteIds: [],
+      isGeneratedItinerary: false,
+    };
+  }
+
+  if (analyzed.intent === 'system_question') {
+    return {
+      text: "Handumanan's AI Heritage Guide answers from the verified Metro Cebu directory and admits when details (such as unrecorded builders, exact years, or live opening status) are missing rather than guessing.",
+      suggestedSiteIds: [],
+      isGeneratedItinerary: false,
+    };
+  }
+
+  if (analyzed.requestedCount === 0) {
+    return {
+      text: "Zero recommendations requested, so I haven't listed any heritage sites.",
+      suggestedSiteIds: [],
+      isGeneratedItinerary: false,
+    };
+  }
+
+  const limit = analyzed.requestedCount ?? 5;
+  const validated = retrieveAndValidateSites(text, activeSites, analyzed, limit);
+  const cards = selectSiteCardsForIntent(analyzed, validated, limit);
+  const finalSites = cards.siteIds.length > 0
+    ? validated.filter(s => cards.siteIds.includes(s.id))
+    : validated;
+
+  if (
+    analyzed.intent === 'visiting_information' &&
+    finalSites.length === 1 &&
+    /\b(right\s+now|currently|open\s+now|sunday|sundays)\b/i.test(text)
+  ) {
+    const target = finalSites[0];
+    return {
+      text: `I cannot verify live, real-time opening status right now, as Handumanan only stores published directory schedules. For ${target.name}, the listed visiting hours are ${target.visitingHours}. Please verify current hours directly with the site before visiting.`,
+      suggestedSiteIds: [target.id],
+      isGeneratedItinerary: false,
+    };
+  }
+
+  if (
+    analyzed.entities.length > 1 &&
+    (analyzed.intent === 'visiting_information' || analyzed.intent === 'follow_up_question') &&
+    finalSites.length > 1
+  ) {
+    if (/\b(sunday|sundays|open|hours|schedule)\b/i.test(text)) {
+      return {
+        text: `Here are the published visiting hours from Handumanan's directory: ${finalSites.map(s => `${s.name} (${s.visitingHours})`).join('; ')}. Please verify current Sunday or holiday hours directly with each site.`,
+        suggestedSiteIds: finalSites.map(s => s.id),
+        isGeneratedItinerary: false,
+      };
+    }
+    if (/\b(fee|fees|entrance|admission|free|cost|price)\b/i.test(text)) {
+      return {
+        text: `Here are the listed entrance fees in Handumanan's directory: ${finalSites.map(s => `${s.name} (${s.entranceFee || 'Fee not confirmed'})`).join('; ')}.`,
+        suggestedSiteIds: finalSites.map(s => s.id),
+        isGeneratedItinerary: false,
+      };
+    }
+  }
+
+  if (finalSites.length > 0) {
+    const correctionPrefix = analyzed.isExclusionCorrection
+      ? `My mistake—I've excluded ${analyzed.excludedCategories.join(', ')} and updated your recommendations. `
+      : '';
+    const countNote =
+      analyzed.requestedCount && finalSites.length < analyzed.requestedCount
+        ? `Note: You requested ${analyzed.requestedCount} sites, but only ${finalSites.length} matching verified ${finalSites.length === 1 ? 'site is' : 'sites are'} available. `
+        : '';
+    return {
+      text: `${correctionPrefix}${countNote}Here ${finalSites.length === 1 ? 'is 1 verified Handumanan site' : `are ${finalSites.length} verified Handumanan sites`}: ${finalSites.map(site => `${site.name} (${site.city})`).join(', ')}. Open each card for recorded details and listed visiting hours.`,
+      suggestedSiteIds: cards.siteIds,
       isGeneratedItinerary: false,
     };
   }
 
   return {
-    text: "I can help with Handumanan topics like Metro Cebu heritage sites, routes, cities, categories, and must-visit places. Try asking: recommend heritage sites in Cebu City.",
+    text: "I couldn't find matching heritage sites for those criteria in Handumanan's Metro Cebu directory. Try another Metro Cebu city or heritage category.",
     suggestedSiteIds: [],
     isGeneratedItinerary: false,
   };
@@ -489,12 +706,18 @@ export function HeritageChatBot() {
       });
       const suggestedSiteIds = response.suggestedSiteIds?.filter(Boolean) ?? [];
       const isGeneratedItinerary = Boolean(response.isGeneratedItinerary);
+      const validSources = Array.isArray(response.sources)
+        ? response.sources
+            .filter(s => Boolean(s?.title && isSafeHttpUrl(s?.url)))
+            .slice(0, 5)
+        : undefined;
 
       setMessages(prev => [...prev, { 
         role: 'model', 
         text: response.text,
         siteIds: suggestedSiteIds,
         isGeneratedItinerary,
+        ...(validSources && validSources.length > 0 ? { sources: validSources } : {}),
       }]);
 
       if (isGeneratedItinerary && suggestedSiteIds.length > 1) {
@@ -600,7 +823,13 @@ export function HeritageChatBot() {
                       ? "bg-primary text-white rounded-tr-none" 
                       : "bg-white text-slate-800 rounded-tl-none ring-1 ring-black/5"
                   )}>
-                    {msg.text}
+                    {msg.role === 'user'
+                      ? msg.text
+                      : renderSafeChatMarkdown(msg.text, {
+                          preserveTechnicalRoutes: isTechnicalRouteRequest(
+                            messages.slice(0, i).reverse().find(m => m.role === 'user')?.text || ''
+                          ),
+                        })}
                     {msg.requiresAuth && (
                       <div className="mt-3">
                         <Button
@@ -610,6 +839,37 @@ export function HeritageChatBot() {
                         >
                           <Link href="/auth">Log In to Continue</Link>
                         </Button>
+                      </div>
+                    )}
+                    {msg.role === 'model' && msg.sources && msg.sources.length > 0 && (
+                      <div className="mt-3 pt-2.5 border-t border-slate-100">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                          Sources
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {msg.sources.map((source, sourceIdx) => {
+                            const safeHref = isSafeHttpUrl(source.url);
+                            if (!safeHref) return null;
+                            return (
+                              <a
+                                key={`${safeHref}-${sourceIdx}`}
+                                href={safeHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={source.supportedSegments?.join(' • ') || `${source.title} (${source.category || 'Travel Guide'})`}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-amber-50 text-[11px] font-medium text-primary underline decoration-primary/40 underline-offset-2 transition-colors max-w-[260px]"
+                              >
+                                <span className="truncate">{source.title}</span>
+                                {source.category && (
+                                  <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-500 no-underline shrink-0">
+                                    {source.category}
+                                  </span>
+                                )}
+                                <ExternalLink className="h-3 w-3 shrink-0 text-primary/70" />
+                              </a>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -654,14 +914,14 @@ export function HeritageChatBot() {
                                   className="flex-1 h-8 rounded-xl text-[9px] font-black uppercase tracking-widest"
                                   onClick={() => handleViewOnMap(siteId)}
                                 >
-                                  <Compass size={12} className="mr-1.5" /> View on Map
+                                  <Compass size={12} className="mr-1.5" aria-hidden="true" /> View on Map
                                 </Button>
                                 <Button 
                                   size="sm" 
                                   className="flex-1 h-8 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20"
                                   asChild
                                 >
-                                  <a href={`/site/${siteId}`}><ExternalLink size={12} className="mr-1.5" /> Details</a>
+                                  <Link href={`/site/${siteId}`}><ExternalLink size={12} className="mr-1.5" aria-hidden="true" /> Details</Link>
                                 </Button>
                               </div>
                             </div>

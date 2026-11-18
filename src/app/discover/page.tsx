@@ -12,6 +12,7 @@ import { getSiteAvailability, isSiteOpenForVisit } from '@/lib/site-availability
 import {
   isSiteOpenAtDateTime,
   resolveDiscoverFutureCompatibleSites,
+  selectEligiblePlannerCandidates,
   serializeSitesForPlanner,
 } from '@/lib/itinerary-planner';
 import { generatePersonalizedItinerary, type GeneratePersonalizedItineraryOutput } from '@/ai/flows/generate-personalized-itinerary';
@@ -54,8 +55,7 @@ import {
 } from 'lucide-react';
 import { useFirestore, useUser, useAuth, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { collection, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection, doc, serverTimestamp, setDoc, query, orderBy } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
@@ -233,6 +233,7 @@ function ExploreRouteContent() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   
   const [isGeneratingPlanner, setIsGeneratingPlanner] = useState(false);
+  const [isSavingTrip, setIsSavingTrip] = useState(false);
   const [aiItineraryData, setAiItineraryData] = useState<GeneratePersonalizedItineraryOutput | null>(null);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [isAutoGenerateOpen, setIsAutoGenerateOpen] = useState(false);
@@ -1073,7 +1074,8 @@ function ExploreRouteContent() {
     return origin ? [origin, ...stopPoints] : stopPoints;
   };
 
-  const handleAutoGenerateFromLocal = async () => {
+  const handleAutoGenerateFromLocal = async (options?: { forceFresh?: boolean }) => {
+    const forceFresh = Boolean(options?.forceFresh);
     setIsGeneratingPlanner(true);
     try {
       const requestedHours = Math.min(12, Math.max(1, Number(customTripDuration) || tripDurationHours));
@@ -1085,6 +1087,9 @@ function ExploreRouteContent() {
           description: "Location was unavailable, so Handumanan will suggest a route without using your current position."
         });
       }
+      const startingLocationText = plannerLocation
+        ? `${plannerLocation.lat.toFixed(5)}, ${plannerLocation.lng.toFixed(5)}`
+        : selectedCity || undefined;
       const selectedPlannerCategory = selectedCategory || plannerCategory;
       const maxStops = requestedHours <= 1 ? 2 : requestedHours <= 2 ? 3 : requestedHours <= 4 ? 4 : requestedHours <= 6 ? 5 : 6;
       const isUsingUserPreference = !!(selectedCity || selectedCategory || searchQuery.trim());
@@ -1096,11 +1101,11 @@ function ExploreRouteContent() {
           ? filteredAndSortedSites
           : allSites;
       const openCandidateSites = matchingSites.filter(site => isSiteOpenAtDateTime(site));
-      const openItinerarySites = itinerarySites.filter(site => isSiteOpenAtDateTime(site));
+      const openItinerarySites = forceFresh ? [] : itinerarySites.filter(site => isSiteOpenAtDateTime(site));
       const futureCandidateResolution = openItinerarySites.length === 0 && openCandidateSites.length === 0
         ? resolveDiscoverFutureCompatibleSites(matchingSites, maxStops)
         : { sites: [] };
-      const futureItineraryResolution = openItinerarySites.length === 0 && openCandidateSites.length === 0
+      const futureItineraryResolution = !forceFresh && openItinerarySites.length === 0 && openCandidateSites.length === 0
         ? resolveDiscoverFutureCompatibleSites(itinerarySites, maxStops)
         : { sites: [] };
       const isFutureDaytimeFallback =
@@ -1108,9 +1113,19 @@ function ExploreRouteContent() {
         openCandidateSites.length === 0 &&
         (futureItineraryResolution.sites.length > 0 || futureCandidateResolution.sites.length > 0);
       const effectiveCandidatePool = isFutureDaytimeFallback ? futureCandidateResolution.sites : openCandidateSites;
-      const starterSites = effectiveGenerationMode === 'balanced'
-        ? selectBalancedSites(effectiveCandidatePool, maxStops, plannerLocation)
-        : sortSitesByDistanceAndQuality(effectiveCandidatePool, plannerLocation).slice(0, maxStops);
+      const orderedModePool = effectiveGenerationMode === 'balanced'
+        ? selectBalancedSites(effectiveCandidatePool, effectiveCandidatePool.length, plannerLocation)
+        : sortSitesByDistanceAndQuality(effectiveCandidatePool, plannerLocation);
+      const preferredExcludedIds = forceFresh ? itineraryIds : [];
+      const starterSites = isFutureDaytimeFallback
+        ? orderedModePool.slice(0, maxStops)
+        : selectEligiblePlannerCandidates(
+            orderedModePool,
+            maxStops,
+            startingLocationText,
+            new Date(),
+            preferredExcludedIds
+          );
       const sitesToPlan = openItinerarySites.length > 0
         ? openItinerarySites
         : (isFutureDaytimeFallback && futureItineraryResolution.sites.length > 0 ? futureItineraryResolution.sites : starterSites);
@@ -1122,6 +1137,7 @@ function ExploreRouteContent() {
 
       const output = await generatePersonalizedItinerary({
         selectedSitesJson: serializeSitesForPlanner(sitesToPlan),
+        startingLocation: startingLocationText,
         availableTimeHours: requestedHours
       });
 
@@ -1144,18 +1160,31 @@ function ExploreRouteContent() {
 
       const routePoints = getRoutePointsForItinerary(cleanedItinerary, sitesToPlan, plannerLocation);
       const generatedRoute = await getRouteMulti(routePoints, orsKey, travelMode);
-      const travelMinutes = generatedRoute?.duration ?? 0;
+      const travelMinutes = generatedRoute?.duration ?? output.totalEstimatedTravelDurationMinutes ?? 0;
       const visitMinutes = cleanedItinerary.reduce((total, stop) => total + stop.estimatedVisitDurationMinutes, 0);
+      const bufferMinutes = Number.isFinite(Number(output.bufferMinutes))
+        ? Math.max(0, Number(output.bufferMinutes))
+        : Math.max(10, Math.min(45, Math.round(travelMinutes)));
+      const totalDurationMinutes = Math.round(visitMinutes + travelMinutes + bufferMinutes);
+      const hasFallbackTravelEstimate = !generatedRoute && travelMinutes > 0;
       const routeSummaryNote = generatedRoute
-        ? `Estimated time includes ${Math.round(travelMinutes)} minutes of travel${plannerLocation ? ' from your current location' : ''}.`
-        : 'Live route distance was unavailable, so the estimate includes visit time only.';
+        ? `Estimated time includes ${Math.round(travelMinutes)} min travel${plannerLocation ? ' from your current location' : ''} and ${Math.round(bufferMinutes)} min buffer.`
+        : hasFallbackTravelEstimate
+          ? `Live route distance was unavailable, so the estimate uses ${Math.round(travelMinutes)} min fallback travel time and ${Math.round(bufferMinutes)} min buffer.`
+          : `Live route distance and travel time were unavailable, so the estimate includes visit time and ${Math.round(bufferMinutes)} min buffer.`;
+      const shortfallNote =
+        totalDurationMinutes < requestedHours * 60 - 45
+          ? ` Only ${cleanedItinerary.length} eligible open site(s) fit within current visiting hours for this ${requestedHours}-hour request.`
+          : '';
       const cleanedOutput = {
         ...output,
         itinerary: cleanedItinerary,
-        summary: cleanedItinerary.length === output.itinerary.length
+        bufferMinutes: Math.round(bufferMinutes),
+        totalEstimatedTravelDurationMinutes: Math.round(travelMinutes),
+        summary: (cleanedItinerary.length === output.itinerary.length
           ? `${output.summary} ${routeSummaryNote}`
-          : `${output.summary} Duplicate stops were removed so each place appears once. ${routeSummaryNote}`,
-        totalEstimatedDurationMinutes: Math.round(visitMinutes + travelMinutes),
+          : `${output.summary} Duplicate stops were removed so each place appears once. ${routeSummaryNote}`) + shortfallNote,
+        totalEstimatedDurationMinutes: totalDurationMinutes,
       };
 
       setAiItineraryData(cleanedOutput);
@@ -1172,6 +1201,12 @@ function ExploreRouteContent() {
         setRouteStatusText(generatedRoute.fallbackReason || `${providerLabel} ${getTravelModeLabel(generatedRoute.resolvedMode || travelMode)} route`);
       } else {
         clearRouteData();
+        setTotalTime(Math.round(travelMinutes));
+        setRouteStatusText(
+          hasFallbackTravelEstimate
+            ? 'Fallback travel estimate (live route unavailable)'
+            : 'Live route distance unavailable'
+        );
       }
       
       const orderedIds = cleanedItinerary.map(item => item.siteId).filter(id => sitesToPlan.some(site => site.id === id));
@@ -1194,19 +1229,41 @@ function ExploreRouteContent() {
     }
   };
 
-  const handleSavePlanner = () => {
-    if (!user || !db || itineraryIds.length === 0) {
+  const handleSavePlanner = async () => {
+    if (isSavingTrip) return;
+    if (!user || !db) {
       toast({ title: "Login Required", description: "Sign in to save itineraries." });
       return;
     }
-    setDocumentNonBlocking(doc(collection(db, 'users', user.uid, 'itineraries')), {
-      userId: user.uid,
-      itineraryIds,
-      summary: aiItineraryData?.summary || `${itineraryIds.length} stops planned`,
-      createdAt: serverTimestamp()
-    }, { merge: true });
-    toast({ title: "Trip Saved", description: "Access this trip in your profile." });
-    setIsResultModalOpen(false);
+    if (itineraryIds.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "No Stops Selected",
+        description: "Add at least one heritage site before saving your trip.",
+      });
+      return;
+    }
+
+    setIsSavingTrip(true);
+    try {
+      await setDoc(doc(collection(db, 'users', user.uid, 'itineraries')), {
+        userId: user.uid,
+        itineraryIds,
+        summary: aiItineraryData?.summary || `${itineraryIds.length} stops planned`,
+        createdAt: serverTimestamp()
+      }, { merge: true });
+      toast({ title: "Trip Saved", description: "Access this trip in your profile." });
+      setIsResultModalOpen(false);
+    } catch (error) {
+      console.error("Failed to save itinerary:", error);
+      toast({
+        variant: "destructive",
+        title: "Save Failed",
+        description: "Could not save your trip. Please try again.",
+      });
+    } finally {
+      setIsSavingTrip(false);
+    }
   };
 
   const hasMapViewFilters = Boolean(isTripMapFocused || isolatedItinerarySiteId || selectedMapSiteId || selectedCity || selectedCategory || searchQuery.trim());
@@ -1774,7 +1831,7 @@ function ExploreRouteContent() {
 
           <div className="px-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] pt-4 shrink-0 bg-white border-t border-slate-100 sm:px-7 sm:pb-7">
             <Button
-              onClick={handleAutoGenerateFromLocal}
+              onClick={() => handleAutoGenerateFromLocal()}
               disabled={isGeneratingPlanner}
               className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/90 text-white text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-primary/25"
             >
@@ -1809,11 +1866,13 @@ function ExploreRouteContent() {
                   </div>
                   <div className="rounded-2xl bg-primary/5 p-3 text-center">
                     <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Est. Travel</p>
-                    <p className="mt-1 text-sm font-black text-slate-900">{formatTravelTime(totalTime)}</p>
+                    <p className="mt-1 text-sm font-black text-slate-900">
+                      {formatTravelTime(totalTime > 0 ? totalTime : (aiItineraryData.totalEstimatedTravelDurationMinutes ?? 0))}
+                    </p>
                   </div>
                   <div className="rounded-2xl bg-primary/5 p-3 text-center">
                     <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Distance</p>
-                    <p className="mt-1 text-sm font-black text-slate-900">{totalDist.toFixed(1)} km</p>
+                    <p className="mt-1 text-sm font-black text-slate-900">{totalDist > 0 ? `${totalDist.toFixed(1)} km` : 'Unavailable'}</p>
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -1827,7 +1886,7 @@ function ExploreRouteContent() {
                         <h4 className="text-xs font-black text-slate-900 mb-1">{stop.siteName}</h4>
                         <p className="text-[10px] text-slate-500 leading-relaxed">{stop.description}</p>
                         <div className="mt-2 flex items-center gap-2 text-[8px] font-black uppercase text-primary">
-                          <History size={10} /> {stop.estimatedVisitDurationMinutes} min stay
+                          <History size={10} aria-hidden="true" className="shrink-0" /> {stop.estimatedVisitDurationMinutes} min stay
                         </div>
                       </div>
                     </div>
@@ -1843,11 +1902,19 @@ function ExploreRouteContent() {
           </ScrollArea>
 
           <DialogFooter className="p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] bg-slate-50 border-t flex flex-col gap-2 sm:flex-col sm:p-6">
-            <Button onClick={handleSavePlanner} className="w-full h-12 rounded-2xl bg-primary text-white font-black uppercase tracking-widest shadow-xl">
-              <SaveIcon size={18} className="mr-2" /> Save Trip
+            <Button onClick={handleSavePlanner} disabled={isSavingTrip} className="w-full h-12 rounded-2xl bg-primary text-white font-black uppercase tracking-widest shadow-xl">
+              {isSavingTrip ? (
+                <>
+                  <Loader2 size={18} className="mr-2 animate-spin" /> Saving...
+                </>
+              ) : (
+                <>
+                  <SaveIcon size={18} className="mr-2" /> Save Trip
+                </>
+              )}
             </Button>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={handleAutoGenerateFromLocal} disabled={isGeneratingPlanner} className="rounded-2xl text-[10px] font-black uppercase tracking-widest h-12">
+              <Button variant="outline" onClick={() => handleAutoGenerateFromLocal({ forceFresh: true })} disabled={isGeneratingPlanner} className="rounded-2xl text-[10px] font-black uppercase tracking-widest h-12">
                 {isGeneratingPlanner ? <Loader2 className="animate-spin" size={14} /> : <RefreshCcw size={14} className="mr-2" />} 
                 Regenerate
               </Button>

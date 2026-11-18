@@ -7,6 +7,7 @@ import {
   resolveDiscoverFutureCompatibleSites,
   resolvePlannerCandidates,
   sanitizeGeneratedItinerary,
+  selectEligiblePlannerCandidates,
   serializeSitesForPlanner,
   type PlannerItineraryOutput,
 } from '../src/lib/itinerary-planner';
@@ -815,5 +816,105 @@ test('multiple stops that all fit sequentially within their respective visiting 
       aiResult.itinerary.map(stop => stop.siteId),
       ['cebu-sugbu-chinese-museum', 'cebu-jesuit-house', 'cebu-casa-gorordo']
     );
+  }
+});
+
+test('selectEligiblePlannerCandidates replaces closing sites, supports regeneration exclusion, and accounts for visit+travel+buffer', () => {
+  const now = new Date('2026-11-11T16:15:00+08:00');
+  const pool = [
+    {
+      id: 'closing-soon-site',
+      name: 'Closing Soon Site',
+      city: 'Cebu City',
+      visitingHours: 'Monday to Sunday, 8:00 AM - 4:30 PM',
+      coordinates: { lat: 10.2937, lng: 123.9020 },
+    },
+    {
+      id: 'open-site-1',
+      name: 'Open Site 1',
+      city: 'Cebu City',
+      visitingHours: 'Monday to Sunday, 6:00 AM - 8:00 PM',
+      coordinates: { lat: 10.2942, lng: 123.9021 },
+    },
+    {
+      id: 'open-site-2',
+      name: 'Open Site 2',
+      city: 'Cebu City',
+      visitingHours: '24 Hours',
+      coordinates: { lat: 10.2950, lng: 123.9030 },
+    },
+    {
+      id: 'open-site-3',
+      name: 'Open Site 3',
+      city: 'Cebu City',
+      visitingHours: '24 Hours',
+      coordinates: { lat: 10.2960, lng: 123.9040 },
+    },
+  ];
+
+  // Closing Soon Site closes at 4:30 PM (only 15m left at 4:15 PM), so it must be replaced by Open Site 1..3
+  const initialSelected = selectEligiblePlannerCandidates(pool, 2, '10.2936, 123.9019', now);
+  assert.deepEqual(
+    initialSelected.map(s => s.id),
+    ['open-site-1', 'open-site-2']
+  );
+
+  // Regeneration with previous IDs excluded prioritizes fresh eligible candidate (open-site-3) first
+  const regenerated = selectEligiblePlannerCandidates(
+    pool,
+    2,
+    '10.2936, 123.9019',
+    now,
+    ['open-site-1', 'open-site-2']
+  );
+  assert.equal(regenerated[0]?.id, 'open-site-3');
+  assert.equal(regenerated.length, 2);
+
+  // Sanitized 4-hour itinerary total duration includes visit + travel + bufferMinutes
+  const sanitized = sanitizeGeneratedItinerary(
+    {
+      itinerary: initialSelected.map(s => ({
+        siteId: s.id,
+        siteName: s.name,
+        estimatedVisitDurationMinutes: 45,
+        description: 'Stop',
+      })),
+      summary: 'Test summary',
+      routeSuggestion: 'Test route',
+      totalEstimatedDurationMinutes: 90,
+    },
+    {
+      selectedSitesJson: serializeSitesForPlanner(initialSelected),
+      startingLocation: '10.2936, 123.9019',
+      availableTimeHours: 4,
+    },
+    now
+  );
+
+  const visitSum = sanitized.itinerary.reduce((sum, s) => sum + s.estimatedVisitDurationMinutes, 0);
+  const travelSum = sanitized.totalEstimatedTravelDurationMinutes || 0;
+  const buffer = sanitized.bufferMinutes || 0;
+  assert.ok(buffer >= 10);
+  assert.equal(sanitized.totalEstimatedDurationMinutes, visitSum + travelSum + buffer);
+});
+
+test('getRouteMulti returns null when all routing requests fail without dropping fallback travel time', async () => {
+  const { getRouteMulti } = await import('../src/lib/routing-service');
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error('Simulated route failure');
+  };
+  try {
+    const route = await getRouteMulti(
+      [
+        { lat: 10.2936, lng: 123.9019 },
+        { lat: 10.2942, lng: 123.9021 },
+      ],
+      '',
+      'DRIVE'
+    );
+    assert.equal(route, null);
+  } finally {
+    globalThis.fetch = origFetch;
   }
 });

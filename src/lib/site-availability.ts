@@ -116,8 +116,8 @@ export function getSiteAvailability(site: any, date = new Date()): AvailabilityR
   const hours = String(site.visitingHours || '').trim();
   const normalizedHours = hours.toLowerCase();
 
-  if (!hours || normalizedHours.includes('requires verification')) {
-    return { isOpen: true, reason: 'Hours require verification.' };
+  if (!hours || normalizedHours.includes('requires verification') || normalizedHours.includes('unverified')) {
+    return { isOpen: false, reason: 'Visiting hours unverified.' };
   }
 
   if (
@@ -145,17 +145,40 @@ export function getSiteAvailability(site: any, date = new Date()): AvailabilityR
   const { dayIndex, minutes } = getManilaDayAndMinutes(date);
 
   if (dayRange && !isDayInRange(dayIndex, dayRange.startDay, dayRange.endDay)) {
-    return { isOpen: false, reason: `Closed today based on listed hours: ${hours}.` };
+    return { isOpen: false, reason: `Currently closed today (listed hours: ${hours}).` };
   }
 
   if (timeRange) {
+    const open = isWithinTimeRange(minutes, timeRange.startMinutes, timeRange.endMinutes);
     return {
-      isOpen: isWithinTimeRange(minutes, timeRange.startMinutes, timeRange.endMinutes),
-      reason: hours,
+      isOpen: open,
+      reason: open ? hours : `Currently closed (outside listed visiting hours: ${hours}).`,
     };
   }
 
-  return { isOpen: true, reason: hours };
+  return {
+    isOpen: false,
+    reason: `Listed hours (${hours}) could not be verified as currently open.`,
+  };
+}
+
+export function hasVerifiedVisitingHours(site: any): boolean {
+  const hours = String(site?.visitingHours || '').trim();
+  const normalizedHours = hours.toLowerCase();
+  if (!hours || normalizedHours.includes('requires verification') || normalizedHours.includes('unverified')) {
+    return false;
+  }
+  if (
+    normalizedHours.includes('closed') ||
+    normalizedHours.includes('temporarily unavailable') ||
+    normalizedHours.includes('not open') ||
+    normalizedHours.includes('24 hours') ||
+    normalizedHours.includes('open access') ||
+    normalizedHours.includes('daylight')
+  ) {
+    return true;
+  }
+  return Boolean(parseHoursRange(hours));
 }
 
 export function isSiteOpenForVisit(site: any, date = new Date()) {

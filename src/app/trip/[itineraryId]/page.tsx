@@ -176,7 +176,7 @@ export default function TripDetailPage({ params }: { params: Promise<{ itinerary
                         </div>
                         {aiStep?.estimatedVisitDurationMinutes && (
                           <div className="flex items-center gap-2 text-[10px] font-black uppercase text-primary">
-                            <History size={14} /> {aiStep.estimatedVisitDurationMinutes} Min Stay
+                            <History size={14} aria-hidden="true" className="shrink-0" /> {aiStep.estimatedVisitDurationMinutes} Min Stay
                           </div>
                         )}
                         <Link href={`/site/${site.id}`} className="text-[10px] font-black uppercase text-blue-500 hover:underline flex items-center gap-1">

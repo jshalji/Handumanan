@@ -1489,31 +1489,34 @@ export function hasExplicitHeritageIntent(text: string): boolean {
   if (!normalized) return false;
 
   // Heritage & site-related terms
-  const hasHeritageTerm = /\b(heritage|site|sites|shrine|shrines|monument|monuments|landmark|landmarks|historical|history|museum|museums|church|churches|cathedral|basilica|ancestral|plaza|plazas|park|parks|library|libraries|public library|residence|residences|building|buildings|attraction|attractions|place|places|destination|destinations|spot|spots|visiting hours|hours|entrance fee|entrance|fee|fees|admission|ticket|tickets|price|prices|cost|directions|itinerary|route|trip|tour|tours)\b/.test(normalized);
+  const hasHeritageTerm = /\b(heritage|site|sites|shrine|shrines|monument|monuments|landmark|landmarks|historical|history|museum|museums|church|churches|cathedral|basilica|ancestral|plaza|plazas|visiting hours|entrance fee|admission|itinerary|tour|tours)\b/.test(normalized);
 
-  // Specific question patterns
-  const hasSpecificQuestion = /\b(how much|entrance fee|admission|visiting hours|open|closed|where is|tell me about|what is|how do i get to|what are the|take me to|take me there|show me)\b/.test(normalized);
+  // Specific question patterns paired with heritage/place context
+  const hasSpecificQuestion =
+    /\b(visiting hours|opening hours|entrance fee|admission fee)\b/.test(normalized) ||
+    (/\b(how much|where is|tell me about|what is|how do i get to|take me to)\b/.test(normalized) &&
+      /\b(cebu|mandaue|talisay|lapu-lapu|lapu lapu|mactan|parian|colon|heritage|site|museum|church|shrine|monument|landmark|plaza|fort|house|bridge|library|temple|capitol)\b/.test(normalized));
 
   // Direct reference to specific known sites
   const specificSiteNames = [
-    'mactan shrine', 'magellan cross', 'magellans cross', 'basilica', 'santo nino', 'cebu cathedral',
-    'casa gorordo', 'yap sandiego', 'yap-sandiego', 'jesuit house', 'fort san pedro', 'museo sugbo',
-    'national museum', 'sugbu chinese', 'taoist temple', 'fuente osmena', 'talisay landing', 'presidencia',
-    'bantayan sa hari', 'rizal memorial', 'rizal library', 'cebu city public library', 'rizal', 'patria',
-    'tres de abril', 'colon street', 'city hall', 'capitol', 'st. teresa', 'saint joseph', 'mandaue library',
-    'old bridge', 'millennium park', 'virgen de la regla', 'marcelo fernan', 'marcelo fernan bridge', 'second bridge'
+    'mactan shrine', 'liberty shrine', 'magellan cross', 'magellans cross', 'magellan s cross',
+    'magellan marker', 'magellans marker', 'magellan s marker',
+    'basilica minore', 'santo nino', 'sto nino', 'cebu cathedral', 'metropolitan cebu cathedral',
+    'archdiocesan museum', 'casa gorordo', 'yap sandiego', 'yap-sandiego', 'jesuit house', '1730 jesuit',
+    'fort san pedro', 'museo sugbo', 'carcel de cebu', 'national museum', 'sugbu chinese', 'gotiaoco',
+    'jose rizal museum', 'uspf', 'usc museum', 'san carlos museum', 'heritage of cebu monument',
+    'taoist temple', 'fuente osmena', 'talisay landing', 'larawan beach',
+    'sta teresa de avila', 'santa teresa de avila', 'talisay city plaza', 'talisay city hall',
+    'mandaue presidencia', 'bantayan sa hari', 'rizal memorial library', 'cebu city public library',
+    'patria de cebu', 'tres de abril', 'leon kilat', 'colon street', 'cebu city hall', 'provincial capitol',
+    'saint joseph', 'mandaue library', 'mandaue city public library', 'mandaue city heritage plaza',
+    'old bridge park', 'millennium park', 'plaza rizal', 'virgen de la regla',
+    'plaza independencia', 'plaza sugbo', 'plaza hamabar', 'rajah humabon',
+    'mandaue-mactan bridge', 'mandaue mactan bridge', 'marcelo fernan', 'marcelo fernan bridge'
   ];
   const hasDirectSiteReference = specificSiteNames.some(name => normalized.includes(name));
 
-  // Matching any site name or tag in built-in dataset
-  const words = normalized.split(' ').filter(w => w.length > 2);
-  const matchesBuiltInSite = HERITAGE_SITES.some(site => {
-    const siteName = site.name.toLowerCase();
-    const tags = site.tags.map(t => t.toLowerCase());
-    return siteName.includes(normalized) || normalized.includes(siteName) || words.some(w => siteName.includes(w) || tags.includes(w));
-  });
-
-  if (hasDirectSiteReference || matchesBuiltInSite || hasSpecificQuestion || hasHeritageTerm) return true;
+  if (hasDirectSiteReference || hasSpecificQuestion || hasHeritageTerm) return true;
 
   return false;
 }

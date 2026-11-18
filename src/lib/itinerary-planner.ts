@@ -545,11 +545,68 @@ function estimateDistanceKm(a: { lat: number; lng: number }, b: { lat: number; l
 }
 
 function startCoordsFor(location: string | undefined): { lat: number; lng: number } {
+  const coordMatch = String(location || '').match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+  if (coordMatch) {
+    const lat = Number(coordMatch[1]);
+    const lng = Number(coordMatch[2]);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { lat, lng };
+    }
+  }
   const key = (location || '').toLowerCase();
   if (key.includes('mandaue')) return { lat: 10.3236, lng: 123.9223 };
   if (key.includes('lapu') || key.includes('mactan')) return { lat: 10.3103, lng: 123.9593 };
   if (key.includes('talisay')) return { lat: 10.2447, lng: 123.8494 };
   return { lat: 10.29365, lng: 123.90196 };
+}
+
+/**
+ * Selects up to maxStops sequentially open stops from an already mode-ordered candidate pool,
+ * replacing any candidate that closes before or during its estimated visit window.
+ * When preferredExcludedIds is non-empty (e.g., during regeneration), unvisited alternatives are prioritized first.
+ */
+export function selectEligiblePlannerCandidates<T extends PlannerSite>(
+  orderedPool: T[],
+  maxStops: number,
+  startingLocation?: string,
+  now: Date = new Date(),
+  preferredExcludedIds: string[] = [],
+  estimatedVisitMinutes = 40
+): T[] {
+  if (!orderedPool || orderedPool.length === 0 || maxStops <= 0) return [];
+
+  const excludedSet = new Set(preferredExcludedIds);
+  const prioritizedPool =
+    excludedSet.size > 0
+      ? [
+          ...orderedPool.filter(site => !excludedSet.has(getPlannerSiteId(site))),
+          ...orderedPool.filter(site => excludedSet.has(getPlannerSiteId(site))),
+        ]
+      : orderedPool;
+
+  const selected: T[] = [];
+  const usedKeys = new Set<string>();
+  let prevPos = startCoordsFor(startingLocation);
+  let elapsedMinutes = 0;
+
+  for (const site of prioritizedPool) {
+    if (selected.length >= maxStops) break;
+    const key = getPlannerSiteKey(site);
+    if (!key || usedKeys.has(key)) continue;
+
+    const { travelMinutes, nextPos } = computeTravelFromPosition(prevPos, site);
+    const arrivalTime = new Date(now.getTime() + (elapsedMinutes + travelMinutes) * 60_000);
+    if (!isSiteOpenForEntireVisit(site, arrivalTime, estimatedVisitMinutes)) {
+      continue;
+    }
+
+    usedKeys.add(key);
+    selected.push(site);
+    prevPos = nextPos;
+    elapsedMinutes += travelMinutes + estimatedVisitMinutes;
+  }
+
+  return selected;
 }
 
 function computeTravelFromPosition(
