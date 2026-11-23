@@ -3,14 +3,20 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
-import { searchSites, HeritageSite, HERITAGE_SITES, DEPRECATED_HERITAGE_SITE_IDS, isSiteVisibleToUser } from '@/lib/heritage-data';
+import {
+  getAdmissionDisplay,
+  searchSites,
+  HeritageSite,
+  mergeAdminSitesWithStatic,
+} from '@/lib/heritage-data';
+import { evaluateSiteOperatingStatus } from '@/lib/site-availability';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageSources } from '@/lib/site-images';
-import { Search, MapPin, X, ExternalLink, Star, Archive, Layers, MapPinned, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Search, MapPin, X, ExternalLink, Star, Archive, Layers, MapPinned, ChevronDown, CheckCircle2, Clock } from 'lucide-react';
 import { useFirestore, useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, collectionGroup, doc } from 'firebase/firestore';
 import { getRatingSummaryState, groupReviewsBySiteId } from '@/lib/review-ratings';
@@ -51,9 +57,43 @@ type ExploreState = {
   savedAt: number;
 };
 
-function SiteCard({ site, ratingSummary, onOpenSite }: { site: HeritageSite; ratingSummary: ReturnType<typeof getRatingSummaryState>; onOpenSite: () => void }) {
+function SiteCard({
+  site,
+  ratingSummary,
+  onOpenSite,
+  now,
+}: {
+  site: HeritageSite;
+  ratingSummary: ReturnType<typeof getRatingSummaryState>;
+  onOpenSite: () => void;
+  now: Date | null;
+}) {
   const imageSources = getSiteImageSources(site);
   const mainCategory = (site.category || 'Heritage Site').split(' & ')[0];
+  const operatingEval = useMemo(
+    () => (now ? evaluateSiteOperatingStatus(site, now) : null),
+    [site, now]
+  );
+  const hasOpenSubFacility =
+    operatingEval?.subFacilityEvaluations.some(sub => sub.isOpen === true) ?? false;
+  const statusBadgeText = !operatingEval
+    ? 'Checking Hours'
+    : operatingEval.isOpen === true
+      ? operatingEval.calculatedStatus
+      : hasOpenSubFacility
+        ? 'Sub-Facility Open'
+        : operatingEval.calculatedStatus;
+  const statusBadgeClass = !operatingEval
+    ? 'bg-slate-100 text-slate-500 border-slate-200'
+    : operatingEval.isOpen === true || hasOpenSubFacility
+      ? operatingEval.isClosingSoon
+        ? 'bg-amber-50 text-amber-800 border-amber-200'
+        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      : operatingEval.isOpen === false
+        ? operatingEval.calculatedStatus === 'Exterior Viewable Now'
+          ? 'bg-sky-50 text-sky-700 border-sky-200'
+          : 'bg-rose-50 text-rose-700 border-rose-200'
+        : 'bg-amber-50 text-amber-700 border-amber-200';
 
   return (
     <Card className="group flex h-full min-w-0 max-w-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
@@ -131,21 +171,49 @@ function SiteCard({ site, ratingSummary, onOpenSite }: { site: HeritageSite; rat
           {site.description}
         </p>
 
+        <div className="mb-2.5 flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-2.5 py-1.5 border border-slate-100">
+          <div className="min-w-0 flex items-center gap-1.5 text-[10px] text-slate-600">
+            <Clock size={11} className="text-primary shrink-0" />
+            <span className="truncate font-semibold" title={operatingEval?.displaySummary || site.visitingHours}>
+              {operatingEval?.displaySummary || site.visitingHours}
+            </span>
+          </div>
+          <span
+            className={cn(
+              'shrink-0 rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-wider',
+              statusBadgeClass
+            )}
+            title={operatingEval?.statusDetailMessage || site.visitingHours}
+          >
+            {statusBadgeText}
+          </span>
+        </div>
+
         <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
           <div className="min-w-0 flex items-center gap-1.5">
             <span className="text-slate-400 font-bold uppercase tracking-wider text-[8px] shrink-0">Fee:</span>
-            <span className={cn(
-              "truncate px-2 py-0.5 rounded text-[10px] font-bold border",
-              site.entranceFee
-                ? site.entranceFee === 'Free Admission'
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : site.entranceFee.toLowerCase().includes('estimate')
-                  ? "bg-amber-50 text-amber-800 border-amber-200"
-                  : "bg-slate-100 text-slate-800 border-slate-200"
-                : "bg-slate-50 text-slate-500 border-slate-200 font-normal italic"
-            )}>
-              {site.entranceFee || 'Not specified'}
-            </span>
+            {(() => {
+              const admission = getAdmissionDisplay(site);
+              return (
+                <span
+                  className={cn(
+                    'truncate px-2 py-0.5 rounded text-[10px] font-bold border',
+                    admission.status === 'free'
+                      ? admission.isVerified
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-teal-50 text-teal-700 border-teal-200'
+                      : admission.status === 'paid'
+                        ? 'bg-slate-100 text-slate-800 border-slate-200'
+                        : admission.status === 'unverified'
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : 'bg-slate-50 text-slate-500 border-slate-200 font-normal italic'
+                  )}
+                  title={admission.scope ? `${admission.displayLabel} — ${admission.scope}` : admission.displayLabel}
+                >
+                  {admission.displayLabel}
+                </span>
+              );
+            })()}
           </div>
 
           <Button
@@ -206,8 +274,19 @@ export default function ExplorePage() {
   const [city, setCity] = useState('All');
   const [category, setCategory] = useState('All');
   const [isFiltering, setIsFiltering] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [now, setNow] = useState<Date | null>(null);
   const hasMounted = useRef(false);
   const hasRestoredState = useRef(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+    setNow(new Date());
+    const timer = window.setInterval(() => {
+      setNow(new Date());
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const writeExploreState = useCallback((shouldRestore: boolean) => {
     if (typeof window === 'undefined') return;
@@ -227,47 +306,16 @@ export default function ExplorePage() {
   }, [writeExploreState]);
 
   const mergedSites = useMemo(() => {
-    const deprecatedIds = new Set(DEPRECATED_HERITAGE_SITE_IDS);
-    const sitesById = new Map(HERITAGE_SITES.map(site => [site.id, site as any]));
-
-    dbSites?.forEach(dbSite => {
-      if (!dbSite?.id || deprecatedIds.has(dbSite.id)) return;
-      const existingSite = sitesById.get(dbSite.id) || {};
-      const coordinates = dbSite.coordinates || (
-        dbSite.latitude !== undefined && dbSite.longitude !== undefined
-          ? { lat: dbSite.latitude, lng: dbSite.longitude }
-          : existingSite.coordinates
-      );
-
-      sitesById.set(dbSite.id, {
-        ...existingSite,
-        ...dbSite,
-        rating: undefined,
-        coordinates,
-        tags: Array.isArray(dbSite.tags) ? dbSite.tags : (Array.isArray(existingSite.tags) ? existingSite.tags : []),
-      } as any);
-    });
-
-    return Array.from(sitesById.values())
-      .map(site => ({
-        ...site,
-        verificationStatus: site.verificationStatus || 'Pending Verification',
-      }))
-      .filter(site => (
-        !deprecatedIds.has(site.id) &&
-        site.isActive !== false &&
-        site.status !== 'Inactive' &&
-        isSiteVisibleToUser(site, userRole)
-      ));
-  }, [dbSites, userRole]);
+    return mergeAdminSitesWithStatic(isHydrated ? dbSites : null, isHydrated ? userRole : undefined);
+  }, [dbSites, userRole, isHydrated]);
 
   const filteredSites = useMemo(() => {
-    return searchSites(searchQuery, city, category, userRole, mergedSites);
-  }, [searchQuery, city, category, userRole, mergedSites]);
+    return searchSites(searchQuery, city, category, isHydrated ? userRole : undefined, mergedSites);
+  }, [searchQuery, city, category, userRole, mergedSites, isHydrated]);
 
   const totalSites = useMemo(() => {
-    return searchSites('', 'All', 'All', userRole, mergedSites).length;
-  }, [userRole, mergedSites]);
+    return searchSites('', 'All', 'All', isHydrated ? userRole : undefined, mergedSites).length;
+  }, [userRole, mergedSites, isHydrated]);
 
   const hasActiveFilters = Boolean(searchQuery || city !== 'All' || category !== 'All');
 
@@ -530,6 +578,7 @@ export default function ExplorePage() {
               <SiteCard
                 key={site.id}
                 site={site}
+                now={now}
                 ratingSummary={getRatingSummaryState(reviewsBySiteId.get(site.id), {
                   isLoading: areSiteReviewsLoading,
                   isAvailable: Boolean(reviewsQuery),

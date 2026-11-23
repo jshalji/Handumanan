@@ -1,4 +1,10 @@
-import { isSiteOpenForVisit, getSiteAvailability, hasVerifiedVisitingHours } from '@/lib/site-availability';
+import {
+  isSiteOpenForVisit,
+  getSiteAvailability,
+  hasVerifiedVisitingHours,
+  hasAnyVerifiedOpenSubFacility,
+  isSiteEligibleForDirectoryOrTour,
+} from '@/lib/site-availability';
 
 export function getVerifiedCoordinates(site: any): { lat: number; lng: number } | null {
   const lat = site?.coordinates?.lat;
@@ -2017,7 +2023,7 @@ export function isBestHeritageSiteQuery(query: string): boolean {
 }
 
 export function getBestHeritageSiteResponse(sites: any[]): HeritageChatOutput {
-  const mustVisits = sites.filter((s: any) => s.isMustVisit && isSiteOpenForVisit(s)).slice(0, 4);
+  const mustVisits = sites.filter((s: any) => s.isMustVisit && isSiteEligibleForDirectoryOrTour(s)).slice(0, 4);
   return {
     text: "That depends on what you want to see. For history, churches, architecture, or museums, I can recommend different sites. Popular must-visit places in Metro Cebu include Basilica Minore del Santo Niño, Magellan's Cross, Fort San Pedro, and Casa Gorordo Museum.",
     suggestedSiteIds: mustVisits.map((s: any) => s.id),
@@ -2033,8 +2039,17 @@ export function checkAllOpeningHoursQuery(query: string): boolean {
 }
 
 export function getAllOpeningHoursResponse(sites: any[]): HeritageChatOutput {
-  const active = sites.filter((s: any) => isSiteOpenForVisit(s)).slice(0, 5);
-  const siteListStr = active.map((s: any) => `• **${s.name}** (${s.city}): ${s.visitingHours}`).join('\n');
+  const active = [...sites]
+    .filter((s: any) => isSiteEligibleForDirectoryOrTour(s))
+    .sort((a: any, b: any) => {
+      const aVer = hasVerifiedVisitingHours(a) || hasAnyVerifiedOpenSubFacility(a) ? 0 : 1;
+      const bVer = hasVerifiedVisitingHours(b) || hasAnyVerifiedOpenSubFacility(b) ? 0 : 1;
+      return aVer - bVer;
+    })
+    .slice(0, 5);
+  const siteListStr = active
+    .map((s: any) => `• **${s.name}** (${s.city}): ${s.operatingSchedule?.displaySummary || s.visitingHours}`)
+    .join('\n');
   return {
     text: `Handumanan can provide the visiting hours stored in its directory, but these may not represent live real-time changes unless verified directly with each site or local government unit before visiting.\n\nHere are listed hours for some key sites:\n${siteListStr}\n\nYou can search any specific site card to check its recorded visiting hours.`,
     suggestedSiteIds: active.map((s: any) => s.id),
@@ -4441,7 +4456,10 @@ export function retrieveAndValidateSites(
         .filter(s => {
           if (s.id === refSite.id) return false;
           if (!getVerifiedCoordinates(s)) return false;
-          if (intent.constraints.openNowOnly && (!hasVerifiedVisitingHours(s) || !isSiteOpenForVisit(s))) {
+          if (
+            intent.constraints.openNowOnly &&
+            !((hasVerifiedVisitingHours(s) && isSiteOpenForVisit(s)) || hasAnyVerifiedOpenSubFacility(s))
+          ) {
             return false;
           }
           return true;
@@ -4491,8 +4509,13 @@ export function retrieveAndValidateSites(
 
     if (intent.category && site.category !== intent.category) return false;
     if (intent.constraints.freeAdmissionOnly && !/^free\b/i.test(String(site.entranceFee || '').trim())) return false;
-    if (intent.constraints.closedOnly && isSiteOpenForVisit(site)) return false;
-    if (intent.constraints.openNowOnly && (!hasVerifiedVisitingHours(site) || !isSiteOpenForVisit(site))) return false;
+    if (intent.constraints.closedOnly && (isSiteOpenForVisit(site) || hasAnyVerifiedOpenSubFacility(site))) return false;
+    if (
+      intent.constraints.openNowOnly &&
+      !((hasVerifiedVisitingHours(site) && isSiteOpenForVisit(site)) || hasAnyVerifiedOpenSubFacility(site))
+    ) {
+      return false;
+    }
 
     return true;
   });
@@ -5261,7 +5284,7 @@ export function generateProximityBasedItineraryState(
   const activeSites = (sites || []).filter(
     (s: any) => s && s.isActive !== false && s.status !== 'Inactive' && s.demolitionStatus !== 'Demolished'
   );
-  const openSites = activeSites.filter((s: any) => isSiteOpenForVisit(s));
+  const openSites = activeSites.filter((s: any) => isSiteEligibleForDirectoryOrTour(s));
   let candidatePool = state.freeOnly
     ? activeSites.filter((s: any) => /^free\b/i.test(String(s.entranceFee || '').trim()))
     : [...openSites];

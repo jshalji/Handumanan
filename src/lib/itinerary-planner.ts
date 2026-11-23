@@ -1,4 +1,13 @@
-import { isSiteOpenForVisit } from '@/lib/site-availability';
+import {
+  ALL_DAYS_OF_WEEK,
+  type OperatingSchedule,
+} from '@/lib/heritage-data';
+import {
+  evaluateSiteOperatingStatus,
+  evaluateVisitWindow,
+  hasAnyVerifiedOpenSubFacility,
+  isSiteOpenForVisit,
+} from '@/lib/site-availability';
 
 export type PlannerSite = {
   id?: string;
@@ -8,6 +17,7 @@ export type PlannerSite = {
   city?: string;
   category?: string;
   visitingHours?: string;
+  operatingSchedule?: OperatingSchedule;
   isActive?: boolean;
   status?: string;
   demolitionStatus?: string;
@@ -138,6 +148,7 @@ export function serializeSitesForPlanner(sites: any[]): string {
           ? { lat: site.latitude, lng: site.longitude }
           : undefined),
       visitingHours: site?.visitingHours,
+      operatingSchedule: site?.operatingSchedule,
       isActive: site?.isActive,
       status: site?.status,
       demolitionStatus: site?.demolitionStatus,
@@ -293,6 +304,10 @@ export function isSiteStructurallyEligible(site: PlannerSite | null | undefined)
     return false;
   }
 
+  if (site.operatingSchedule?.physicalPreservationStatus === 'Demolished / Lost') {
+    return false;
+  }
+
   if (/\b(closed|unavailable|demolished|inaccessible)\b/i.test(String(site.status || '').trim())) {
     return false;
   }
@@ -302,6 +317,11 @@ export function isSiteStructurallyEligible(site: PlannerSite | null | undefined)
       String(site.accessibilityStatus || '').trim()
     )
   ) {
+    return false;
+  }
+
+  const hours = String(site.visitingHours || '').trim();
+  if (hours && (EXPLICIT_UNAVAILABLE_HOURS_PATTERN.test(hours) || /^closed$/i.test(hours))) {
     return false;
   }
 
@@ -315,41 +335,29 @@ export function isSiteOpenAtDateTime(
   if (!site || !isSiteStructurallyEligible(site)) return false;
 
   const hours = String(site.visitingHours || '').trim();
-  const normalizedHours = hours.toLowerCase();
-
-  if (!hours || normalizedHours.includes('requires verification')) {
-    return isSiteOpenForVisit(site, date);
-  }
-
-  if (EXPLICIT_UNAVAILABLE_HOURS_PATTERN.test(hours)) {
+  if (hours && (EXPLICIT_UNAVAILABLE_HOURS_PATTERN.test(hours) || /^closed$/i.test(hours))) {
     return false;
   }
 
-  const { closedDays, cleanedHours } = extractDayOffQualifierInfo(hours);
-  const normalizedCleaned = cleanedHours.toLowerCase();
+  const normalizedTarget = {
+    ...site,
+    id: getPlannerSiteId(site),
+    name: getPlannerSiteName(site),
+  };
 
-  if (/\bclosed\b/i.test(normalizedCleaned)) {
-    return false;
+  if (isSiteOpenForVisit(normalizedTarget, date)) {
+    return true;
   }
 
-  const hasRecognizableSchedule =
-    SCHEDULED_TIME_RANGE_PATTERN.test(cleanedHours) ||
-    SCHEDULED_DAY_RANGE_PATTERN.test(cleanedHours) ||
-    OPEN_SCHEDULE_KEYWORD_PATTERN.test(cleanedHours);
-
-  if (!hasRecognizableSchedule) {
-    return false;
+  const evaluation = evaluateSiteOperatingStatus(normalizedTarget as any, date);
+  if (
+    evaluation.isOpen === null &&
+    hasAnyVerifiedOpenSubFacility(normalizedTarget, date)
+  ) {
+    return true;
   }
 
-  if (closedDays.size > 0) {
-    const { dayIndex } = getManilaCalendarAndMinutes(date);
-    if (closedDays.has(dayIndex)) {
-      return false;
-    }
-    return isSiteOpenForVisit({ ...site, visitingHours: cleanedHours }, date);
-  }
-
-  return isSiteOpenForVisit(site, date);
+  return false;
 }
 
 export function isSiteOpenForEntireVisit(
@@ -357,17 +365,42 @@ export function isSiteOpenForEntireVisit(
   arrivalTime: Date,
   visitDurationMinutes: number
 ): boolean {
-  if (!site) return false;
+  if (!site || !isSiteStructurallyEligible(site)) return false;
   const duration = Math.max(0, Math.round(visitDurationMinutes));
+  if (duration === 0) {
+    return isSiteOpenAtDateTime(site, arrivalTime);
+  }
 
-  for (let elapsed = 0; elapsed <= duration; elapsed += 1) {
-    const checkPoint = new Date(arrivalTime.getTime() + elapsed * 60_000);
-    if (!isSiteOpenAtDateTime(site, checkPoint)) {
-      return false;
+  const visitEnd = new Date(arrivalTime.getTime() + duration * 60_000);
+  // Both arrivalTime and the inclusive departure boundary checkPoint must be open
+  if (!isSiteOpenAtDateTime(site, arrivalTime) || !isSiteOpenAtDateTime(site, visitEnd)) {
+    return false;
+  }
+
+  const normalizedTarget = {
+    ...site,
+    id: getPlannerSiteId(site),
+    name: getPlannerSiteName(site),
+  };
+
+  const primaryWindow = evaluateVisitWindow(normalizedTarget as any, arrivalTime, visitEnd);
+  if (primaryWindow.isOpenForEntireWindow) {
+    return true;
+  }
+
+  if (primaryWindow.status === 'unverified_during_window') {
+    const subFacilities = normalizedTarget.operatingSchedule?.subFacilities || [];
+    for (const sub of subFacilities) {
+      const subWindow = evaluateVisitWindow(normalizedTarget as any, arrivalTime, visitEnd, {
+        subFacilityId: sub.id,
+      });
+      if (subWindow.isOpenForEntireWindow && isSiteOpenAtDateTime(site, visitEnd)) {
+        return true;
+      }
     }
   }
 
-  return true;
+  return false;
 }
 
 export function dedupePlannerSites(sites: PlannerSite[]): PlannerSite[] {
@@ -394,10 +427,37 @@ export function dedupePlannerSites(sites: PlannerSite[]): PlannerSite[] {
 function collectCandidateDaytimeMinutes(sites: PlannerSite[]): number[] {
   const minuteSet = new Set<number>(DEFAULT_DAYTIME_CHECK_MINUTES);
 
+  const addHmString = (hm?: string) => {
+    if (!hm) return;
+    const match = hm.match(/^(\d{2}):(\d{2})$/);
+    if (!match) return;
+    const mins = Number(match[1]) * 60 + Number(match[2]);
+    if (mins >= 4 * 60 && mins <= 18 * 60) {
+      minuteSet.add(mins);
+    }
+  };
+
   for (const site of sites) {
     const openingMinutes = parseOpeningMinutesFromHours(site.visitingHours);
     if (openingMinutes !== null && openingMinutes >= 6 * 60 && openingMinutes <= 17 * 60) {
       minuteSet.add(openingMinutes);
+    }
+
+    const sched = site.operatingSchedule;
+    if (sched) {
+      for (const day of ALL_DAYS_OF_WEEK) {
+        for (const p of sched.interiorAccess?.regularHours?.[day]?.periods || []) {
+          addHmString(p.open);
+        }
+        for (const p of sched.exteriorGroundsAccess?.regularHours?.[day]?.periods || []) {
+          addHmString(p.open);
+        }
+        for (const sub of sched.subFacilities || []) {
+          for (const p of sub.regularHours?.[day]?.periods || []) {
+            addHmString(p.open);
+          }
+        }
+      }
     }
   }
 

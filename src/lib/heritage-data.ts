@@ -1,5 +1,336 @@
 export type VerificationStatus = 'Pending Verification' | 'LGU Verified' | 'Needs Revision' | 'Rejected';
 
+/**
+ * 1. Physical Preservation Status (distinct from operating hours and visitor access)
+ */
+export type PhysicalPreservationStatus =
+  | 'Standing'
+  | 'Restored'
+  | 'Partially Ruined / Ruins'
+  | 'Damaged / Under Restoration'
+  | 'Demolished / Lost';
+
+/**
+ * 2. Administrative Visitor-Access Status (configured by administrators, NOT calculated from the clock)
+ */
+export type VisitorAccessStatus =
+  | 'Publicly Accessible'
+  | 'Guided / Ticketed Entry'
+  | 'Exterior Access Only'
+  | 'Restricted Grounds'
+  | 'By Appointment Only'
+  | 'Private Residence'
+  | 'Temporarily Closed'
+  | 'Temporarily Closed Interior'
+  | 'Temporarily Closed Grounds'
+  | 'Permanently Closed'
+  | 'Demolished / Lost'
+  | 'Unknown / Unverified';
+
+/**
+ * 3. Calculated Real-Time Status (dynamically computed in Asia/Manila timezone, UTC+8)
+ */
+export type CalculatedRealtimeStatus =
+  | 'Open Now'
+  | 'Closing Soon'
+  | 'Closed'
+  | 'Open 24 Hours'
+  | 'Exterior Viewable Now'
+  | 'By Appointment Only'
+  | 'Temporarily Closed'
+  | 'Permanently Closed'
+  | 'Private Residence'
+  | 'Hours Unverified'
+  | 'Requires Confirmation';
+
+export type DayOfWeek =
+  | 'sunday'
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday';
+
+export const ALL_DAYS_OF_WEEK: DayOfWeek[] = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+];
+
+export const WEEKDAYS_MONDAY_TO_SATURDAY: DayOfWeek[] = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+];
+
+/**
+ * 24-hour time period ("HH:mm").
+ * - `open`: "00:00" to "23:59" (0..1439 minutes)
+ * - `close`: "00:01" to "24:00" (1..1440 minutes), or "00:00".."23:59" when close < open (overnight)
+ */
+export interface OperatingTimePeriod {
+  open: string;
+  close: string;
+  label?: string;
+}
+
+export type DailyScheduleState =
+  | 'open'
+  | 'open_24_hours'
+  | 'closed'
+  | 'by_appointment'
+  | 'not_specified';
+
+export interface DailyOperatingSchedule {
+  state: DailyScheduleState;
+  periods: OperatingTimePeriod[];
+  notes?: string;
+}
+
+export type EvaluatorTargetScope = 'interior' | 'exterior_grounds';
+
+export type AccessScope =
+  | 'full_site'
+  | 'interior_only'
+  | 'exterior_grounds_only';
+
+/**
+ * Canonical Scope Mapping Helper (used identically for main-site and sub-facility evaluation):
+ * - 'full_site' applies to BOTH 'interior' and 'exterior_grounds'
+ * - 'interior_only' applies ONLY to 'interior'
+ * - 'exterior_grounds_only' applies ONLY to 'exterior_grounds'
+ */
+export function doesAccessScopeApply(
+  ruleScope: AccessScope,
+  targetScope: EvaluatorTargetScope
+): boolean {
+  if (ruleScope === 'full_site') return true;
+  if (ruleScope === 'interior_only') return targetScope === 'interior';
+  if (ruleScope === 'exterior_grounds_only') return targetScope === 'exterior_grounds';
+  return false;
+}
+
+export type VerifiableClaimType =
+  | 'global_visitor_access_policy'
+  | 'interior_access_policy'
+  | 'interior_regular_schedule'
+  | 'exterior_grounds_access_policy'
+  | 'exterior_grounds_regular_schedule'
+  | 'exterior_street_visibility'
+  | 'temporary_closure'
+  | 'special_schedule'
+  | 'sub_facility_access_policy'
+  | 'sub_facility_regular_schedule';
+
+export interface ScheduleVerificationSource {
+  id?: string;
+  title: string;
+  publisher: string;
+  url: string;
+  sourceType:
+    | 'Official Museum / Institution Website'
+    | 'Official LGU / Tourism Portal'
+    | 'Official Church / Basilica Website'
+    | 'Official Institutional Announcement'
+    | 'Verified News Report';
+  checkedDate: string; // "YYYY-MM-DD"
+  supportedClaims: VerifiableClaimType[];
+  notes?: string;
+}
+
+export interface ExteriorStreetVisibilityInfo {
+  status:
+    | 'Viewable from Public Street'
+    | 'Partially Viewable from Street'
+    | 'Not Viewable from Public Street'
+    | 'Unknown / Unverified';
+  isVerified: boolean;
+  sources: ScheduleVerificationSource[];
+  lastVerifiedDate: string | null;
+  notes?: string;
+}
+
+export interface InteriorAccessInfo {
+  policyStatus:
+    | 'Publicly Accessible Interior'
+    | 'Guided / Ticketed Interior'
+    | 'By Appointment Only'
+    | 'No Public Interior Access'
+    | 'Temporarily Closed Interior'
+    | 'Not Applicable (Open-Air / Exterior Landmark)'
+    | 'Unknown / Unverified';
+  policyVerified: boolean;
+  policySources: ScheduleVerificationSource[];
+  scheduleVerified: boolean;
+  verifiedDays: DayOfWeek[];
+  weeklyCoverage: 'all_7_days' | 'partial_days_only' | 'none';
+  regularHours: Record<DayOfWeek, DailyOperatingSchedule>;
+  scheduleSources: ScheduleVerificationSource[];
+  lastVerifiedDate: string | null;
+  notes?: string;
+}
+
+export interface ExteriorGroundsAccessInfo {
+  policyStatus:
+    | 'Publicly Accessible Grounds'
+    | 'Accessible Within Gate Hours'
+    | 'Ticketed / Guided Grounds'
+    | 'Restricted / Gated Compound'
+    | 'Private Property Grounds'
+    | 'Temporarily Closed Grounds'
+    | 'Unknown / Unverified';
+  policyVerified: boolean;
+  policySources: ScheduleVerificationSource[];
+  scheduleVerified: boolean;
+  verifiedDays: DayOfWeek[];
+  weeklyCoverage: 'all_7_days' | 'partial_days_only' | 'none';
+  regularHours: Record<DayOfWeek, DailyOperatingSchedule>;
+  scheduleSources: ScheduleVerificationSource[];
+  lastVerifiedDate: string | null;
+  notes?: string;
+}
+
+export interface TemporaryClosureEntry {
+  id: string;
+  startDate: string; // "YYYY-MM-DD" in Asia/Manila
+  endDate: string;   // "YYYY-MM-DD" in Asia/Manila (inclusive)
+  startTime?: string; // Optional "HH:mm" ("00:00" - "23:59")
+  endTime?: string;   // Optional "HH:mm" ("00:01" - "24:00", or overnight "00:00" - "23:59")
+  multiDayTimeMode?: 'continuous' | 'daily_window';
+  reason: string;
+  scope: AccessScope;
+  isVerified: boolean;
+  sources: ScheduleVerificationSource[];
+  lastVerifiedDate?: string;
+}
+
+export interface SpecialScheduleEntry {
+  id: string;
+  label: string;
+  date?: string;      // Exact date "YYYY-MM-DD"
+  startDate?: string; // Range start "YYYY-MM-DD"
+  endDate?: string;   // Range end "YYYY-MM-DD"
+  scope: AccessScope;
+  state: 'open' | 'open_24_hours' | 'closed' | 'by_appointment';
+  periods: OperatingTimePeriod[];
+  priority?: number;
+  allowYesterdayOvernightCarryOver?: boolean;
+  enforceOnSubFacilities?: boolean;
+  isVerified: boolean;
+  sources: ScheduleVerificationSource[];
+  lastVerifiedDate?: string;
+  notes?: string;
+}
+
+export interface AccessVerificationMetadata {
+  scheduleVerified: boolean;
+  visitorAccessStatusVerified: boolean;
+  visitorAccessStatusSources: ScheduleVerificationSource[];
+  verifiedDays: DayOfWeek[];
+  weeklyCoverage: 'all_7_days' | 'partial_days_only' | 'none';
+  interiorAccessPolicyVerified: boolean;
+  interiorScheduleVerified: boolean;
+  exteriorGroundsPolicyVerified: boolean;
+  exteriorGroundsScheduleVerified: boolean;
+  exteriorStreetVisibilityVerified: boolean;
+  verificationStatusLabel:
+    | 'Verified'
+    | 'Verified (Listed Days Only)'
+    | 'Verified Schedule (Access Policy Unverified)'
+    | 'Partially Verified (Sub-Facility Only)'
+    | 'Requires Clarification (Official Source Discrepancy)'
+    | 'Unverified';
+  lastVerifiedDate: string | null;
+  sources: ScheduleVerificationSource[];
+  verificationNotes?: string;
+}
+
+export interface SubFacilitySchedule {
+  id: string;
+  name: string;
+  targetScope: EvaluatorTargetScope;
+  visitorAccessStatus: VisitorAccessStatus;
+  visitorAccessStatusVerified: boolean;
+  policySources: ScheduleVerificationSource[];
+  allowParentPolicyOverride?: boolean;
+  overrideReason?: string;
+  isVerified: boolean;
+  verifiedDays: DayOfWeek[];
+  weeklyCoverage: 'all_7_days' | 'partial_days_only' | 'none';
+  regularHours: Record<DayOfWeek, DailyOperatingSchedule>;
+  scheduleSources: ScheduleVerificationSource[];
+  temporaryClosures?: TemporaryClosureEntry[];
+  specialSchedules?: SpecialScheduleEntry[];
+  lastVerifiedDate: string | null;
+  notes?: string;
+}
+
+export interface OperatingSchedule {
+  timezone: 'Asia/Manila';
+  physicalPreservationStatus: PhysicalPreservationStatus;
+  visitorAccessStatus: VisitorAccessStatus;
+  primaryVisitorScope: EvaluatorTargetScope;
+  interiorAccess: InteriorAccessInfo;
+  exteriorGroundsAccess: ExteriorGroundsAccessInfo;
+  exteriorStreetVisibility: ExteriorStreetVisibilityInfo;
+  regularHours: Record<DayOfWeek, DailyOperatingSchedule>;
+  specialSchedules: SpecialScheduleEntry[];
+  temporaryClosures: TemporaryClosureEntry[];
+  subFacilities?: SubFacilitySchedule[];
+  verification: AccessVerificationMetadata;
+  displaySummary: string;
+  publicNotes?: string;
+}
+
+export type AdmissionStatus = 'free' | 'paid' | 'unverified' | 'not_available';
+
+export type AdmissionPolicyKind =
+  | 'formal_policy'
+  | 'open_public_access'
+  | 'mixed_subfacilities'
+  | 'unverified';
+
+export interface AdmissionCategoryRate {
+  category: string;
+  amount: string;
+  notes?: string;
+}
+
+export interface AdmissionSubFacility {
+  name: string;
+  status: AdmissionStatus;
+  isVerified: boolean;
+  label: string;
+  notes?: string;
+}
+
+export interface AdmissionSourceReference {
+  title: string;
+  publisher: string;
+  url: string;
+  checkedDate: string;
+}
+
+export interface AdmissionInfo {
+  status: AdmissionStatus;
+  isVerified: boolean;
+  policyKind?: AdmissionPolicyKind;
+  scope?: string;
+  displayLabel: string;
+  rates?: AdmissionCategoryRate[];
+  subFacilities?: AdmissionSubFacility[];
+  sources?: AdmissionSourceReference[];
+  notes?: string;
+}
+
 export interface HeritageSite {
   id: string;
   name: string;
@@ -16,7 +347,9 @@ export interface HeritageSite {
   | 'Cultural & Religious (Non-Catholic Sites)';
   location: string;
   city: 'Cebu City' | 'Lapu-Lapu City' | 'Mandaue City' | 'Talisay City';
-  visitingHours: string;
+  visitingHours: string; // Compatibility/display field only — never treated as evidence of verified hours
+  operatingSchedule?: OperatingSchedule;
+  admissionInfo?: AdmissionInfo;
   imageUrl: string;
   galleryImages?: string[];
   imageAttributions?: { url: string; creator: string; license: string; licenseUrl: string }[];
@@ -1363,12 +1696,1700 @@ const ENRICHED_SITE_CONTENT: Record<string, Pick<HeritageSite, 'overview' | 'sig
   }
 };
 
-export const HERITAGE_SITES: HeritageSite[] = BASE_HERITAGE_SITES.map(site => ({
-  ...site,
-  ...(ENRICHED_SITE_CONTENT[site.id] || {}),
-  // Built-in directory scores are not visitor ratings; those come from reviews.
-  rating: undefined,
-}));
+export function createNotSpecifiedWeeklySchedule(
+  notes?: string
+): Record<DayOfWeek, DailyOperatingSchedule> {
+  return {
+    sunday: { state: 'not_specified', periods: [], ...(notes ? { notes } : {}) },
+    monday: { state: 'not_specified', periods: [], ...(notes ? { notes } : {}) },
+    tuesday: { state: 'not_specified', periods: [], ...(notes ? { notes } : {}) },
+    wednesday: { state: 'not_specified', periods: [], ...(notes ? { notes } : {}) },
+    thursday: { state: 'not_specified', periods: [], ...(notes ? { notes } : {}) },
+    friday: { state: 'not_specified', periods: [], ...(notes ? { notes } : {}) },
+    saturday: { state: 'not_specified', periods: [], ...(notes ? { notes } : {}) },
+  };
+}
+
+export function cloneWeeklySchedule(
+  schedule?: Partial<Record<DayOfWeek, DailyOperatingSchedule>> | null
+): Record<DayOfWeek, DailyOperatingSchedule> {
+  const base = createNotSpecifiedWeeklySchedule();
+  if (!schedule || typeof schedule !== 'object') return base;
+  for (const day of ALL_DAYS_OF_WEEK) {
+    const entry = schedule[day];
+    if (entry && typeof entry === 'object') {
+      base[day] = {
+        state: entry.state || 'not_specified',
+        periods: Array.isArray(entry.periods)
+          ? entry.periods.map(p => ({
+              open: String(p.open || ''),
+              close: String(p.close || ''),
+              ...(p.label ? { label: String(p.label) } : {}),
+            }))
+          : [],
+        ...(entry.notes ? { notes: String(entry.notes) } : {}),
+      };
+    }
+  }
+  return base;
+}
+
+const EXTERIOR_PRIMARY_SITE_IDS = new Set<string>([
+  'cebu-cross',
+  'cebu-heritage-monument',
+  'cebu-colon-street',
+  'cebu-tres-de-abril-marker',
+  'cebu-plaza-independencia',
+  'cebu-plaza-sugbo',
+  'cebu-plaza-hamabar',
+  'cebu-fuente-osmena',
+  'talisay-landing',
+  'talisay-plaza',
+  'mandaue-watchtower',
+  'mandaue-bridge',
+  'marcelo-fernan-bridge',
+  'mandaue-plaza',
+  'llc-mactan-shrine',
+  'llc-magellan-marker',
+  'llc-plaza-rizal',
+  'llc-millennium-park',
+  'llc-bridge-park',
+]);
+
+export function inferPrimaryVisitorScopeForSite(
+  site?: Partial<HeritageSite> | null
+): EvaluatorTargetScope {
+  if (!site) return 'interior';
+  if (site.id && EXTERIOR_PRIMARY_SITE_IDS.has(site.id)) {
+    return 'exterior_grounds';
+  }
+  if (
+    site.category === 'Plazas, Parks & Public Spaces' ||
+    site.category === 'Historical Landmarks & Monuments'
+  ) {
+    if (site.id === 'cebu-fort-san-pedro' || site.id === 'cebu-rizal-memorial-library') {
+      return 'interior';
+    }
+    return 'exterior_grounds';
+  }
+  return 'interior';
+}
+
+const CASA_GORORDO_OFFICIAL_SOURCE: ScheduleVerificationSource = {
+  id: 'casa-gorordo-official-2026',
+  title: 'Casa Gorordo Museum – Official Visitor Information',
+  publisher: 'Ramon Aboitiz Foundation Inc. (RAFI) / Casa Gorordo Museum',
+  url: 'https://casagorordomuseum.org/',
+  sourceType: 'Official Museum / Institution Website',
+  checkedDate: '2026-11-23',
+  supportedClaims: [
+    'global_visitor_access_policy',
+    'interior_access_policy',
+    'interior_regular_schedule',
+  ],
+  notes:
+    'Official website states that all guests are hosted by guides and lists operating hours as Monday–Saturday, 9:00 AM–5:00 PM; Sunday is not specified.',
+};
+
+const NMP_CEBU_RESERVATION_SOURCE: ScheduleVerificationSource = {
+  id: 'nmp-cebu-reservation-2026',
+  title: 'National Museum of the Philippines – Regional Museum Reservation Portal (Cebu)',
+  publisher: 'National Museum of the Philippines (NMP)',
+  url: 'https://reservation.nationalmuseum.gov.ph/reservation/book/region-museum',
+  sourceType: 'Official Museum / Institution Website',
+  checkedDate: '2026-11-23',
+  supportedClaims: [
+    'global_visitor_access_policy',
+    'interior_access_policy',
+    'interior_regular_schedule',
+  ],
+  notes: 'Lists National Museum of the Philippines – Cebu operating hours as Monday–Sunday, 9:00 AM–6:00 PM with free public admission.',
+};
+
+const NMP_CEBU_OFFICIAL_PAGE_SOURCE: ScheduleVerificationSource = {
+  id: 'nmp-cebu-official-page-2026',
+  title: 'National Museum of the Philippines – Cebu Regional Museum',
+  publisher: 'National Museum of the Philippines (NMP)',
+  url: 'https://www.nationalmuseum.gov.ph/our-museums/regional-area-and-site-museums/cebu/',
+  sourceType: 'Official Museum / Institution Website',
+  checkedDate: '2026-11-23',
+  supportedClaims: [
+    'global_visitor_access_policy',
+    'interior_access_policy',
+    'interior_regular_schedule',
+  ],
+  notes: 'Confirms public admission and daily museum operations for NMP Cebu.',
+};
+
+const USC_MUSEUM_OFFICIAL_SOURCE: ScheduleVerificationSource = {
+  id: 'usc-museum-visit-usc-2026',
+  title: 'Visit USC – University of San Carlos Museum',
+  publisher: 'University of San Carlos (USC)',
+  url: 'https://usc.edu.ph/catholic-educational-institution-visit-usc',
+  sourceType: 'Official Museum / Institution Website',
+  checkedDate: '2026-11-23',
+  supportedClaims: ['interior_regular_schedule'],
+  notes:
+    'Lists USC Museum hours as Monday–Friday 8:30 AM–5:30 PM and Saturday 8:00 AM–12:00 PM, except holidays. Sunday is not specified, and external visitor campus gate security/entry policy is not specified on this page.',
+};
+
+const BASILICA_GATES_OFFICIAL_SOURCE: ScheduleVerificationSource = {
+  id: 'basilica-gates-schedule-2026',
+  title: 'Basilica Minore del Santo Niño – Mass, Confession, and Gate Opening & Closing Schedules',
+  publisher: 'Basilica Minore del Santo Niño de Cebu',
+  url: 'https://santoninodecebubasilica.org/basilica-minore-del-santo-nino/mass-and-confession-schedules/',
+  sourceType: 'Official Church / Basilica Website',
+  checkedDate: '2026-11-23',
+  supportedClaims: [
+    'sub_facility_access_policy',
+    'sub_facility_regular_schedule',
+  ],
+  notes:
+    'Separate "Gate Opening & Closing" section explicitly confirms 4:00 AM–9:00 PM daily for Basilica Complex Gates. Does not specify church sanctuary interior tourist hours or Pilgrim Center visitor access hours.',
+};
+
+const BASILICA_MUSEUM_OFFICIAL_SOURCE: ScheduleVerificationSource = {
+  id: 'basilica-basement-museum-2026',
+  title: 'Basilica Minore del Santo Niño Museum (Pilgrim Center Basement)',
+  publisher: 'Basilica Minore del Santo Niño de Cebu',
+  url: 'https://santoninodecebubasilica.org/basilica-minore-del-santo-nino/museum/',
+  sourceType: 'Official Church / Basilica Website',
+  checkedDate: '2026-11-23',
+  supportedClaims: [
+    'sub_facility_access_policy',
+    'sub_facility_regular_schedule',
+  ],
+  notes:
+    'Confirms basement museum visitor hours as 8:00 AM–11:45 AM and 1:00 PM–4:45 PM daily inside the Pilgrim Center basement.',
+};
+
+const CCPL_GMA_2025_SOURCE: ScheduleVerificationSource = {
+  id: 'ccpl-gma-june-2025',
+  title: 'Cebu City Public Library reopens 24/7 beginning June 30, 2025',
+  publisher: 'GMA Regional TV',
+  url: 'https://www.gmanetwork.com/regionaltv/features/108864/cebu-city-public-library-reopens-247-beginning-june-30-2025/story/',
+  sourceType: 'Verified News Report',
+  checkedDate: '2026-11-23',
+  supportedClaims: [],
+  notes:
+    'Reports the June 30, 2025 resumption of 24/7 operations for the ground-floor Cebu City Public Library only; does not independently confirm current 2026 live status or upper-floor Rizal Memorial Museum hours.',
+};
+
+const CCPL_SUNSTAR_2025_SOURCE: ScheduleVerificationSource = {
+  id: 'ccpl-sunstar-june-2025',
+  title: 'Cebu City Public Library relaunches with focus on PWD inclusivity',
+  publisher: 'SunStar Cebu',
+  url: 'https://www.sunstar.com.ph/cebu/cebu-city-public-library-relaunches-with-focus-on-pwd-inclusivity',
+  sourceType: 'Verified News Report',
+  checkedDate: '2026-11-23',
+  supportedClaims: [],
+  notes:
+    'Reports the June 30, 2025 relaunch of the ground-floor Cebu City Public Library; does not verify upper-floor museum gallery hours or current 2026 uninterrupted 24/7 status.',
+};
+
+const SUGBU_CHINESE_DISCREPANCY_SOURCE: ScheduleVerificationSource = {
+  id: 'sugbu-chinese-official-discrepancy-2026',
+  title: 'Sugbu Chinese Heritage Museum Official Website',
+  publisher: 'Sugbu Chinese Heritage Museum Foundation, Inc.',
+  url: 'https://sugbuchinese.com/',
+  sourceType: 'Official Museum / Institution Website',
+  checkedDate: '2026-11-23',
+  supportedClaims: [],
+  notes:
+    'Official website displays a schedule discrepancy across its sections between Friday–Sunday 8:00 AM–5:00 PM and Friday–Sunday 10:00 AM–5:00 PM; Monday–Thursday hours are not specified.',
+};
+
+export function buildDefaultUnverifiedOperatingSchedule(
+  site: Partial<HeritageSite> = {}
+): OperatingSchedule {
+  const primaryScope = inferPrimaryVisitorScopeForSite(site);
+  const isDemolished = site.demolitionStatus === 'Demolished';
+  const emptyHours = createNotSpecifiedWeeklySchedule();
+  const legacyHoursNote = site.visitingHours
+    ? `Unverified directory note: ${site.visitingHours}`
+    : 'Operating hours require official verification';
+
+  return {
+    timezone: 'Asia/Manila',
+    physicalPreservationStatus: isDemolished ? 'Demolished / Lost' : 'Standing',
+    visitorAccessStatus: isDemolished ? 'Demolished / Lost' : 'Unknown / Unverified',
+    primaryVisitorScope: primaryScope,
+    interiorAccess: {
+      policyStatus:
+        primaryScope === 'exterior_grounds'
+          ? 'Not Applicable (Open-Air / Exterior Landmark)'
+          : 'Unknown / Unverified',
+      policyVerified: false,
+      policySources: [],
+      scheduleVerified: false,
+      verifiedDays: [],
+      weeklyCoverage: 'none',
+      regularHours: createNotSpecifiedWeeklySchedule(),
+      scheduleSources: [],
+      lastVerifiedDate: null,
+    },
+    exteriorGroundsAccess: {
+      policyStatus: 'Unknown / Unverified',
+      policyVerified: false,
+      policySources: [],
+      scheduleVerified: false,
+      verifiedDays: [],
+      weeklyCoverage: 'none',
+      regularHours: createNotSpecifiedWeeklySchedule(),
+      scheduleSources: [],
+      lastVerifiedDate: null,
+    },
+    exteriorStreetVisibility: {
+      status: 'Unknown / Unverified',
+      isVerified: false,
+      sources: [],
+      lastVerifiedDate: null,
+    },
+    regularHours: emptyHours,
+    specialSchedules: [],
+    temporaryClosures: [],
+    subFacilities: [],
+    verification: {
+      scheduleVerified: false,
+      visitorAccessStatusVerified: isDemolished,
+      visitorAccessStatusSources: [],
+      verifiedDays: [],
+      weeklyCoverage: 'none',
+      interiorAccessPolicyVerified: false,
+      interiorScheduleVerified: false,
+      exteriorGroundsPolicyVerified: false,
+      exteriorGroundsScheduleVerified: false,
+      exteriorStreetVisibilityVerified: false,
+      verificationStatusLabel: 'Unverified',
+      lastVerifiedDate: null,
+      sources: [],
+      verificationNotes: legacyHoursNote,
+    },
+    displaySummary: site.visitingHours || 'Hours Unverified',
+  };
+}
+
+function buildAuditedOperatingSchedules(): Record<string, OperatingSchedule> {
+  // 1. Casa Gorordo Museum (Group A #1 — Mon-Sat verified interior policy + schedule; Sun not_specified)
+  const casaGorordoHours = createNotSpecifiedWeeklySchedule();
+  for (const day of WEEKDAYS_MONDAY_TO_SATURDAY) {
+    casaGorordoHours[day] = {
+      state: 'open',
+      periods: [{ open: '09:00', close: '17:00' }],
+    };
+  }
+  casaGorordoHours.sunday = {
+    state: 'not_specified',
+    periods: [],
+    notes: 'Sunday is not listed on the official website; do not assume closed without confirmation.',
+  };
+
+  // 2. National Museum of the Philippines - Cebu (Group A #2 — All 7 days verified interior policy + schedule)
+  const nationalMuseumHours = createNotSpecifiedWeeklySchedule();
+  for (const day of ALL_DAYS_OF_WEEK) {
+    nationalMuseumHours[day] = {
+      state: 'open',
+      periods: [{ open: '09:00', close: '18:00' }],
+    };
+  }
+
+  // 3. University of San Carlos Museum (Group A #3 — Mon-Sat verified interior schedule; interior access policy unverified; Sun not_specified)
+  const uscMuseumHours = createNotSpecifiedWeeklySchedule();
+  for (const day of ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as DayOfWeek[]) {
+    uscMuseumHours[day] = {
+      state: 'open',
+      periods: [{ open: '08:30', close: '17:30' }],
+      notes: 'Except holidays',
+    };
+  }
+  uscMuseumHours.saturday = {
+    state: 'open',
+    periods: [{ open: '08:00', close: '12:00' }],
+    notes: 'Except holidays',
+  };
+  uscMuseumHours.sunday = {
+    state: 'not_specified',
+    periods: [],
+    notes: 'Sunday is not specified on the official Visit USC page.',
+  };
+
+  // 4. Basilica Minore del Santo Niño de Cebu (Group B #4 — Sub-facilities verified; main sanctuary interior & Pilgrim Center unverified)
+  const basilicaGateHours = createNotSpecifiedWeeklySchedule();
+  const basilicaMuseumHours = createNotSpecifiedWeeklySchedule();
+  for (const day of ALL_DAYS_OF_WEEK) {
+    basilicaGateHours[day] = {
+      state: 'open',
+      periods: [{ open: '04:00', close: '21:00', label: 'Complex Gate Hours' }],
+    };
+    basilicaMuseumHours[day] = {
+      state: 'open',
+      periods: [
+        { open: '08:00', close: '11:45', label: 'Morning Session' },
+        { open: '13:00', close: '16:45', label: 'Afternoon Session' },
+      ],
+    };
+  }
+
+  return {
+    'cebu-casa-gorordo': {
+      timezone: 'Asia/Manila',
+      physicalPreservationStatus: 'Restored',
+      visitorAccessStatus: 'Guided / Ticketed Entry',
+      primaryVisitorScope: 'interior',
+      interiorAccess: {
+        policyStatus: 'Guided / Ticketed Interior',
+        policyVerified: true,
+        policySources: [CASA_GORORDO_OFFICIAL_SOURCE],
+        scheduleVerified: true,
+        verifiedDays: [...WEEKDAYS_MONDAY_TO_SATURDAY],
+        weeklyCoverage: 'partial_days_only',
+        regularHours: cloneWeeklySchedule(casaGorordoHours),
+        scheduleSources: [CASA_GORORDO_OFFICIAL_SOURCE],
+        lastVerifiedDate: '2026-11-23',
+        notes: 'All guests are hosted by museum guides.',
+      },
+      exteriorGroundsAccess: {
+        policyStatus: 'Unknown / Unverified',
+        policyVerified: false,
+        policySources: [],
+        scheduleVerified: false,
+        verifiedDays: [],
+        weeklyCoverage: 'none',
+        regularHours: createNotSpecifiedWeeklySchedule(),
+        scheduleSources: [],
+        lastVerifiedDate: null,
+        notes: 'Courtyard/compound access without a guided tour is not specified on the official page.',
+      },
+      exteriorStreetVisibility: {
+        status: 'Unknown / Unverified',
+        isVerified: false,
+        sources: [],
+        lastVerifiedDate: null,
+      },
+      regularHours: cloneWeeklySchedule(casaGorordoHours),
+      specialSchedules: [],
+      temporaryClosures: [],
+      subFacilities: [],
+      verification: {
+        scheduleVerified: true,
+        visitorAccessStatusVerified: true,
+        visitorAccessStatusSources: [CASA_GORORDO_OFFICIAL_SOURCE],
+        verifiedDays: [...WEEKDAYS_MONDAY_TO_SATURDAY],
+        weeklyCoverage: 'partial_days_only',
+        interiorAccessPolicyVerified: true,
+        interiorScheduleVerified: true,
+        exteriorGroundsPolicyVerified: false,
+        exteriorGroundsScheduleVerified: false,
+        exteriorStreetVisibilityVerified: false,
+        verificationStatusLabel: 'Verified (Listed Days Only)',
+        lastVerifiedDate: '2026-11-23',
+        sources: [CASA_GORORDO_OFFICIAL_SOURCE],
+        verificationNotes: 'Verified Monday–Saturday 9:00 AM–5:00 PM; Sunday hours not specified.',
+      },
+      displaySummary: 'Mon–Sat: 9:00 AM – 5:00 PM; Sun: Not specified',
+      publicNotes: 'All guests are hosted by museum guides. Sunday operating status requires direct confirmation.',
+    },
+
+    'cebu-national-museum': {
+      timezone: 'Asia/Manila',
+      physicalPreservationStatus: 'Restored',
+      visitorAccessStatus: 'Publicly Accessible',
+      primaryVisitorScope: 'interior',
+      interiorAccess: {
+        policyStatus: 'Publicly Accessible Interior',
+        policyVerified: true,
+        policySources: [NMP_CEBU_RESERVATION_SOURCE, NMP_CEBU_OFFICIAL_PAGE_SOURCE],
+        scheduleVerified: true,
+        verifiedDays: [...ALL_DAYS_OF_WEEK],
+        weeklyCoverage: 'all_7_days',
+        regularHours: cloneWeeklySchedule(nationalMuseumHours),
+        scheduleSources: [NMP_CEBU_RESERVATION_SOURCE, NMP_CEBU_OFFICIAL_PAGE_SOURCE],
+        lastVerifiedDate: '2026-11-23',
+        notes: 'Free public walk-in admission for individuals and small groups under 20 pax.',
+      },
+      exteriorGroundsAccess: {
+        policyStatus: 'Unknown / Unverified',
+        policyVerified: false,
+        policySources: [],
+        scheduleVerified: false,
+        verifiedDays: [],
+        weeklyCoverage: 'none',
+        regularHours: createNotSpecifiedWeeklySchedule(),
+        scheduleSources: [],
+        lastVerifiedDate: null,
+        notes: 'Surrounding Aduana compound grounds access outside gallery hours is not inferred from museum hours.',
+      },
+      exteriorStreetVisibility: {
+        status: 'Unknown / Unverified',
+        isVerified: false,
+        sources: [],
+        lastVerifiedDate: null,
+      },
+      regularHours: cloneWeeklySchedule(nationalMuseumHours),
+      specialSchedules: [],
+      temporaryClosures: [],
+      subFacilities: [],
+      verification: {
+        scheduleVerified: true,
+        visitorAccessStatusVerified: true,
+        visitorAccessStatusSources: [NMP_CEBU_RESERVATION_SOURCE, NMP_CEBU_OFFICIAL_PAGE_SOURCE],
+        verifiedDays: [...ALL_DAYS_OF_WEEK],
+        weeklyCoverage: 'all_7_days',
+        interiorAccessPolicyVerified: true,
+        interiorScheduleVerified: true,
+        exteriorGroundsPolicyVerified: false,
+        exteriorGroundsScheduleVerified: false,
+        exteriorStreetVisibilityVerified: false,
+        verificationStatusLabel: 'Verified',
+        lastVerifiedDate: '2026-11-23',
+        sources: [NMP_CEBU_RESERVATION_SOURCE, NMP_CEBU_OFFICIAL_PAGE_SOURCE],
+        verificationNotes: 'Verified Monday–Sunday 9:00 AM–6:00 PM via the NMP Regional Museum Reservation Portal.',
+      },
+      displaySummary: 'Mon–Sun: 9:00 AM – 6:00 PM',
+      publicNotes: 'Open daily 9:00 AM–6:00 PM with free public admission.',
+    },
+
+    'cebu-usc-museum': {
+      timezone: 'Asia/Manila',
+      physicalPreservationStatus: 'Standing',
+      visitorAccessStatus: 'Unknown / Unverified',
+      primaryVisitorScope: 'interior',
+      interiorAccess: {
+        policyStatus: 'Unknown / Unverified',
+        policyVerified: false,
+        policySources: [],
+        scheduleVerified: true,
+        verifiedDays: [...WEEKDAYS_MONDAY_TO_SATURDAY],
+        weeklyCoverage: 'partial_days_only',
+        regularHours: cloneWeeklySchedule(uscMuseumHours),
+        scheduleSources: [USC_MUSEUM_OFFICIAL_SOURCE],
+        lastVerifiedDate: '2026-11-23',
+        notes: 'Official Visit USC page verifies Mon–Fri 8:30 AM–5:30 PM and Sat 8:00 AM–12:00 PM (except holidays), but does not specify campus gate security or non-USC walk-in entry rules.',
+      },
+      exteriorGroundsAccess: {
+        policyStatus: 'Unknown / Unverified',
+        policyVerified: false,
+        policySources: [],
+        scheduleVerified: false,
+        verifiedDays: [],
+        weeklyCoverage: 'none',
+        regularHours: createNotSpecifiedWeeklySchedule(),
+        scheduleSources: [],
+        lastVerifiedDate: null,
+      },
+      exteriorStreetVisibility: {
+        status: 'Unknown / Unverified',
+        isVerified: false,
+        sources: [],
+        lastVerifiedDate: null,
+      },
+      regularHours: cloneWeeklySchedule(uscMuseumHours),
+      specialSchedules: [],
+      temporaryClosures: [],
+      subFacilities: [],
+      verification: {
+        scheduleVerified: true,
+        visitorAccessStatusVerified: false,
+        visitorAccessStatusSources: [],
+        verifiedDays: [...WEEKDAYS_MONDAY_TO_SATURDAY],
+        weeklyCoverage: 'partial_days_only',
+        interiorAccessPolicyVerified: false,
+        interiorScheduleVerified: true,
+        exteriorGroundsPolicyVerified: false,
+        exteriorGroundsScheduleVerified: false,
+        exteriorStreetVisibilityVerified: false,
+        verificationStatusLabel: 'Verified Schedule (Access Policy Unverified)',
+        lastVerifiedDate: '2026-11-23',
+        sources: [USC_MUSEUM_OFFICIAL_SOURCE],
+        verificationNotes:
+          'Mon–Fri 8:30 AM–5:30 PM & Sat 8:00 AM–12:00 PM (except holidays) schedule is verified; campus visitor entry policy and Sunday status require confirmation.',
+      },
+      displaySummary: 'Mon–Fri: 8:30 AM – 5:30 PM; Sat: 8:00 AM – 12:00 PM (Except holidays; entry policy unverified)',
+      publicNotes:
+        'Published museum hours are Mon–Fri 8:30 AM–5:30 PM and Sat 8:00 AM–12:00 PM (except holidays); confirm campus gate entry rules before visiting.',
+    },
+
+    'cebu-basilica': {
+      timezone: 'Asia/Manila',
+      physicalPreservationStatus: 'Restored',
+      visitorAccessStatus: 'Unknown / Unverified',
+      primaryVisitorScope: 'interior',
+      interiorAccess: {
+        policyStatus: 'Unknown / Unverified',
+        policyVerified: false,
+        policySources: [],
+        scheduleVerified: false,
+        verifiedDays: [],
+        weeklyCoverage: 'none',
+        regularHours: createNotSpecifiedWeeklySchedule(
+          'Main Basilica sanctuary interior tourist access hours outside liturgical mass schedules are not separately specified.'
+        ),
+        scheduleSources: [],
+        lastVerifiedDate: null,
+        notes: 'Complex gate hours (4:00 AM–9:00 PM) do not automatically apply to church sanctuary interior or Pilgrim Center visitor access.',
+      },
+      exteriorGroundsAccess: {
+        policyStatus: 'Unknown / Unverified',
+        policyVerified: false,
+        policySources: [],
+        scheduleVerified: false,
+        verifiedDays: [],
+        weeklyCoverage: 'none',
+        regularHours: createNotSpecifiedWeeklySchedule(
+          'See the Basilica Complex Gates sub-facility for verified daily gate opening and closing hours (4:00 AM–9:00 PM).'
+        ),
+        scheduleSources: [],
+        lastVerifiedDate: null,
+        notes: 'Basilica Complex Gates (4:00 AM–9:00 PM daily) are tracked as a verified sub-facility distinct from Pilgrim Center visitor access.',
+      },
+      exteriorStreetVisibility: {
+        status: 'Unknown / Unverified',
+        isVerified: false,
+        sources: [],
+        lastVerifiedDate: null,
+      },
+      regularHours: createNotSpecifiedWeeklySchedule(),
+      specialSchedules: [],
+      temporaryClosures: [],
+      subFacilities: [
+        {
+          id: 'basilica-complex-gates',
+          name: 'Basilica Complex Gates',
+          targetScope: 'exterior_grounds',
+          visitorAccessStatus: 'Publicly Accessible',
+          visitorAccessStatusVerified: true,
+          policySources: [BASILICA_GATES_OFFICIAL_SOURCE],
+          isVerified: true,
+          verifiedDays: [...ALL_DAYS_OF_WEEK],
+          weeklyCoverage: 'all_7_days',
+          regularHours: cloneWeeklySchedule(basilicaGateHours),
+          scheduleSources: [BASILICA_GATES_OFFICIAL_SOURCE],
+          temporaryClosures: [],
+          specialSchedules: [],
+          lastVerifiedDate: '2026-11-23',
+          notes:
+            'Verified under the separate "Gate Opening & Closing" section (4:00 AM–9:00 PM daily). Does not automatically apply to church interior or Pilgrim Center access.',
+        },
+        {
+          id: 'basilica-basement-museum',
+          name: 'Basilica Museum (Pilgrim Center Basement)',
+          targetScope: 'interior',
+          visitorAccessStatus: 'Guided / Ticketed Entry',
+          visitorAccessStatusVerified: true,
+          policySources: [BASILICA_MUSEUM_OFFICIAL_SOURCE],
+          isVerified: true,
+          verifiedDays: [...ALL_DAYS_OF_WEEK],
+          weeklyCoverage: 'all_7_days',
+          regularHours: cloneWeeklySchedule(basilicaMuseumHours),
+          scheduleSources: [BASILICA_MUSEUM_OFFICIAL_SOURCE],
+          temporaryClosures: [],
+          specialSchedules: [],
+          lastVerifiedDate: '2026-11-23',
+          notes: 'Located at the basement of the Santo Niño Pilgrim Center (8:00 AM–11:45 AM & 1:00 PM–4:45 PM daily).',
+        },
+      ],
+      verification: {
+        scheduleVerified: false,
+        visitorAccessStatusVerified: false,
+        visitorAccessStatusSources: [],
+        verifiedDays: [],
+        weeklyCoverage: 'none',
+        interiorAccessPolicyVerified: false,
+        interiorScheduleVerified: false,
+        exteriorGroundsPolicyVerified: false,
+        exteriorGroundsScheduleVerified: false,
+        exteriorStreetVisibilityVerified: false,
+        verificationStatusLabel: 'Partially Verified (Sub-Facility Only)',
+        lastVerifiedDate: '2026-11-23',
+        sources: [BASILICA_GATES_OFFICIAL_SOURCE, BASILICA_MUSEUM_OFFICIAL_SOURCE],
+        verificationNotes:
+          'Basilica Complex Gates (4:00 AM–9:00 PM daily) and Basement Museum (8:00 AM–11:45 AM & 1:00 PM–4:45 PM daily) are verified as separate sub-facilities; church interior and Pilgrim Center visitor access hours remain unverified.',
+      },
+      displaySummary:
+        'Complex Gates: 4:00 AM – 9:00 PM Daily; Basement Museum: 8:00 AM – 11:45 AM & 1:00 PM – 4:45 PM Daily (Church Interior & Pilgrim Center unverified)',
+      publicNotes:
+        'Complex gates open 4:00 AM–9:00 PM daily; Basement Museum opens 8:00 AM–11:45 AM and 1:00 PM–4:45 PM daily. Main church interior and Pilgrim Center tourist access hours are unverified.',
+    },
+
+    'cebu-rizal-memorial-library': {
+      timezone: 'Asia/Manila',
+      physicalPreservationStatus: 'Standing',
+      visitorAccessStatus: 'Unknown / Unverified',
+      primaryVisitorScope: 'interior',
+      interiorAccess: {
+        policyStatus: 'Unknown / Unverified',
+        policyVerified: false,
+        policySources: [],
+        scheduleVerified: false,
+        verifiedDays: [],
+        weeklyCoverage: 'none',
+        regularHours: createNotSpecifiedWeeklySchedule(
+          'Upper-floor Rizal Memorial Museum and cultural office operating hours are unverified.'
+        ),
+        scheduleSources: [],
+        lastVerifiedDate: null,
+        notes: 'Do not automatically apply the ground-floor Cebu City Public Library schedule to the upper-floor museum galleries.',
+      },
+      exteriorGroundsAccess: {
+        policyStatus: 'Unknown / Unverified',
+        policyVerified: false,
+        policySources: [],
+        scheduleVerified: false,
+        verifiedDays: [],
+        weeklyCoverage: 'none',
+        regularHours: createNotSpecifiedWeeklySchedule(),
+        scheduleSources: [],
+        lastVerifiedDate: null,
+      },
+      exteriorStreetVisibility: {
+        status: 'Unknown / Unverified',
+        isVerified: false,
+        sources: [],
+        lastVerifiedDate: null,
+      },
+      regularHours: createNotSpecifiedWeeklySchedule(),
+      specialSchedules: [],
+      temporaryClosures: [],
+      subFacilities: [
+        {
+          id: 'ccpl-ground-floor-library',
+          name: 'Cebu City Public Library (Ground Floor)',
+          targetScope: 'interior',
+          visitorAccessStatus: 'Unknown / Unverified',
+          visitorAccessStatusVerified: false,
+          policySources: [],
+          isVerified: false,
+          verifiedDays: [],
+          weeklyCoverage: 'none',
+          regularHours: createNotSpecifiedWeeklySchedule(
+            'Reported as resuming 24/7 operation beginning June 30, 2025; requires current 2026 confirmation.'
+          ),
+          scheduleSources: [CCPL_GMA_2025_SOURCE, CCPL_SUNSTAR_2025_SOURCE],
+          temporaryClosures: [],
+          specialSchedules: [],
+          lastVerifiedDate: '2026-11-23',
+          notes:
+            'June 2025 news reports document the June 30, 2025 resumption of 24/7 operations for the ground-floor public library only and do not independently verify current 2026 live status.',
+        },
+      ],
+      verification: {
+        scheduleVerified: false,
+        visitorAccessStatusVerified: false,
+        visitorAccessStatusSources: [],
+        verifiedDays: [],
+        weeklyCoverage: 'none',
+        interiorAccessPolicyVerified: false,
+        interiorScheduleVerified: false,
+        exteriorGroundsPolicyVerified: false,
+        exteriorGroundsScheduleVerified: false,
+        exteriorStreetVisibilityVerified: false,
+        verificationStatusLabel: 'Partially Verified (Sub-Facility Only)',
+        lastVerifiedDate: '2026-11-23',
+        sources: [CCPL_GMA_2025_SOURCE, CCPL_SUNSTAR_2025_SOURCE],
+        verificationNotes:
+          'Upper-floor museum hours are unverified. Ground-floor Cebu City Public Library was reported as resuming 24/7 operations on June 30, 2025, requiring current 2026 confirmation.',
+      },
+      displaySummary:
+        'Upper-Floor Museum: Hours Unverified; Ground-Floor Library: Reported 24/7 resumption (June 30, 2025 — requires current confirmation)',
+      publicNotes:
+        'The ground-floor Cebu City Public Library was reported as resuming 24/7 operation on June 30, 2025; upper-floor museum gallery hours and current 2026 library hours require confirmation.',
+    },
+
+    'cebu-sugbu-chinese-museum': {
+      timezone: 'Asia/Manila',
+      physicalPreservationStatus: 'Restored',
+      visitorAccessStatus: 'Unknown / Unverified',
+      primaryVisitorScope: 'interior',
+      interiorAccess: {
+        policyStatus: 'Unknown / Unverified',
+        policyVerified: false,
+        policySources: [],
+        scheduleVerified: false,
+        verifiedDays: [],
+        weeklyCoverage: 'none',
+        regularHours: createNotSpecifiedWeeklySchedule(
+          'Official website (sugbuchinese.com) conflicts between Fri–Sun 8:00 AM–5:00 PM and Fri–Sun 10:00 AM–5:00 PM; Mon–Thu not specified.'
+        ),
+        scheduleSources: [SUGBU_CHINESE_DISCREPANCY_SOURCE],
+        lastVerifiedDate: '2026-11-23',
+        notes: 'Requires direct confirmation from Sugbu Chinese Heritage Museum Foundation, Inc.',
+      },
+      exteriorGroundsAccess: {
+        policyStatus: 'Unknown / Unverified',
+        policyVerified: false,
+        policySources: [],
+        scheduleVerified: false,
+        verifiedDays: [],
+        weeklyCoverage: 'none',
+        regularHours: createNotSpecifiedWeeklySchedule(),
+        scheduleSources: [],
+        lastVerifiedDate: null,
+      },
+      exteriorStreetVisibility: {
+        status: 'Unknown / Unverified',
+        isVerified: false,
+        sources: [],
+        lastVerifiedDate: null,
+      },
+      regularHours: createNotSpecifiedWeeklySchedule(),
+      specialSchedules: [],
+      temporaryClosures: [],
+      subFacilities: [],
+      verification: {
+        scheduleVerified: false,
+        visitorAccessStatusVerified: false,
+        visitorAccessStatusSources: [],
+        verifiedDays: [],
+        weeklyCoverage: 'none',
+        interiorAccessPolicyVerified: false,
+        interiorScheduleVerified: false,
+        exteriorGroundsPolicyVerified: false,
+        exteriorGroundsScheduleVerified: false,
+        exteriorStreetVisibilityVerified: false,
+        verificationStatusLabel: 'Requires Clarification (Official Source Discrepancy)',
+        lastVerifiedDate: '2026-11-23',
+        sources: [SUGBU_CHINESE_DISCREPANCY_SOURCE],
+        verificationNotes:
+          'Official website (sugbuchinese.com) displays conflicting Friday–Sunday schedules (8:00 AM–5:00 PM vs. 10:00 AM–5:00 PM) and does not specify Monday–Thursday status.',
+      },
+      displaySummary:
+        'Requires Confirmation (Official website lists conflicting Fri–Sun 8:00 AM–5:00 PM vs. 10:00 AM–5:00 PM; Mon–Thu not specified)',
+      publicNotes:
+        'Official website lists conflicting Friday–Sunday hours (8:00 AM–5:00 PM vs. 10:00 AM–5:00 PM); Monday–Thursday is not specified. Please confirm before visiting.',
+    },
+  };
+}
+
+const AUDITED_OPERATING_SCHEDULES = buildAuditedOperatingSchedules();
+
+export function normalizeOperatingSchedule(
+  rawSchedule: Partial<OperatingSchedule> | null | undefined,
+  fallbackSite?: Partial<HeritageSite> | null
+): OperatingSchedule {
+  const staticBaseline =
+    (fallbackSite?.id && AUDITED_OPERATING_SCHEDULES[fallbackSite.id]) ||
+    fallbackSite?.operatingSchedule ||
+    buildDefaultUnverifiedOperatingSchedule(fallbackSite || {});
+
+  if (!rawSchedule || typeof rawSchedule !== 'object') {
+    const clonedBaseline: OperatingSchedule = {
+      ...staticBaseline,
+      interiorAccess: {
+        ...staticBaseline.interiorAccess,
+        policySources: [...(staticBaseline.interiorAccess.policySources || [])],
+        verifiedDays: [...(staticBaseline.interiorAccess.verifiedDays || [])],
+        regularHours: cloneWeeklySchedule(staticBaseline.interiorAccess.regularHours),
+        scheduleSources: [...(staticBaseline.interiorAccess.scheduleSources || [])],
+      },
+      exteriorGroundsAccess: {
+        ...staticBaseline.exteriorGroundsAccess,
+        policySources: [...(staticBaseline.exteriorGroundsAccess.policySources || [])],
+        verifiedDays: [...(staticBaseline.exteriorGroundsAccess.verifiedDays || [])],
+        regularHours: cloneWeeklySchedule(staticBaseline.exteriorGroundsAccess.regularHours),
+        scheduleSources: [...(staticBaseline.exteriorGroundsAccess.scheduleSources || [])],
+      },
+      exteriorStreetVisibility: {
+        ...staticBaseline.exteriorStreetVisibility,
+        sources: [...(staticBaseline.exteriorStreetVisibility.sources || [])],
+      },
+      regularHours: cloneWeeklySchedule(staticBaseline.regularHours),
+      specialSchedules: Array.isArray(staticBaseline.specialSchedules)
+        ? staticBaseline.specialSchedules.map(s => ({ ...s, periods: [...(s.periods || [])], sources: [...(s.sources || [])] }))
+        : [],
+      temporaryClosures: Array.isArray(staticBaseline.temporaryClosures)
+        ? staticBaseline.temporaryClosures.map(c => ({ ...c, sources: [...(c.sources || [])] }))
+        : [],
+      subFacilities: Array.isArray(staticBaseline.subFacilities)
+        ? staticBaseline.subFacilities.map(sub => ({
+            ...sub,
+            policySources: [...(sub.policySources || [])],
+            verifiedDays: [...(sub.verifiedDays || [])],
+            regularHours: cloneWeeklySchedule(sub.regularHours),
+            scheduleSources: [...(sub.scheduleSources || [])],
+            temporaryClosures: [...(sub.temporaryClosures || [])],
+            specialSchedules: [...(sub.specialSchedules || [])],
+          }))
+        : [],
+      verification: {
+        ...staticBaseline.verification,
+        visitorAccessStatusSources: [...(staticBaseline.verification.visitorAccessStatusSources || [])],
+        verifiedDays: [...(staticBaseline.verification.verifiedDays || [])],
+        sources: [...(staticBaseline.verification.sources || [])],
+      },
+    };
+    if (fallbackSite?.demolitionStatus === 'Demolished') {
+      clonedBaseline.physicalPreservationStatus = 'Demolished / Lost';
+      clonedBaseline.visitorAccessStatus = 'Demolished / Lost';
+      clonedBaseline.verification.visitorAccessStatusVerified = true;
+    }
+    return clonedBaseline;
+  }
+
+  const primaryVisitorScope: EvaluatorTargetScope =
+    rawSchedule.primaryVisitorScope || staticBaseline.primaryVisitorScope || inferPrimaryVisitorScopeForSite(fallbackSite);
+
+  const interiorRegularHours = cloneWeeklySchedule(
+    rawSchedule.interiorAccess?.regularHours ||
+      (primaryVisitorScope === 'interior' ? rawSchedule.regularHours : undefined) ||
+      staticBaseline.interiorAccess.regularHours
+  );
+
+  const exteriorRegularHours = cloneWeeklySchedule(
+    rawSchedule.exteriorGroundsAccess?.regularHours ||
+      (primaryVisitorScope === 'exterior_grounds' ? rawSchedule.regularHours : undefined) ||
+      staticBaseline.exteriorGroundsAccess.regularHours
+  );
+
+  const interiorAccess: InteriorAccessInfo = {
+    policyStatus:
+      rawSchedule.interiorAccess?.policyStatus ?? staticBaseline.interiorAccess.policyStatus,
+    policyVerified: Boolean(
+      rawSchedule.interiorAccess?.policyVerified ?? staticBaseline.interiorAccess.policyVerified
+    ),
+    policySources: Array.isArray(rawSchedule.interiorAccess?.policySources)
+      ? rawSchedule.interiorAccess!.policySources
+      : [...(staticBaseline.interiorAccess.policySources || [])],
+    scheduleVerified: Boolean(
+      rawSchedule.interiorAccess?.scheduleVerified ??
+        (primaryVisitorScope === 'interior' ? rawSchedule.verification?.scheduleVerified : undefined) ??
+        staticBaseline.interiorAccess.scheduleVerified
+    ),
+    verifiedDays: Array.isArray(rawSchedule.interiorAccess?.verifiedDays)
+      ? [...rawSchedule.interiorAccess!.verifiedDays]
+      : primaryVisitorScope === 'interior' && Array.isArray(rawSchedule.verification?.verifiedDays)
+        ? [...rawSchedule.verification!.verifiedDays]
+        : [...(staticBaseline.interiorAccess.verifiedDays || [])],
+    weeklyCoverage:
+      rawSchedule.interiorAccess?.weeklyCoverage ??
+      (primaryVisitorScope === 'interior' ? rawSchedule.verification?.weeklyCoverage : undefined) ??
+      staticBaseline.interiorAccess.weeklyCoverage,
+    regularHours: interiorRegularHours,
+    scheduleSources: Array.isArray(rawSchedule.interiorAccess?.scheduleSources)
+      ? rawSchedule.interiorAccess!.scheduleSources
+      : [...(staticBaseline.interiorAccess.scheduleSources || [])],
+    lastVerifiedDate:
+      rawSchedule.interiorAccess?.lastVerifiedDate !== undefined
+        ? rawSchedule.interiorAccess.lastVerifiedDate
+        : staticBaseline.interiorAccess.lastVerifiedDate,
+    ...(rawSchedule.interiorAccess?.notes ?? staticBaseline.interiorAccess.notes
+      ? { notes: rawSchedule.interiorAccess?.notes ?? staticBaseline.interiorAccess.notes }
+      : {}),
+  };
+
+  const exteriorGroundsAccess: ExteriorGroundsAccessInfo = {
+    policyStatus:
+      rawSchedule.exteriorGroundsAccess?.policyStatus ??
+      staticBaseline.exteriorGroundsAccess.policyStatus,
+    policyVerified: Boolean(
+      rawSchedule.exteriorGroundsAccess?.policyVerified ??
+        staticBaseline.exteriorGroundsAccess.policyVerified
+    ),
+    policySources: Array.isArray(rawSchedule.exteriorGroundsAccess?.policySources)
+      ? rawSchedule.exteriorGroundsAccess!.policySources
+      : [...(staticBaseline.exteriorGroundsAccess.policySources || [])],
+    scheduleVerified: Boolean(
+      rawSchedule.exteriorGroundsAccess?.scheduleVerified ??
+        (primaryVisitorScope === 'exterior_grounds' ? rawSchedule.verification?.scheduleVerified : undefined) ??
+        staticBaseline.exteriorGroundsAccess.scheduleVerified
+    ),
+    verifiedDays: Array.isArray(rawSchedule.exteriorGroundsAccess?.verifiedDays)
+      ? [...rawSchedule.exteriorGroundsAccess!.verifiedDays]
+      : primaryVisitorScope === 'exterior_grounds' && Array.isArray(rawSchedule.verification?.verifiedDays)
+        ? [...rawSchedule.verification!.verifiedDays]
+        : [...(staticBaseline.exteriorGroundsAccess.verifiedDays || [])],
+    weeklyCoverage:
+      rawSchedule.exteriorGroundsAccess?.weeklyCoverage ??
+      (primaryVisitorScope === 'exterior_grounds' ? rawSchedule.verification?.weeklyCoverage : undefined) ??
+      staticBaseline.exteriorGroundsAccess.weeklyCoverage,
+    regularHours: exteriorRegularHours,
+    scheduleSources: Array.isArray(rawSchedule.exteriorGroundsAccess?.scheduleSources)
+      ? rawSchedule.exteriorGroundsAccess!.scheduleSources
+      : [...(staticBaseline.exteriorGroundsAccess.scheduleSources || [])],
+    lastVerifiedDate:
+      rawSchedule.exteriorGroundsAccess?.lastVerifiedDate !== undefined
+        ? rawSchedule.exteriorGroundsAccess.lastVerifiedDate
+        : staticBaseline.exteriorGroundsAccess.lastVerifiedDate,
+    ...(rawSchedule.exteriorGroundsAccess?.notes ?? staticBaseline.exteriorGroundsAccess.notes
+      ? { notes: rawSchedule.exteriorGroundsAccess?.notes ?? staticBaseline.exteriorGroundsAccess.notes }
+      : {}),
+  };
+
+  const exteriorStreetVisibility: ExteriorStreetVisibilityInfo = {
+    status:
+      rawSchedule.exteriorStreetVisibility?.status ??
+      staticBaseline.exteriorStreetVisibility.status,
+    isVerified: Boolean(
+      rawSchedule.exteriorStreetVisibility?.isVerified ??
+        staticBaseline.exteriorStreetVisibility.isVerified
+    ),
+    sources: Array.isArray(rawSchedule.exteriorStreetVisibility?.sources)
+      ? rawSchedule.exteriorStreetVisibility!.sources
+      : [...(staticBaseline.exteriorStreetVisibility.sources || [])],
+    lastVerifiedDate:
+      rawSchedule.exteriorStreetVisibility?.lastVerifiedDate !== undefined
+        ? rawSchedule.exteriorStreetVisibility.lastVerifiedDate
+        : staticBaseline.exteriorStreetVisibility.lastVerifiedDate,
+    ...(rawSchedule.exteriorStreetVisibility?.notes ?? staticBaseline.exteriorStreetVisibility.notes
+      ? { notes: rawSchedule.exteriorStreetVisibility?.notes ?? staticBaseline.exteriorStreetVisibility.notes }
+      : {}),
+  };
+
+  const primaryScopeInfo = primaryVisitorScope === 'interior' ? interiorAccess : exteriorGroundsAccess;
+  const isDemolished =
+    fallbackSite?.demolitionStatus === 'Demolished' ||
+    rawSchedule.physicalPreservationStatus === 'Demolished / Lost' ||
+    rawSchedule.visitorAccessStatus === 'Demolished / Lost';
+
+  return {
+    timezone: 'Asia/Manila',
+    physicalPreservationStatus: isDemolished
+      ? 'Demolished / Lost'
+      : rawSchedule.physicalPreservationStatus ?? staticBaseline.physicalPreservationStatus,
+    visitorAccessStatus: isDemolished
+      ? 'Demolished / Lost'
+      : rawSchedule.visitorAccessStatus ?? staticBaseline.visitorAccessStatus,
+    primaryVisitorScope,
+    interiorAccess,
+    exteriorGroundsAccess,
+    exteriorStreetVisibility,
+    regularHours: cloneWeeklySchedule(
+      rawSchedule.regularHours || primaryScopeInfo.regularHours
+    ),
+    specialSchedules: Array.isArray(rawSchedule.specialSchedules)
+      ? rawSchedule.specialSchedules.map(s => ({
+          ...s,
+          periods: Array.isArray(s.periods) ? [...s.periods] : [],
+          sources: Array.isArray(s.sources) ? [...s.sources] : [],
+        }))
+      : [...(staticBaseline.specialSchedules || [])],
+    temporaryClosures: Array.isArray(rawSchedule.temporaryClosures)
+      ? rawSchedule.temporaryClosures.map(c => ({
+          ...c,
+          sources: Array.isArray(c.sources) ? [...c.sources] : [],
+        }))
+      : [...(staticBaseline.temporaryClosures || [])],
+    subFacilities: Array.isArray(rawSchedule.subFacilities)
+      ? rawSchedule.subFacilities.map(sub => ({
+          ...sub,
+          policySources: Array.isArray(sub.policySources) ? [...sub.policySources] : [],
+          verifiedDays: Array.isArray(sub.verifiedDays) ? [...sub.verifiedDays] : [],
+          regularHours: cloneWeeklySchedule(sub.regularHours),
+          scheduleSources: Array.isArray(sub.scheduleSources) ? [...sub.scheduleSources] : [],
+          temporaryClosures: Array.isArray(sub.temporaryClosures) ? [...sub.temporaryClosures] : [],
+          specialSchedules: Array.isArray(sub.specialSchedules) ? [...sub.specialSchedules] : [],
+        }))
+      : [...(staticBaseline.subFacilities || [])],
+    verification: {
+      scheduleVerified: Boolean(
+        rawSchedule.verification?.scheduleVerified ?? primaryScopeInfo.scheduleVerified
+      ),
+      visitorAccessStatusVerified: isDemolished
+        ? true
+        : Boolean(
+            rawSchedule.verification?.visitorAccessStatusVerified ??
+              staticBaseline.verification.visitorAccessStatusVerified
+          ),
+      visitorAccessStatusSources: Array.isArray(rawSchedule.verification?.visitorAccessStatusSources)
+        ? [...rawSchedule.verification!.visitorAccessStatusSources]
+        : [...(staticBaseline.verification.visitorAccessStatusSources || [])],
+      verifiedDays: Array.isArray(rawSchedule.verification?.verifiedDays)
+        ? [...rawSchedule.verification!.verifiedDays]
+        : [...primaryScopeInfo.verifiedDays],
+      weeklyCoverage:
+        rawSchedule.verification?.weeklyCoverage ?? primaryScopeInfo.weeklyCoverage,
+      interiorAccessPolicyVerified: interiorAccess.policyVerified,
+      interiorScheduleVerified: interiorAccess.scheduleVerified,
+      exteriorGroundsPolicyVerified: exteriorGroundsAccess.policyVerified,
+      exteriorGroundsScheduleVerified: exteriorGroundsAccess.scheduleVerified,
+      exteriorStreetVisibilityVerified: exteriorStreetVisibility.isVerified,
+      verificationStatusLabel:
+        rawSchedule.verification?.verificationStatusLabel ??
+        staticBaseline.verification.verificationStatusLabel,
+      lastVerifiedDate:
+        rawSchedule.verification?.lastVerifiedDate !== undefined
+          ? rawSchedule.verification.lastVerifiedDate
+          : staticBaseline.verification.lastVerifiedDate,
+      sources: Array.isArray(rawSchedule.verification?.sources)
+        ? [...rawSchedule.verification!.sources]
+        : [...(staticBaseline.verification.sources || [])],
+      ...(rawSchedule.verification?.verificationNotes ?? staticBaseline.verification.verificationNotes
+        ? {
+            verificationNotes:
+              rawSchedule.verification?.verificationNotes ??
+              staticBaseline.verification.verificationNotes,
+          }
+        : {}),
+    },
+    displaySummary:
+      rawSchedule.displaySummary ||
+      staticBaseline.displaySummary ||
+      fallbackSite?.visitingHours ||
+      'Hours Unverified',
+    ...(rawSchedule.publicNotes ?? staticBaseline.publicNotes
+      ? { publicNotes: rawSchedule.publicNotes ?? staticBaseline.publicNotes }
+      : {}),
+  };
+}
+
+const AUDITED_ADMISSION_INFO: Record<string, AdmissionInfo> = {
+  'cebu-national-museum': {
+    status: 'free',
+    isVerified: true,
+    policyKind: 'formal_policy',
+    scope: 'Entire Museum',
+    displayLabel: 'Free Admission',
+    rates: [{ category: 'General Public', amount: 'Free (₱0)', notes: 'Mandated by R.A. 11333; prior coordination required for groups of 20+.' }],
+    sources: [
+      {
+        title: 'National Museum of the Philippines – Cebu Visitor Information',
+        publisher: 'National Museum of the Philippines',
+        url: 'https://www.nationalmuseum.gov.ph/our-museums/regional-area-and-site-museums/cebu/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'General admission is free for all visitors under Republic Act No. 11333.',
+  },
+  'cebu-sugbu-chinese-museum': {
+    status: 'paid',
+    isVerified: true,
+    policyKind: 'formal_policy',
+    scope: 'Entire Museum',
+    displayLabel: '₱75 (Local) / ₱120 (Foreign) / ₱60 (Students, Seniors, PWD)',
+    rates: [
+      { category: 'Local Visitors', amount: '₱75' },
+      { category: 'Foreign Visitors', amount: '₱120' },
+      { category: 'Students, Senior Citizens & PWD', amount: '₱60', notes: 'Valid ID required' },
+    ],
+    sources: [
+      {
+        title: 'Sugbu Chinese Heritage Museum Official Website',
+        publisher: 'Sugbu Chinese Heritage Museum Foundation, Inc.',
+        url: 'https://sugbuchinese.com/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+  },
+  'cebu-museo-sugbo': {
+    status: 'paid',
+    isVerified: true,
+    policyKind: 'formal_policy',
+    scope: 'Entire Museum',
+    displayLabel: '₱50 (General) / ₱25 (Students, Children, Seniors, PWD)',
+    rates: [
+      { category: 'General Admission / Adults', amount: '₱50' },
+      { category: 'Students, Children, Senior Citizens & PWD', amount: '₱25', notes: 'Valid ID required' },
+    ],
+    sources: [
+      {
+        title: 'Museo Sugbo Reopens',
+        publisher: 'SunStar Cebu',
+        url: 'https://www.sunstar.com.ph/cebu/museo-sugbo-reopens',
+        checkedDate: '2026-11-23',
+      },
+      {
+        title: 'Museo Sugbo Reopens with Unveiling of Cultural Property and Provincial Marker',
+        publisher: 'Cebu Provincial Government',
+        url: 'https://www.cebu.gov.ph/2383/museo-sugbo-reopens-with-unveiling-of-cultural-property-and-provincial-marker/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Reopening fee schedule confirmed via SunStar Cebu coverage; provincial reopening announcement documented on Cebu Provincial Government portal.',
+  },
+  'cebu-basilica': {
+    status: 'free',
+    isVerified: true,
+    policyKind: 'mixed_subfacilities',
+    scope: 'Basilica Church & Sanctuary Complex only (excludes Pilgrim Center Basement Museum)',
+    displayLabel: 'Free Church & Sanctuary Access (Basement Museum unverified)',
+    rates: [{ category: 'Basilica Church & Sanctuary Complex', amount: 'Free (₱0)' }],
+    subFacilities: [
+      {
+        name: 'Basilica Church & Sanctuary Complex',
+        status: 'free',
+        isVerified: true,
+        label: 'Free (₱0)',
+      },
+      {
+        name: 'Pilgrim Center Basement Museum',
+        status: 'unverified',
+        isVerified: false,
+        label: 'Unverified (confirm fee on-site)',
+      },
+    ],
+    sources: [
+      {
+        title: 'Santo Niño Pilgrim Center & Basilica Complex',
+        publisher: 'Basilica Minore del Santo Niño de Cebu',
+        url: 'https://santoninodecebubasilica.org/basilica-minore-del-santo-nino/santo-nino-pilgrim-center/',
+        checkedDate: '2026-11-23',
+      },
+      {
+        title: 'Basilica Minore del Santo Niño Museum',
+        publisher: 'Basilica Minore del Santo Niño de Cebu',
+        url: 'https://santoninodecebubasilica.org/basilica-minore-del-santo-nino/museum/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Church and Sanctuary entry is free; the separate Pilgrim Center Basement Museum does not publish a confirmed fee table online.',
+  },
+  'cebu-rizal-memorial-library': {
+    status: 'unverified',
+    isVerified: false,
+    policyKind: 'mixed_subfacilities',
+    scope: 'Ground-Floor Public Library (free) vs. Upper-Floor Museum (unverified)',
+    displayLabel: 'Ground-Floor Library: Free | Upper-Floor Museum: Unverified',
+    rates: [{ category: 'Ground-Floor Cebu City Public Library', amount: 'Free (₱0)' }],
+    subFacilities: [
+      {
+        name: 'Cebu City Public Library (Ground Floor)',
+        status: 'free',
+        isVerified: true,
+        label: 'Free (₱0)',
+      },
+      {
+        name: 'Rizal Memorial Museum (Upper Floor)',
+        status: 'unverified',
+        isVerified: false,
+        label: 'Unverified (confirm on-site)',
+      },
+    ],
+    sources: [
+      {
+        title: 'Cebu City Public Library Relaunch Report',
+        publisher: 'GMA Regional TV',
+        url: 'https://www.gmanetwork.com/regionaltv/features/108864/cebu-city-public-library-reopens-247-beginning-june-30-2025/story/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Ground-floor public library access is free; the upper-floor Rizal Memorial Museum admission policy is not published online.',
+  },
+  'cebu-cross': {
+    status: 'free',
+    isVerified: false,
+    policyKind: 'open_public_access',
+    scope: 'Open Public Kiosk in Plaza Sugbo',
+    displayLabel: 'Free Public Access (No ticket booth; formal fee policy not published)',
+    sources: [
+      {
+        title: 'Cebu Heritage History & Landmarks',
+        publisher: 'Cebu Provincial Tourism Office',
+        url: 'https://tourism.cebu.gov.ph/history/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Open public square monument with no ticketed entry; no formal LGU fee-schedule document published.',
+  },
+  'cebu-plaza-independencia': {
+    status: 'free',
+    isVerified: false,
+    policyKind: 'open_public_access',
+    scope: 'Public Plaza Grounds only (excludes adjacent Fort San Pedro)',
+    displayLabel: 'Free Public Access (No ticket booth; formal fee policy not published)',
+    sources: [
+      {
+        title: 'Cebu Heritage History & Landmarks',
+        publisher: 'Cebu Provincial Tourism Office',
+        url: 'https://tourism.cebu.gov.ph/history/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Open public plaza grounds with no ticketed entry; adjacent Fort San Pedro is separately ticketed.',
+  },
+  'cebu-plaza-sugbo': {
+    status: 'free',
+    isVerified: false,
+    policyKind: 'open_public_access',
+    scope: 'Public City Plaza',
+    displayLabel: 'Free Public Access (No ticket booth; formal fee policy not published)',
+    sources: [
+      {
+        title: 'Cebu Heritage History & Landmarks',
+        publisher: 'Cebu Provincial Tourism Office',
+        url: 'https://tourism.cebu.gov.ph/history/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Open public plaza in front of Cebu City Hall with no ticketed entry.',
+  },
+  'cebu-plaza-hamabar': {
+    status: 'unverified',
+    isVerified: false,
+    policyKind: 'unverified',
+    scope: 'Public City Plaza',
+    displayLabel: 'Unverified (Open public plaza; no official admission policy URL confirmed)',
+    notes: 'Open civic square; no official LGU admission policy page confirmed.',
+  },
+  'cebu-fuente-osmena': {
+    status: 'unverified',
+    isVerified: false,
+    policyKind: 'unverified',
+    scope: 'Public Park / Rotunda',
+    displayLabel: 'Unverified (Open public park; no official admission policy URL confirmed)',
+    notes: 'Open public rotunda park; no official LGU admission policy page confirmed.',
+  },
+  'cebu-colon-street': {
+    status: 'free',
+    isVerified: false,
+    policyKind: 'open_public_access',
+    scope: 'Public City Street',
+    displayLabel: 'Free Public Access (Public thoroughfare; no ticketed entry)',
+    sources: [
+      {
+        title: 'Cebu Heritage History & Landmarks',
+        publisher: 'Cebu Provincial Tourism Office',
+        url: 'https://tourism.cebu.gov.ph/history/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Public city thoroughfare with open street access.',
+  },
+  'cebu-heritage-monument': {
+    status: 'free',
+    isVerified: false,
+    policyKind: 'open_public_access',
+    scope: 'Open-Air Public Monument',
+    displayLabel: 'Free Public Access (No ticket booth; formal fee policy not published)',
+    sources: [
+      {
+        title: 'Cebu Heritage History & Landmarks',
+        publisher: 'Cebu Provincial Tourism Office',
+        url: 'https://tourism.cebu.gov.ph/history/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Open-air public monument in Parian Plaza; no formal LGU fee-schedule document published.',
+  },
+  'cebu-tres-de-abril-marker': {
+    status: 'unverified',
+    isVerified: false,
+    policyKind: 'unverified',
+    scope: 'Public Street-Side Marker',
+    displayLabel: 'Unverified (Public street-side marker; no official admission policy URL confirmed)',
+  },
+  'llc-mactan-shrine': {
+    status: 'free',
+    isVerified: false,
+    policyKind: 'open_public_access',
+    scope: 'Public Heritage Park Grounds',
+    displayLabel: 'Free Public Access (No ticket booth; formal fee policy not published)',
+    sources: [
+      {
+        title: 'Mactan Shrine Destination Guide',
+        publisher: 'Lapu-Lapu City Tourism Office',
+        url: 'https://tourism.lapulapucitygov.ph/destinations/mactan-shrine-1784102158063',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Official Lapu-Lapu City Tourism listing for the open shoreline memorial park; no formal ticket fee table published.',
+  },
+  'llc-magellan-marker': {
+    status: 'free',
+    isVerified: false,
+    policyKind: 'open_public_access',
+    scope: 'Public Monument within Mactan Shrine',
+    displayLabel: 'Free Public Access (No ticket booth; formal fee policy not published)',
+    sources: [
+      {
+        title: 'Mactan Shrine Destination Guide',
+        publisher: 'Lapu-Lapu City Tourism Office',
+        url: 'https://tourism.lapulapucitygov.ph/destinations/mactan-shrine-1784102158063',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Located inside Mactan Shrine public grounds; no formal ticket fee table published.',
+  },
+  'llc-plaza-rizal': {
+    status: 'free',
+    isVerified: false,
+    policyKind: 'open_public_access',
+    scope: 'Public City Plaza',
+    displayLabel: 'Free Public Access (No ticket booth; formal fee policy not published)',
+    sources: [
+      {
+        title: 'Plaza Rizal Destination Guide',
+        publisher: 'Lapu-Lapu City Tourism Office',
+        url: 'https://tourism.lapulapucitygov.ph/destinations/plaza-rizal-1784105124248',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Official Lapu-Lapu City Tourism listing for the open public plaza; no formal ticket fee table published.',
+  },
+  'llc-millennium-park': {
+    status: 'unverified',
+    isVerified: false,
+    policyKind: 'unverified',
+    scope: 'Public Park',
+    displayLabel: 'Unverified (Open public park; no official admission policy URL confirmed)',
+  },
+  'llc-bridge-park': {
+    status: 'free',
+    isVerified: false,
+    policyKind: 'open_public_access',
+    scope: 'Public Waterfront Park',
+    displayLabel: 'Free Public Access (No ticket booth; formal fee policy not published)',
+    sources: [
+      {
+        title: 'Bridge Park Destination Guide',
+        publisher: 'Lapu-Lapu City Tourism Office',
+        url: 'https://tourism.lapulapucitygov.ph/destinations/bridge-park-1784100450064',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Official Lapu-Lapu City Tourism listing for the waterfront public park; no formal ticket fee table published.',
+  },
+  'talisay-landing': {
+    status: 'free',
+    isVerified: false,
+    policyKind: 'open_public_access',
+    scope: 'Public Coastal Memorial Park',
+    displayLabel: 'Free Public Access (No ticket booth; formal fee policy not published)',
+    sources: [
+      {
+        title: 'Explore Talisay City',
+        publisher: 'Cebu Provincial Tourism Office',
+        url: 'https://tourism.cebu.gov.ph/explore/talisay-city/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Official provincial tourism listing for Talisay Landing coastal memorial; no formal ticket fee table published.',
+  },
+  'talisay-plaza': {
+    status: 'unverified',
+    isVerified: false,
+    policyKind: 'unverified',
+    scope: 'Public City Plaza',
+    displayLabel: 'Unverified (Open public plaza; no official admission policy URL confirmed)',
+  },
+  'mandaue-plaza': {
+    status: 'free',
+    isVerified: false,
+    policyKind: 'open_public_access',
+    scope: 'Public Heritage Plaza',
+    displayLabel: 'Free Public Access (No ticket booth; formal fee policy not published)',
+    sources: [
+      {
+        title: 'Explore Mandaue City',
+        publisher: 'Cebu Provincial Tourism Office',
+        url: 'https://tourism.cebu.gov.ph/explore/mandaue-city/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Official provincial tourism listing for Mandaue City Heritage Plaza; no formal ticket fee table published.',
+  },
+  'mandaue-bridge': {
+    status: 'unverified',
+    isVerified: false,
+    policyKind: 'unverified',
+    scope: 'Public Bridge Crossing',
+    displayLabel: 'Unverified (Public bridge; no official admission policy URL confirmed)',
+  },
+  'marcelo-fernan-bridge': {
+    status: 'unverified',
+    isVerified: false,
+    policyKind: 'unverified',
+    scope: 'Public Bridge Crossing',
+    displayLabel: 'Unverified (Public bridge; no official admission policy URL confirmed)',
+  },
+
+  // Paid sites whose exact current fee tables are NOT confirmed on official institutional pages
+  'cebu-casa-gorordo': {
+    status: 'unverified',
+    isVerified: false,
+    displayLabel: 'Unverified (Paid admission; confirm current rates with RAFI / Casa Gorordo)',
+    sources: [
+      {
+        title: 'Casa Gorordo Museum Official Website',
+        publisher: 'Ramon Aboitiz Foundation Inc. (RAFI)',
+        url: 'https://casagorordomuseum.org/',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'Official website states guided visits are ticketed, but does not publish a current fixed fee schedule.',
+  },
+  'cebu-fort-san-pedro': {
+    status: 'unverified',
+    isVerified: false,
+    displayLabel: 'Unverified (Paid admission; confirm current rates at Fort San Pedro)',
+    notes: 'Managed by Cebu City Government; third-party guides vary on current regular/student/senior rates and no official LGU fee page was confirmed.',
+  },
+  'cebu-usc-museum': {
+    status: 'unverified',
+    isVerified: false,
+    displayLabel: 'Unverified (Official USC page does not publish fixed admission rates)',
+    sources: [
+      {
+        title: 'Visit USC – University of San Carlos Museum',
+        publisher: 'University of San Carlos',
+        url: 'https://usc.edu.ph/catholic-educational-institution-visit-usc',
+        checkedDate: '2026-11-23',
+      },
+    ],
+    notes: 'USC website publishes museum hours but does not publish a fixed admission price table.',
+  },
+  'cebu-archdiocesan-museum': {
+    status: 'unverified',
+    isVerified: false,
+    displayLabel: 'Unverified (Paid admission; confirm current rates on-site)',
+    notes: 'No official online fee schedule confirmed.',
+  },
+  'cebu-yap-sandiego': {
+    status: 'unverified',
+    isVerified: false,
+    displayLabel: 'Unverified (Paid admission; confirm current rates on-site)',
+    notes: 'Private ancestral house museum; no official online fee schedule confirmed.',
+  },
+  'cebu-jesuit-house': {
+    status: 'unverified',
+    isVerified: false,
+    displayLabel: 'Unverified (Paid admission; confirm current rates on-site)',
+    notes: 'No official online fee schedule confirmed.',
+  },
+  'cebu-taoist': {
+    status: 'unverified',
+    isVerified: false,
+    displayLabel: 'Unverified (Active place of worship; confirm visitor guidelines on-site)',
+    notes: 'Active Taoist temple; no official published admission policy confirmed.',
+  },
+  'cebu-cathedral': {
+    status: 'unverified',
+    isVerified: false,
+    displayLabel: 'Unverified (Active Catholic cathedral; confirm visitor access on-site)',
+    notes: 'No official published tourist admission policy confirmed.',
+  },
+  'talisay-church': {
+    status: 'unverified',
+    isVerified: false,
+    displayLabel: 'Unverified (Active Catholic parish; confirm visitor access on-site)',
+  },
+  'mandaue-church': {
+    status: 'unverified',
+    isVerified: false,
+    displayLabel: 'Unverified (Active Catholic shrine; confirm visitor access on-site)',
+  },
+  'llc-shrine': {
+    status: 'unverified',
+    isVerified: false,
+    displayLabel: 'Unverified (Active Catholic shrine; confirm visitor access on-site)',
+  },
+  'mandaue-library': {
+    status: 'unverified',
+    isVerified: false,
+    displayLabel: 'Unverified (Confirm public library entry requirements on-site)',
+  },
+
+  // Sites with no published/obtainable admission information
+  'cebu-uspf-jose-rizal-museum': {
+    status: 'not_available',
+    isVerified: false,
+    displayLabel: 'Admission information not available (confirm with USPF)',
+    notes: 'University campus museum; no published public admission policy.',
+  },
+  'cebu-patria': {
+    status: 'not_available',
+    isVerified: false,
+    displayLabel: 'Admission information not available (confirm on-site)',
+    notes: 'Ongoing redevelopment; no published public admission information.',
+  },
+  'cebu-city-hall': {
+    status: 'not_available',
+    isVerified: false,
+    displayLabel: 'Admission information not available (active government building)',
+  },
+  'cebu-capitol': {
+    status: 'not_available',
+    isVerified: false,
+    displayLabel: 'Admission information not available (active provincial government building)',
+  },
+  'talisay-city-hall': {
+    status: 'not_available',
+    isVerified: false,
+    displayLabel: 'Admission information not available (active government building)',
+  },
+  'mandaue-presidencia': {
+    status: 'not_available',
+    isVerified: false,
+    displayLabel: 'Admission information not available (active government building)',
+  },
+  'mandaue-watchtower': {
+    status: 'not_available',
+    isVerified: false,
+    displayLabel: 'Admission information not available (confirm local access on-site)',
+  },
+};
+
+export function getAdmissionDisplay(
+  site: Partial<HeritageSite> | null | undefined
+): AdmissionInfo {
+  if (site?.admissionInfo) {
+    return site.admissionInfo;
+  }
+
+  const rawFee = String(site?.entranceFee || '').trim();
+  if (!rawFee) {
+    return {
+      status: 'not_available',
+      isVerified: false,
+      displayLabel: 'Admission information not available',
+    };
+  }
+  if (/^free\b/i.test(rawFee)) {
+    return {
+      status: 'free',
+      isVerified: false,
+      displayLabel: rawFee,
+    };
+  }
+  if (/unverified|requires confirmation/i.test(rawFee)) {
+    return {
+      status: 'unverified',
+      isVerified: false,
+      displayLabel: rawFee,
+    };
+  }
+  if (/not available/i.test(rawFee)) {
+    return {
+      status: 'not_available',
+      isVerified: false,
+      displayLabel: rawFee,
+    };
+  }
+  return {
+    status: 'paid',
+    isVerified: false,
+    displayLabel: rawFee,
+  };
+}
+
+export const HERITAGE_SITES: HeritageSite[] = BASE_HERITAGE_SITES.map(site => {
+  const operatingSchedule = normalizeOperatingSchedule(
+    AUDITED_OPERATING_SCHEDULES[site.id],
+    site
+  );
+  const admissionInfo = AUDITED_ADMISSION_INFO[site.id] || {
+    status: 'not_available' as const,
+    isVerified: false,
+    displayLabel: 'Admission information not available',
+  };
+  return {
+    ...site,
+    ...(ENRICHED_SITE_CONTENT[site.id] || {}),
+    operatingSchedule,
+    admissionInfo,
+    entranceFee: admissionInfo.displayLabel,
+    visitingHours: operatingSchedule.displaySummary || site.visitingHours,
+    // Built-in directory scores are not visitor ratings; those come from reviews.
+    rating: undefined,
+  };
+});
+
+export function normalizeHeritageSite(
+  site: Partial<HeritageSite> & Record<string, any>,
+  staticFallback?: HeritageSite | null
+): HeritageSite {
+  const baseSite =
+    staticFallback ||
+    (site?.id ? HERITAGE_SITES.find(s => s.id === site.id) : undefined);
+
+  const merged = { ...(baseSite || {}), ...(site || {}) } as any;
+  const rawCoords = merged.coordinates || { lat: merged.latitude, lng: merged.longitude };
+  const latitude = Number(rawCoords?.lat);
+  const longitude = Number(rawCoords?.lng);
+  const coordinates =
+    Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? { lat: latitude, lng: longitude }
+      : baseSite?.coordinates || { lat: 0, lng: 0 };
+
+  const operatingSchedule = normalizeOperatingSchedule(
+    site?.operatingSchedule,
+    { ...baseSite, ...merged }
+  );
+
+  // Keep legacy visitingHours strictly as a display/compatibility field synced with operatingSchedule
+  const visitingHours =
+    (typeof site?.visitingHours === 'string' && site.visitingHours.trim() && !site?.operatingSchedule
+      ? site.visitingHours.trim()
+      : operatingSchedule.displaySummary) ||
+    baseSite?.visitingHours ||
+    'Hours Unverified';
+
+  return {
+    ...merged,
+    id: String(merged.id || baseSite?.id || ''),
+    name: String(merged.name || baseSite?.name || 'Untitled Heritage Site'),
+    description: String(merged.description || baseSite?.description || ''),
+    overview: String(merged.overview || merged.description || baseSite?.overview || ''),
+    significance: String(merged.significance || baseSite?.significance || ''),
+    category: merged.category || baseSite?.category || 'Historical Landmarks & Monuments',
+    location: String(merged.location || baseSite?.location || ''),
+    city: merged.city || baseSite?.city || 'Cebu City',
+    visitingHours,
+    operatingSchedule,
+    imageUrl: String(merged.imageUrl || baseSite?.imageUrl || ''),
+    galleryImages: Array.from(
+      new Set(
+        [
+          ...(Array.isArray(baseSite?.galleryImages) ? baseSite!.galleryImages! : []),
+          ...(Array.isArray(site?.galleryImages) ? site.galleryImages : []),
+        ].filter(u => typeof u === 'string' && u.trim().length > 0)
+      )
+    ),
+    rating: Number.isFinite(Number(site?.rating)) ? Number(site?.rating) : undefined,
+    tags: Array.isArray(merged.tags)
+      ? merged.tags
+      : Array.isArray(baseSite?.tags)
+        ? baseSite!.tags
+        : [],
+    coordinates,
+    isMustVisit: Boolean(merged.isMustVisit),
+    needsVerification: Boolean(merged.needsVerification),
+    verificationStatus: (merged.verificationStatus as VerificationStatus) || 'Pending Verification',
+    verifiedBy: merged.verifiedBy || undefined,
+    verifiedByUid: merged.verifiedByUid || undefined,
+    verifiedAt: merged.verifiedAt || undefined,
+    verificationNotes: merged.verificationNotes || undefined,
+    isActive: merged.isActive !== false && merged.status !== 'Inactive',
+    status: merged.status === 'Inactive' || merged.isActive === false ? 'Inactive' : 'Active',
+    demolitionStatus:
+      merged.demolitionStatus === 'Demolished' || merged.demolitionStatus === 'Partially Demolished'
+        ? merged.demolitionStatus
+        : 'Non-Demolished',
+    accessibilityStatus: String(merged.accessibilityStatus || baseSite?.accessibilityStatus || 'Accessible'),
+    admissionInfo:
+      site?.admissionInfo ||
+      baseSite?.admissionInfo ||
+      (site?.entranceFee ? getAdmissionDisplay({ entranceFee: site.entranceFee }) : undefined),
+    entranceFee:
+      site?.admissionInfo?.displayLabel ||
+      baseSite?.admissionInfo?.displayLabel ||
+      merged.entranceFee ||
+      baseSite?.entranceFee ||
+      undefined,
+  };
+}
+
+export function mergeAdminSitesWithStatic(
+  remoteSites?: Array<Record<string, any>> | null,
+  userRole?: string | null
+): HeritageSite[] {
+  const deprecatedIds = new Set(DEPRECATED_HERITAGE_SITE_IDS);
+  const sitesById = new Map<string, HeritageSite>(
+    HERITAGE_SITES.map(site => [site.id, normalizeHeritageSite(site, site)])
+  );
+
+  (remoteSites || []).forEach(dbSite => {
+    if (!dbSite?.id || deprecatedIds.has(dbSite.id)) return;
+    const existingStatic = sitesById.get(dbSite.id) || null;
+    sitesById.set(dbSite.id, normalizeHeritageSite(dbSite, existingStatic));
+  });
+
+  return Array.from(sitesById.values()).filter(
+    site =>
+      !deprecatedIds.has(site.id) &&
+      site.isActive !== false &&
+      site.status !== 'Inactive' &&
+      isSiteVisibleToUser(site, userRole)
+  );
+}
 
 export const SITE_IMAGE_ATTRIBUTIONS = {
   'cebu-cross': [{ url: "https://upload.wikimedia.org/wikipedia/commons/0/05/Magellan's_Cross_Cebu.jpg", creator: 'Kingphoto23', license: 'CC BY-SA 3.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/' }],

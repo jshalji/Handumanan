@@ -3,7 +3,15 @@
 import { use, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
-import { getSiteById, isSiteVisibleToUser, type HeritageSite, SITE_IMAGE_ATTRIBUTIONS } from '@/lib/heritage-data';
+import {
+  getAdmissionDisplay,
+  getSiteById,
+  isSiteVisibleToUser,
+  normalizeHeritageSite,
+  type HeritageSite,
+  SITE_IMAGE_ATTRIBUTIONS,
+} from '@/lib/heritage-data';
+import { evaluateSiteOperatingStatus } from '@/lib/site-availability';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -11,60 +19,20 @@ import { Textarea } from '@/components/ui/textarea';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, query, where, serverTimestamp, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Route, Heart, Loader2, ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight, Maximize2, X, CheckCircle2, AlertCircle, Ticket } from 'lucide-react';
+import { MapPin, Clock, Star, Share2, Info, ArrowLeft, MessageSquare, Landmark, Route, Heart, Loader2, ChevronDown, ChevronUp, Plus, ChevronLeft, ChevronRight, Maximize2, X, CheckCircle2, AlertCircle, Ticket, ExternalLink, ShieldCheck } from 'lucide-react';
 import NextImage from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageFallback, getSiteImageSources } from '@/lib/site-images';
-import { getDailyVisitingTime, WEEKLY_VISITING_DAYS } from '@/lib/visiting-hours';
+import { getWeeklyScheduleRows } from '@/lib/visiting-hours';
 import { VisitorPhotoSection } from '@/components/site/VisitorPhotoSection';
 import { getRatingSummaryState } from '@/lib/review-ratings';
 
 function mergeSiteRecord(baseSite: HeritageSite | undefined, overrideSite: any): HeritageSite | null {
   if (!baseSite && !overrideSite) return null;
-
-  const merged = { ...(baseSite || {}), ...(overrideSite || {}) } as any;
-  const rawCoords = merged.coordinates || { lat: merged.latitude, lng: merged.longitude };
-  const latitude = Number(rawCoords?.lat);
-  const longitude = Number(rawCoords?.lng);
-
-  return {
-    ...merged,
-    id: merged.id,
-    name: merged.name || 'Untitled Heritage Site',
-    description: merged.description || 'No directory description has been added yet.',
-    overview: merged.overview || merged.description || 'Overview details require verification.',
-    significance: merged.significance || 'Historical significance details require verification.',
-    category: merged.category || 'Historical Landmarks & Monuments',
-    location: merged.location || 'Location requires verification',
-    city: merged.city || 'Cebu City',
-    visitingHours: merged.visitingHours || 'Open hours require verification',
-    imageUrl: merged.imageUrl || '',
-    galleryImages: Array.from(new Set([
-        ...(Array.isArray(baseSite?.galleryImages) ? baseSite.galleryImages : []),
-        ...(Array.isArray(overrideSite?.galleryImages) ? overrideSite.galleryImages : []),
-        ...(Array.isArray(merged.galleryImages) ? merged.galleryImages : []),
-      ].filter((u) => typeof u === 'string' && u.trim().length > 0))),
-    rating: undefined,
-    tags: Array.isArray(merged.tags) ? merged.tags : [],
-    coordinates: {
-      lat: Number.isFinite(latitude) ? latitude : 0,
-      lng: Number.isFinite(longitude) ? longitude : 0,
-    },
-    isMustVisit: Boolean(merged.isMustVisit),
-    needsVerification: Boolean(merged.needsVerification),
-    verificationStatus: merged.verificationStatus || 'Pending Verification',
-    verifiedBy: merged.verifiedBy || undefined,
-    verifiedByUid: merged.verifiedByUid || undefined,
-    verifiedAt: merged.verifiedAt || undefined,
-    verificationNotes: merged.verificationNotes || undefined,
-    isActive: merged.isActive !== false,
-    status: merged.status === 'Inactive' ? 'Inactive' : 'Active',
-    demolitionStatus: merged.demolitionStatus || 'Non-Demolished',
-    accessibilityStatus: merged.accessibilityStatus || 'Accessibility details require verification.',
-  } as HeritageSite;
+  return normalizeHeritageSite(overrideSite, baseSite);
 }
 
 export default function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -95,6 +63,23 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isFavoriteUpdating, setIsFavoriteUpdating] = useState(false);
+  const [now, setNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(new Date());
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const operatingEval = useMemo(
+    () => (site ? evaluateSiteOperatingStatus(site, now) : null),
+    [site, now]
+  );
+  const weeklyRows = useMemo(
+    () => (site ? getWeeklyScheduleRows(site) : []),
+    [site]
+  );
 
   // Combine main image and gallery images
   const imageFallback = getSiteImageFallback(site);
@@ -551,7 +536,7 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
 
           {/* Sidebar / Access Info Area */}
           <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 lg:sticky lg:top-24 ring-1 ring-black/5">
+            <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-100 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto overscroll-contain ring-1 ring-black/5">
               <h3 className="font-headline text-xl font-bold mb-5 text-slate-900">Plan Your Visit</h3>
               
               <div className="space-y-4 mb-6">
@@ -568,24 +553,179 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
 
                 <div className="flex items-start gap-3">
                   <div className="p-2 bg-primary/5 rounded-xl text-primary shrink-0"><Clock size={18} /></div>
-                  <div className="min-w-0 flex-1">
-                    <h4 className="font-black text-[9px] text-slate-400 uppercase tracking-widest mb-0.5">Visiting Hours</h4>
-                    <p className="text-xs md:text-sm font-bold text-slate-800 leading-snug">{site.visitingHours}</p>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <h4 className="font-black text-[9px] text-slate-400 uppercase tracking-widest">Visiting Hours (Asia/Manila)</h4>
+                      {operatingEval && (
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider',
+                            operatingEval.isOpen === true
+                              ? operatingEval.isClosingSoon
+                                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : operatingEval.subFacilityEvaluations.some(sub => sub.isOpen === true)
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : operatingEval.isOpen === false
+                                  ? operatingEval.calculatedStatus === 'Exterior Viewable Now'
+                                    ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                          )}
+                        >
+                          {operatingEval.isOpen !== true &&
+                          operatingEval.subFacilityEvaluations.some(sub => sub.isOpen === true)
+                            ? 'Sub-Facility Open'
+                            : operatingEval.calculatedStatus}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs md:text-sm font-bold text-slate-800 leading-snug">
+                      {operatingEval?.displaySummary || site.visitingHours}
+                    </p>
+
+                    {operatingEval?.statusDetailMessage && (
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        {operatingEval.statusDetailMessage}
+                        {operatingEval.interiorEvaluation.nextTransitionLabel
+                          ? ` (${operatingEval.interiorEvaluation.nextTransitionLabel})`
+                          : operatingEval.exteriorGroundsEvaluation.nextTransitionLabel
+                            ? ` (${operatingEval.exteriorGroundsEvaluation.nextTransitionLabel})`
+                            : ''}
+                      </p>
+                    )}
+
+                    {/* Separated Interior, Exterior Grounds, and Street Visibility Access */}
+                    {site.operatingSchedule && (
+                      <div className="rounded-2xl bg-slate-50 p-2.5 border border-slate-100 space-y-1.5 text-[10px]">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-bold text-slate-500">Interior Access:</span>
+                          <span className="text-right font-semibold text-slate-800">
+                            {site.operatingSchedule.interiorAccess.policyStatus}
+                            {operatingEval
+                              ? ` · ${operatingEval.interiorEvaluation.calculatedStatus}`
+                              : ''}
+                          </span>
+                        </div>
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-bold text-slate-500">Exterior Grounds:</span>
+                          <span className="text-right font-semibold text-slate-800">
+                            {site.operatingSchedule.exteriorGroundsAccess.policyStatus}
+                            {operatingEval
+                              ? ` · ${operatingEval.exteriorGroundsEvaluation.calculatedStatus}`
+                              : ''}
+                          </span>
+                        </div>
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-bold text-slate-500">Street Visibility:</span>
+                          <span className="text-right font-semibold text-slate-800">
+                            {site.operatingSchedule.exteriorStreetVisibility.status}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sub-Facilities & Component Schedules */}
+                    {operatingEval && operatingEval.subFacilityEvaluations.length > 0 && (
+                      <div className="rounded-2xl bg-slate-50 p-2.5 border border-slate-100 space-y-2 text-[10px]">
+                        <p className="font-black text-[9px] uppercase tracking-widest text-slate-400">
+                          Component &amp; Sub-Facility Schedules
+                        </p>
+                        {operatingEval.subFacilityEvaluations.map(subEval => (
+                          <div
+                            key={subEval.subFacilityId}
+                            className="rounded-xl bg-white p-2 border border-slate-100 space-y-0.5"
+                          >
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span className="font-bold text-slate-800">{subEval.subFacilityName}</span>
+                              <span
+                                className={cn(
+                                  'rounded-full border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider',
+                                  subEval.isOpen === true
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : subEval.isOpen === false
+                                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                                )}
+                              >
+                                {subEval.calculatedStatus}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-600 leading-snug">{subEval.reason}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => setIsScheduleExpanded(!isScheduleExpanded)}
-                      className="text-[9px] font-black text-slate-400 uppercase mt-1 flex items-center gap-1 hover:text-primary transition-colors"
+                      className="text-[9px] font-black text-slate-500 uppercase mt-1 flex items-center gap-1 hover:text-primary transition-colors"
                     >
-                      {isScheduleExpanded ? 'Hide weekly schedule' : 'View weekly schedule'} {isScheduleExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                      {isScheduleExpanded ? 'Hide weekly schedule & sources' : 'View weekly schedule & sources'}{' '}
+                      {isScheduleExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                     </button>
+
                     {isScheduleExpanded && (
-                      <div className="mt-2 grid gap-1 pt-2 border-t border-slate-100 text-[11px]">
-                        {WEEKLY_VISITING_DAYS.map(({ abbr, day }) => (
-                          <div key={day} className="flex justify-between items-center py-0.5 px-2 rounded-lg bg-slate-50">
-                            <span className="font-bold text-slate-800">{day}:</span>
-                            <span className="text-slate-600 font-medium">{getDailyVisitingTime(site.visitingHours)}</span>
+                      <div className="mt-2 max-h-80 overflow-y-auto pr-1 overscroll-contain space-y-3 pt-2 border-t border-slate-100 text-[11px]">
+                        <div className="grid gap-1">
+                          {weeklyRows.map(row => (
+                            <div
+                              key={row.key}
+                              className={cn(
+                                'flex justify-between items-center py-1 px-2 rounded-lg',
+                                operatingEval?.manilaDayOfWeek === row.key
+                                  ? 'bg-primary/10 font-bold'
+                                  : 'bg-slate-50'
+                              )}
+                            >
+                              <span className="font-bold text-slate-800">{row.day}:</span>
+                              <span className="text-slate-600 font-medium text-right">
+                                {row.formattedHours}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Official Verification Sources & Notes */}
+                        {site.operatingSchedule?.verification && (
+                          <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100 space-y-1.5 text-[10px]">
+                            <div className="flex items-center gap-1.5 font-black uppercase tracking-wider text-[9px] text-slate-500">
+                              <ShieldCheck size={12} className="text-primary shrink-0" />
+                              <span>{site.operatingSchedule.verification.verificationStatusLabel}</span>
+                            </div>
+                            {site.operatingSchedule.verification.lastVerifiedDate && (
+                              <p className="text-slate-500">
+                                Last checked: {site.operatingSchedule.verification.lastVerifiedDate}
+                              </p>
+                            )}
+                            {site.operatingSchedule.verification.verificationNotes && (
+                              <p className="text-slate-600 leading-relaxed">
+                                {site.operatingSchedule.verification.verificationNotes}
+                              </p>
+                            )}
+                            {site.operatingSchedule.verification.sources.length > 0 && (
+                              <div className="space-y-1 pt-1">
+                                <p className="font-bold text-slate-500">Official Sources:</p>
+                                {site.operatingSchedule.verification.sources.map((src, idx) => (
+                                  <a
+                                    key={idx}
+                                    href={src.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-start gap-1 text-primary font-semibold hover:underline break-words"
+                                  >
+                                    <ExternalLink size={10} className="shrink-0 mt-0.5" />
+                                    <span className="min-w-0">
+                                      {src.publisher}: {src.title}
+                                    </span>
+                                  </a>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        ))}
+                        )}
                       </div>
                     )}
                   </div>
@@ -599,18 +739,96 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-primary/5 rounded-xl text-primary shrink-0"><Ticket size={18} /></div>
-                  <div className="min-w-0">
-                    <h4 className="font-black text-[9px] text-slate-400 uppercase tracking-widest mb-0.5">Admission</h4>
-                    <p className={cn(
-                      "text-xs md:text-sm font-bold leading-snug",
-                      site.entranceFee ? "text-slate-800" : "text-slate-400 italic font-normal"
-                    )}>
-                      {site.entranceFee || 'Free Admission'}
-                    </p>
-                  </div>
-                </div>
+                {(() => {
+                  const admission = getAdmissionDisplay(site);
+                  const admissionBadge =
+                    admission.status === 'free'
+                      ? admission.isVerified
+                        ? { text: 'Verified Free', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
+                        : { text: 'Open Public Access', cls: 'bg-teal-50 text-teal-700 border-teal-200' }
+                      : admission.status === 'paid'
+                        ? { text: admission.isVerified ? 'Verified Paid' : 'Paid', cls: 'bg-slate-100 text-slate-800 border-slate-200' }
+                        : admission.status === 'unverified'
+                          ? { text: 'Unverified', cls: 'bg-amber-50 text-amber-800 border-amber-200' }
+                          : { text: 'Not Available', cls: 'bg-slate-50 text-slate-500 border-slate-200' };
+                  return (
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-primary/5 rounded-xl text-primary shrink-0"><Ticket size={18} /></div>
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex flex-wrap items-center justify-between gap-1.5">
+                          <h4 className="font-black text-[9px] text-slate-400 uppercase tracking-widest">Admission</h4>
+                          <span className={cn('rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-wider', admissionBadge.cls)}>
+                            {admissionBadge.text}
+                          </span>
+                        </div>
+                        <p className={cn(
+                          'text-xs md:text-sm font-bold leading-snug',
+                          admission.status === 'not_available' ? 'text-slate-500 italic font-normal' : 'text-slate-800'
+                        )}>
+                          {admission.displayLabel}
+                        </p>
+                        {admission.scope && (
+                          <p className="text-[10px] font-semibold text-slate-500">
+                            Scope: {admission.scope}
+                          </p>
+                        )}
+                        {Array.isArray(admission.subFacilities) && admission.subFacilities.length > 0 && (
+                          <div className="rounded-xl bg-slate-50 p-2 border border-slate-100 space-y-1.5 text-[10px]">
+                            <p className="font-black text-[9px] uppercase tracking-widest text-slate-400">
+                              Facility Breakdown
+                            </p>
+                            {admission.subFacilities.map((sub, idx) => (
+                              <div key={idx} className="flex flex-col items-start gap-1 border-b border-slate-100 last:border-b-0 pb-1.5 last:pb-0">
+                                <span className="font-semibold text-slate-700 leading-snug">{sub.name}</span>
+                                <span
+                                  className={cn(
+                                    'inline-flex rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-wider leading-tight',
+                                    sub.status === 'free' && sub.isVerified
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      : sub.status === 'paid' && sub.isVerified
+                                        ? 'bg-slate-100 text-slate-800 border-slate-200'
+                                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                                  )}
+                                >
+                                  {sub.label}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {Array.isArray(admission.rates) && admission.rates.length > 0 && (
+                          <div className="rounded-xl bg-slate-50 p-2 border border-slate-100 space-y-1 text-[10px]">
+                            {admission.rates.map((rate, idx) => (
+                              <div key={idx} className="flex items-start justify-between gap-2">
+                                <span className="font-semibold text-slate-600">{rate.category}:</span>
+                                <span className="font-bold text-slate-800 text-right">{rate.amount}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {admission.notes && (
+                          <p className="text-[10px] text-slate-500 leading-relaxed">{admission.notes}</p>
+                        )}
+                        {Array.isArray(admission.sources) && admission.sources.length > 0 && (
+                          <div className="space-y-0.5">
+                            {admission.sources.map((src, idx) => (
+                              <a
+                                key={idx}
+                                href={src.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-start gap-1 text-[10px] text-primary font-semibold hover:underline break-words"
+                              >
+                                <ExternalLink size={10} className="shrink-0 mt-0.5" />
+                                <span className="min-w-0">{src.publisher}: {src.title}</span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="space-y-2.5">

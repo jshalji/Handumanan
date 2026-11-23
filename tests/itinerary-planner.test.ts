@@ -1,6 +1,12 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import {
+  ALL_DAYS_OF_WEEK,
+  buildDefaultUnverifiedOperatingSchedule,
+  type DayOfWeek,
+  type OperatingSchedule,
+} from '../src/lib/heritage-data';
+import {
   generateLocalItinerary,
   isSiteOpenAtDateTime,
   isSiteOpenForEntireVisit,
@@ -11,6 +17,70 @@ import {
   serializeSitesForPlanner,
   type PlannerItineraryOutput,
 } from '../src/lib/itinerary-planner';
+
+function createVerifiedInteriorSchedule(
+  openTime: string,
+  closeTime: string,
+  openDays: DayOfWeek[] = [...ALL_DAYS_OF_WEEK],
+  is24Hours = false
+): OperatingSchedule {
+  const base = buildDefaultUnverifiedOperatingSchedule();
+  const openDaySet = new Set<DayOfWeek>(openDays);
+  const regularHours = { ...base.interiorAccess.regularHours };
+
+  for (const day of ALL_DAYS_OF_WEEK) {
+    if (openDaySet.has(day)) {
+      regularHours[day] = is24Hours
+        ? { state: 'open_24_hours', periods: [] }
+        : { state: 'open', periods: [{ open: openTime, close: closeTime }] };
+    } else {
+      regularHours[day] = { state: 'closed', periods: [] };
+    }
+  }
+
+  const testSource = {
+    title: 'Test Verified Schedule Source',
+    publisher: 'Handumanan Test Suite',
+    url: 'https://official.example.org/hours',
+    sourceType: 'Official Museum / Institution Website' as const,
+    checkedDate: '2026-11-23',
+    supportedClaims: [
+      'global_visitor_access_policy' as const,
+      'interior_access_policy' as const,
+      'interior_regular_schedule' as const,
+    ],
+  };
+
+  return {
+    ...base,
+    visitorAccessStatus: 'Publicly Accessible',
+    primaryVisitorScope: 'interior',
+    interiorAccess: {
+      policyStatus: 'Publicly Accessible Interior',
+      policyVerified: true,
+      policySources: [testSource],
+      scheduleVerified: true,
+      verifiedDays: [...ALL_DAYS_OF_WEEK],
+      weeklyCoverage: 'all_7_days',
+      regularHours,
+      scheduleSources: [testSource],
+      lastVerifiedDate: '2026-11-23',
+    },
+    verification: {
+      ...base.verification,
+      scheduleVerified: true,
+      visitorAccessStatusVerified: true,
+      visitorAccessStatusSources: [testSource],
+      verifiedDays: [...ALL_DAYS_OF_WEEK],
+      weeklyCoverage: 'all_7_days',
+      interiorAccessPolicyVerified: true,
+      interiorScheduleVerified: true,
+      verificationStatusLabel: 'Verified',
+      lastVerifiedDate: '2026-11-23',
+      sources: [testSource],
+    },
+  };
+}
 
 // Fixed deterministic timestamps in Asia/Manila (+08:00)
 const WEDNESDAY_DAYTIME_2PM = new Date('2026-11-11T14:00:00+08:00');
@@ -25,6 +95,7 @@ const SAMPLE_MUSEUM_9AM = {
   name: 'Casa Gorordo Museum',
   city: 'Cebu City',
   visitingHours: 'Monday to Sunday, 9:00 AM - 5:00 PM',
+  operatingSchedule: createVerifiedInteriorSchedule('09:00', '17:00'),
   coordinates: { lat: 10.2999, lng: 123.90483 },
   isActive: true,
   status: 'Active',
@@ -37,6 +108,7 @@ const SAMPLE_MUSEUM_10AM = {
   name: 'Sugbu Chinese Heritage Museum',
   city: 'Cebu City',
   visitingHours: 'Monday to Sunday, 10:00 AM - 5:00 PM',
+  operatingSchedule: createVerifiedInteriorSchedule('10:00', '17:00'),
   coordinates: { lat: 10.29386, lng: 123.90268 },
   isActive: true,
   status: 'Active',
@@ -49,6 +121,13 @@ const SAMPLE_WEEKDAY_LIBRARY = {
   name: 'Rizal Memorial Library and Museum',
   city: 'Cebu City',
   visitingHours: 'Monday to Friday, 8:00 AM - 5:00 PM',
+  operatingSchedule: createVerifiedInteriorSchedule('08:00', '17:00', [
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+  ]),
   coordinates: { lat: 10.30931, lng: 123.89274 },
   isActive: true,
   status: 'Active',
@@ -61,6 +140,14 @@ const SAMPLE_CLOSED_ON_MONDAYS_SITE = {
   name: 'Parian Heritage Gallery',
   city: 'Cebu City',
   visitingHours: 'Tuesday to Sunday, 9:00 AM - 5:00 PM (Closed on Mondays)',
+  operatingSchedule: createVerifiedInteriorSchedule('09:00', '17:00', [
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+    'sunday',
+  ]),
   coordinates: { lat: 10.2985, lng: 123.9041 },
   isActive: true,
   status: 'Active',
@@ -248,12 +335,14 @@ test('future daytime itinerary stops share one valid planned visiting period and
     id: 'monday-only-site',
     name: 'Monday Archive',
     visitingHours: 'Monday to Monday, 9:00 AM - 5:00 PM',
+    operatingSchedule: createVerifiedInteriorSchedule('09:00', '17:00', ['monday']),
   };
   const tuesdayOnlySite = {
     ...SAMPLE_MUSEUM_10AM,
     id: 'tuesday-only-site',
     name: 'Tuesday Gallery',
     visitingHours: 'Tuesday to Tuesday, 10:00 AM - 4:00 PM',
+    operatingSchedule: createVerifiedInteriorSchedule('10:00', '16:00', ['tuesday']),
   };
   const disjointInput = {
     selectedSitesJson: serializeSitesForPlanner([mondayOnlySite, tuesdayOnlySite]),
@@ -419,6 +508,7 @@ test('explicitly unavailable or permanently closed sites remain excluded and ret
       id: 'unparseable-hours-site',
       name: 'Unparseable Schedule Site',
       visitingHours: 'Schedule pending internal review',
+      operatingSchedule: buildDefaultUnverifiedOperatingSchedule(),
     },
   ];
 
@@ -529,6 +619,7 @@ test('sequential validation keeps first stop that fits visiting hours but exclud
     name: 'Fort San Pedro',
     city: 'Cebu City',
     visitingHours: 'Monday to Sunday, 8:00 AM - 7:00 PM',
+    operatingSchedule: createVerifiedInteriorSchedule('08:00', '19:00'),
     coordinates: { lat: 10.29257, lng: 123.90566 },
     isActive: true,
     status: 'Active',
@@ -594,6 +685,7 @@ test('sequential validation keeps first stop that fits visiting hours but exclud
     name: 'Morning Heritage Chapel',
     city: 'Cebu City',
     visitingHours: 'Monday to Sunday, 9:00 AM - 9:35 AM',
+    operatingSchedule: createVerifiedInteriorSchedule('09:00', '09:35'),
     coordinates: { lat: 10.305, lng: 123.908 },
     isActive: true,
     status: 'Active',
@@ -707,6 +799,7 @@ test('sequential validation excludes a stop that is open upon arrival but closes
     name: 'Brief Window Gallery',
     city: 'Cebu City',
     visitingHours: 'Monday to Sunday, 9:00 AM - 9:25 AM',
+    operatingSchedule: createVerifiedInteriorSchedule('09:00', '09:25'),
     coordinates: { lat: 10.2999, lng: 123.90483 },
     isActive: true,
     status: 'Active',
@@ -758,6 +851,7 @@ test('multiple stops that all fit sequentially within their respective visiting 
     name: '1730 Jesuit House',
     city: 'Cebu City',
     visitingHours: 'Monday to Sunday, 9:00 AM - 4:30 PM',
+    operatingSchedule: createVerifiedInteriorSchedule('09:00', '16:30'),
     coordinates: { lat: 10.29869, lng: 123.90401 },
     isActive: true,
     status: 'Active',
@@ -827,6 +921,7 @@ test('selectEligiblePlannerCandidates replaces closing sites, supports regenerat
       name: 'Closing Soon Site',
       city: 'Cebu City',
       visitingHours: 'Monday to Sunday, 8:00 AM - 4:30 PM',
+      operatingSchedule: createVerifiedInteriorSchedule('08:00', '16:30'),
       coordinates: { lat: 10.2937, lng: 123.9020 },
     },
     {
@@ -834,6 +929,7 @@ test('selectEligiblePlannerCandidates replaces closing sites, supports regenerat
       name: 'Open Site 1',
       city: 'Cebu City',
       visitingHours: 'Monday to Sunday, 6:00 AM - 8:00 PM',
+      operatingSchedule: createVerifiedInteriorSchedule('06:00', '20:00'),
       coordinates: { lat: 10.2942, lng: 123.9021 },
     },
     {
@@ -841,6 +937,7 @@ test('selectEligiblePlannerCandidates replaces closing sites, supports regenerat
       name: 'Open Site 2',
       city: 'Cebu City',
       visitingHours: '24 Hours',
+      operatingSchedule: createVerifiedInteriorSchedule('00:00', '23:59', [...ALL_DAYS_OF_WEEK], true),
       coordinates: { lat: 10.2950, lng: 123.9030 },
     },
     {
@@ -848,6 +945,7 @@ test('selectEligiblePlannerCandidates replaces closing sites, supports regenerat
       name: 'Open Site 3',
       city: 'Cebu City',
       visitingHours: '24 Hours',
+      operatingSchedule: createVerifiedInteriorSchedule('00:00', '23:59', [...ALL_DAYS_OF_WEEK], true),
       coordinates: { lat: 10.2960, lng: 123.9040 },
     },
   ];

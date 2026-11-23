@@ -57,7 +57,32 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { HERITAGE_SITES, VerificationStatus, isSiteVisibleToUser } from '@/lib/heritage-data';
+import {
+  ALL_DAYS_OF_WEEK,
+  buildDefaultUnverifiedOperatingSchedule,
+  HERITAGE_SITES,
+  isSiteVisibleToUser,
+  normalizeOperatingSchedule,
+  type DailyScheduleState,
+  type DayOfWeek,
+  type ExteriorGroundsAccessInfo,
+  type ExteriorStreetVisibilityInfo,
+  type InteriorAccessInfo,
+  type OperatingSchedule,
+  type PhysicalPreservationStatus,
+  type ScheduleVerificationSource,
+  type VerifiableClaimType,
+  type VerificationStatus,
+  type VisitorAccessStatus,
+} from '@/lib/heritage-data';
+import {
+  isExteriorGroundsPolicyVerified,
+  isExteriorGroundsScheduleVerified,
+  isGlobalAccessPolicyVerified,
+  isInteriorPolicyVerified,
+  isInteriorScheduleVerified,
+  isStreetVisibilityVerified,
+} from '@/lib/site-availability';
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageFallback, normalizeImageSource } from '@/lib/site-images';
 import { isValidRating } from '@/lib/review-ratings';
@@ -81,6 +106,7 @@ type SiteFormState = {
   category: string;
   location: string;
   visitingHours: string;
+  operatingSchedule: OperatingSchedule;
   accessibilityStatus: string;
   imageUrl: string;
   galleryImages: string;
@@ -129,6 +155,7 @@ const EMPTY_SITE_FORM: SiteFormState = {
   category: 'Historical Landmarks & Monuments',
   location: '',
   visitingHours: 'Open hours require verification',
+  operatingSchedule: buildDefaultUnverifiedOperatingSchedule(),
   accessibilityStatus: 'Accessible',
   imageUrl: '',
   galleryImages: '',
@@ -171,10 +198,15 @@ function normalizeSiteRecord(site: any, existingSite?: any) {
   const coordinates = Number.isFinite(latitude) && Number.isFinite(longitude)
     ? { lat: latitude, lng: longitude }
     : existingSite?.coordinates;
+  const operatingSchedule = normalizeOperatingSchedule(
+    site?.operatingSchedule ?? existingSite?.operatingSchedule,
+    merged
+  );
 
   return removeUndefinedProperties({
     ...merged,
     coordinates,
+    operatingSchedule,
     verificationStatus: (merged.verificationStatus as VerificationStatus) || 'Pending Verification',
     verifiedBy: merged.verifiedBy || undefined,
     verifiedByUid: merged.verifiedByUid || undefined,
@@ -202,15 +234,22 @@ function splitList(value: string) {
 }
 
 function getInitialFormState(site?: any): SiteFormState {
-  if (!site) return EMPTY_SITE_FORM;
+  if (!site) {
+    return {
+      ...EMPTY_SITE_FORM,
+      operatingSchedule: buildDefaultUnverifiedOperatingSchedule(),
+    };
+  }
 
   const coords = getSiteCoords(site);
+  const operatingSchedule = normalizeOperatingSchedule(site.operatingSchedule, site);
   return {
     name: site.name || '',
     city: site.city || 'Cebu City',
     category: site.category || 'Historical Landmarks & Monuments',
     location: site.location || '',
-    visitingHours: site.visitingHours || 'Open hours require verification',
+    visitingHours: site.visitingHours || operatingSchedule.displaySummary || 'Open hours require verification',
+    operatingSchedule,
     accessibilityStatus: site.accessibilityStatus || 'Accessible',
     imageUrl: site.imageUrl || '',
     galleryImages: listToText(site.galleryImages),
@@ -855,8 +894,41 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const updateForm = (field: keyof SiteFormState, value: string | boolean) => {
+  const updateForm = (field: keyof SiteFormState, value: string | boolean | OperatingSchedule) => {
     setFormState(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateOperatingSchedule = (updater: (prev: OperatingSchedule) => OperatingSchedule) => {
+    setFormState(prev => {
+      const nextSchedule = updater(prev.operatingSchedule);
+      const sources = nextSchedule.verification?.sources || [];
+      const syncedSchedule: OperatingSchedule = {
+        ...nextSchedule,
+        verification: {
+          ...nextSchedule.verification,
+          visitorAccessStatusSources: sources,
+        },
+        interiorAccess: {
+          ...nextSchedule.interiorAccess,
+          policySources: sources,
+          scheduleSources: sources,
+        },
+        exteriorGroundsAccess: {
+          ...nextSchedule.exteriorGroundsAccess,
+          policySources: sources,
+          scheduleSources: sources,
+        },
+        exteriorStreetVisibility: {
+          ...nextSchedule.exteriorStreetVisibility,
+          sources,
+        },
+      };
+      return {
+        ...prev,
+        operatingSchedule: syncedSchedule,
+        visitingHours: syncedSchedule.displaySummary || prev.visitingHours,
+      };
+    });
   };
 
   const openCreateDialog = () => {
@@ -922,6 +994,29 @@ export default function AdminDashboardPage() {
       return 'Entrance fee text must not contain HTML tags.';
     }
 
+    // Strict Anti-Fabrication Operating Schedule & Access Policy Verification Checks
+    const sched = formState.operatingSchedule;
+    if (sched) {
+      if (sched.verification?.visitorAccessStatusVerified && !isGlobalAccessPolicyVerified(sched)) {
+        return 'Global Visitor Access Policy cannot be marked verified without an official HTTP/HTTPS verification source (title, publisher, URL, checked date, and global_visitor_access_policy claim).';
+      }
+      if (sched.interiorAccess?.policyVerified && !isInteriorPolicyVerified(sched)) {
+        return 'Interior Access Policy cannot be marked verified without an official HTTP/HTTPS verification source supporting interior_access_policy.';
+      }
+      if (sched.interiorAccess?.scheduleVerified && !isInteriorScheduleVerified(sched)) {
+        return 'Interior Operating Schedule cannot be marked verified without an official HTTP/HTTPS verification source supporting interior_regular_schedule.';
+      }
+      if (sched.exteriorGroundsAccess?.policyVerified && !isExteriorGroundsPolicyVerified(sched)) {
+        return 'Exterior Grounds Access Policy cannot be marked verified without an official HTTP/HTTPS verification source supporting exterior_grounds_access_policy.';
+      }
+      if (sched.exteriorGroundsAccess?.scheduleVerified && !isExteriorGroundsScheduleVerified(sched)) {
+        return 'Exterior Grounds Schedule cannot be marked verified without an official HTTP/HTTPS verification source supporting exterior_grounds_regular_schedule.';
+      }
+      if (sched.exteriorStreetVisibility?.isVerified && !isStreetVisibilityVerified(sched)) {
+        return 'Exterior Street Visibility cannot be marked verified without an official HTTP/HTTPS verification source supporting exterior_street_visibility.';
+      }
+    }
+
     return null;
   };
 
@@ -947,12 +1042,21 @@ export default function AdminDashboardPage() {
       }
     }
 
+    const syncedOperatingSchedule: OperatingSchedule = {
+      ...formState.operatingSchedule,
+      displaySummary:
+        formState.operatingSchedule.displaySummary?.trim() ||
+        formState.visitingHours.trim() ||
+        'Hours unverified (confirm before visiting)',
+    };
+
     const siteData = removeUndefinedProperties({
       name: formState.name.trim(),
       city: formState.city,
       category: formState.category,
       location: formState.location.trim(),
-      visitingHours: formState.visitingHours.trim(),
+      visitingHours: formState.visitingHours.trim() || syncedOperatingSchedule.displaySummary,
+      operatingSchedule: syncedOperatingSchedule,
       accessibilityStatus: formState.accessibilityStatus.trim() || 'Accessible',
       imageUrl: finalImageUrl,
       galleryImages: splitList(formState.galleryImages),
@@ -2086,21 +2190,453 @@ export default function AdminDashboardPage() {
                   </FormField>
                 </FormSection>
 
-                <FormSection title="Visitor Information">
+                <FormSection title="Visitor Information & Operating Schedule (Asia/Manila)">
                   <div className="grid gap-4 md:grid-cols-2">
-                    <FormField label="Visiting Hours" required>
-                      <Input value={formState.visitingHours} onChange={event => updateForm('visitingHours', event.target.value)} placeholder="9:00 AM - 5:00 PM" />
+                    <FormField label="Visiting Hours Summary" required>
+                      <Input
+                        value={formState.visitingHours}
+                        onChange={event => {
+                          const val = event.target.value;
+                          updateForm('visitingHours', val);
+                          updateOperatingSchedule(prev => ({
+                            ...prev,
+                            displaySummary: val,
+                          }));
+                        }}
+                        placeholder="Mon–Sat 9:00 AM–5:00 PM (Sun unverified)"
+                      />
                     </FormField>
+                    <FormField label="Primary Visitor Scope">
+                      <select
+                        value={formState.operatingSchedule.primaryVisitorScope}
+                        onChange={event =>
+                          updateOperatingSchedule(prev => ({
+                            ...prev,
+                            primaryVisitorScope: event.target.value as 'interior' | 'exterior_grounds',
+                          }))
+                        }
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="interior">Interior (Museum, Church, Building)</option>
+                        <option value="exterior_grounds">Exterior Grounds (Plaza, Monument, Park)</option>
+                      </select>
+                    </FormField>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField label="Physical Preservation Status">
+                      <select
+                        value={formState.operatingSchedule.physicalPreservationStatus}
+                        onChange={event =>
+                          updateOperatingSchedule(prev => ({
+                            ...prev,
+                            physicalPreservationStatus: event.target.value as PhysicalPreservationStatus,
+                          }))
+                        }
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="Standing">Standing</option>
+                        <option value="Restored">Restored</option>
+                        <option value="Partially Ruined / Ruins">Partially Ruined / Ruins</option>
+                        <option value="Damaged / Under Restoration">Damaged / Under Restoration</option>
+                        <option value="Demolished / Lost">Demolished / Lost</option>
+                      </select>
+                    </FormField>
+                    <FormField label="Global Visitor Access Policy">
+                      <select
+                        value={formState.operatingSchedule.visitorAccessStatus}
+                        onChange={event =>
+                          updateOperatingSchedule(prev => ({
+                            ...prev,
+                            visitorAccessStatus: event.target.value as VisitorAccessStatus,
+                          }))
+                        }
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="Unknown / Unverified">Unknown / Unverified</option>
+                        <option value="Publicly Accessible">Publicly Accessible</option>
+                        <option value="Guided / Ticketed Entry">Guided / Ticketed Entry</option>
+                        <option value="Exterior Access Only">Exterior Access Only</option>
+                        <option value="Restricted Grounds">Restricted Grounds</option>
+                        <option value="By Appointment Only">By Appointment Only</option>
+                        <option value="Private Residence">Private Residence</option>
+                        <option value="Temporarily Closed">Temporarily Closed</option>
+                        <option value="Temporarily Closed Interior">Temporarily Closed Interior</option>
+                        <option value="Temporarily Closed Grounds">Temporarily Closed Grounds</option>
+                        <option value="Permanently Closed">Permanently Closed</option>
+                        <option value="Demolished / Lost">Demolished / Lost</option>
+                      </select>
+                    </FormField>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <FormField label="Interior Access Policy">
+                      <select
+                        value={formState.operatingSchedule.interiorAccess.policyStatus}
+                        onChange={event =>
+                          updateOperatingSchedule(prev => ({
+                            ...prev,
+                            interiorAccess: {
+                              ...prev.interiorAccess,
+                              policyStatus: event.target.value as InteriorAccessInfo['policyStatus'],
+                            },
+                          }))
+                        }
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-xs"
+                      >
+                        <option value="Unknown / Unverified">Unknown / Unverified</option>
+                        <option value="Publicly Accessible Interior">Publicly Accessible Interior</option>
+                        <option value="Guided / Ticketed Interior">Guided / Ticketed Interior</option>
+                        <option value="By Appointment Only">By Appointment Only</option>
+                        <option value="Temporarily Closed Interior">Temporarily Closed Interior</option>
+                        <option value="No Public Interior Access">No Public Interior Access</option>
+                        <option value="Not Applicable (Open-Air / Exterior Landmark)">Not Applicable (Open-Air / Exterior Landmark)</option>
+                      </select>
+                    </FormField>
+                    <FormField label="Exterior Grounds Policy">
+                      <select
+                        value={formState.operatingSchedule.exteriorGroundsAccess.policyStatus}
+                        onChange={event =>
+                          updateOperatingSchedule(prev => ({
+                            ...prev,
+                            exteriorGroundsAccess: {
+                              ...prev.exteriorGroundsAccess,
+                              policyStatus: event.target.value as ExteriorGroundsAccessInfo['policyStatus'],
+                            },
+                          }))
+                        }
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-xs"
+                      >
+                        <option value="Unknown / Unverified">Unknown / Unverified</option>
+                        <option value="Publicly Accessible Grounds">Publicly Accessible Grounds</option>
+                        <option value="Accessible Within Gate Hours">Accessible Within Gate Hours</option>
+                        <option value="Ticketed / Guided Grounds">Ticketed / Guided Grounds</option>
+                        <option value="Restricted / Gated Compound">Restricted / Gated Compound</option>
+                        <option value="Temporarily Closed Grounds">Temporarily Closed Grounds</option>
+                        <option value="Private Property Grounds">Private Property Grounds</option>
+                      </select>
+                    </FormField>
+                    <FormField label="Street Visibility">
+                      <select
+                        value={formState.operatingSchedule.exteriorStreetVisibility.status}
+                        onChange={event =>
+                          updateOperatingSchedule(prev => ({
+                            ...prev,
+                            exteriorStreetVisibility: {
+                              ...prev.exteriorStreetVisibility,
+                              status: event.target.value as ExteriorStreetVisibilityInfo['status'],
+                            },
+                          }))
+                        }
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-xs"
+                      >
+                        <option value="Unknown / Unverified">Unknown / Unverified</option>
+                        <option value="Viewable from Public Street">Viewable from Public Street</option>
+                        <option value="Partially Viewable from Street">Partially Viewable from Street</option>
+                        <option value="Not Viewable from Public Street">Not Viewable from Public Street</option>
+                      </select>
+                    </FormField>
+                  </div>
+
+                  {/* Independent Verification Toggles (Backed by Official Sources) */}
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-3">
+                    <p className="text-[11px] font-bold text-slate-800">
+                      Independent Scope &amp; Schedule Verification Gates (Requires Official HTTP/HTTPS Source Below)
+                    </p>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <ToggleField
+                        label="Interior Policy Verified"
+                        checked={formState.operatingSchedule.interiorAccess.policyVerified}
+                        onChange={value =>
+                          updateOperatingSchedule(prev => ({
+                            ...prev,
+                            interiorAccess: { ...prev.interiorAccess, policyVerified: value },
+                          }))
+                        }
+                      />
+                      <ToggleField
+                        label="Interior Schedule Verified"
+                        checked={formState.operatingSchedule.interiorAccess.scheduleVerified}
+                        onChange={value =>
+                          updateOperatingSchedule(prev => ({
+                            ...prev,
+                            interiorAccess: { ...prev.interiorAccess, scheduleVerified: value },
+                          }))
+                        }
+                      />
+                      <ToggleField
+                        label="Grounds Policy Verified"
+                        checked={formState.operatingSchedule.exteriorGroundsAccess.policyVerified}
+                        onChange={value =>
+                          updateOperatingSchedule(prev => ({
+                            ...prev,
+                            exteriorGroundsAccess: { ...prev.exteriorGroundsAccess, policyVerified: value },
+                          }))
+                        }
+                      />
+                      <ToggleField
+                        label="Grounds Schedule Verified"
+                        checked={formState.operatingSchedule.exteriorGroundsAccess.scheduleVerified}
+                        onChange={value =>
+                          updateOperatingSchedule(prev => ({
+                            ...prev,
+                            exteriorGroundsAccess: { ...prev.exteriorGroundsAccess, scheduleVerified: value },
+                          }))
+                        }
+                      />
+                    </div>
+
+                    {/* Weekly Regular Hours Editor for Primary Scope */}
+                    <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Weekly Schedule ({formState.operatingSchedule.primaryVisitorScope === 'interior' ? 'Interior' : 'Exterior Grounds'} — 24h Asia/Manila)
+                      </p>
+                      <div className="grid gap-1.5">
+                        {ALL_DAYS_OF_WEEK.map((dayKey: DayOfWeek) => {
+                          const activeScopeKey =
+                            formState.operatingSchedule.primaryVisitorScope === 'interior'
+                              ? 'interiorAccess'
+                              : 'exteriorGroundsAccess';
+                          const scopeObj = formState.operatingSchedule[activeScopeKey];
+                          const daySched = scopeObj.regularHours[dayKey] || {
+                            state: 'not_specified' as DailyScheduleState,
+                            periods: [],
+                          };
+                          const firstPeriod = daySched.periods?.[0] || { open: '09:00', close: '17:00' };
+                          const isDayVerified = scopeObj.verifiedDays.includes(dayKey);
+
+                          const updateDaySchedule = (
+                            nextState: DailyScheduleState,
+                            nextOpen = firstPeriod.open,
+                            nextClose = firstPeriod.close,
+                            nextDayVerified = isDayVerified
+                          ) => {
+                            updateOperatingSchedule(prev => {
+                              const currentScope = prev[activeScopeKey];
+                              const nextVerifiedDays = nextDayVerified
+                                ? Array.from(new Set([...currentScope.verifiedDays, dayKey]))
+                                : currentScope.verifiedDays.filter(d => d !== dayKey);
+                              return {
+                                ...prev,
+                                [activeScopeKey]: {
+                                  ...currentScope,
+                                  verifiedDays: nextVerifiedDays,
+                                  regularHours: {
+                                    ...currentScope.regularHours,
+                                    [dayKey]: {
+                                      state: nextState,
+                                      periods:
+                                        nextState === 'open'
+                                          ? [{ open: nextOpen, close: nextClose }]
+                                          : [],
+                                    },
+                                  },
+                                },
+                              };
+                            });
+                          };
+
+                          return (
+                            <div
+                              key={dayKey}
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white px-2.5 py-1.5 border border-slate-200 text-xs"
+                            >
+                              <span className="w-20 font-bold capitalize text-slate-800">{dayKey}</span>
+                              <select
+                                value={daySched.state}
+                                onChange={e =>
+                                  updateDaySchedule(
+                                    e.target.value as DailyScheduleState,
+                                    firstPeriod.open,
+                                    firstPeriod.close,
+                                    e.target.value !== 'not_specified'
+                                  )
+                                }
+                                className="h-7 rounded border border-slate-200 bg-slate-50 px-2 text-[11px]"
+                              >
+                                <option value="not_specified">Unverified / Not Specified</option>
+                                <option value="open">Open (Timed)</option>
+                                <option value="open_24_hours">Open 24 Hours</option>
+                                <option value="closed">Closed</option>
+                                <option value="by_appointment">By Appointment</option>
+                              </select>
+                              {daySched.state === 'open' && (
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="time"
+                                    value={firstPeriod.open}
+                                    onChange={e =>
+                                      updateDaySchedule('open', e.target.value, firstPeriod.close, true)
+                                    }
+                                    className="h-7 rounded border border-slate-200 px-1.5 text-[11px]"
+                                  />
+                                  <span className="text-slate-400">–</span>
+                                  <input
+                                    type="time"
+                                    value={firstPeriod.close}
+                                    onChange={e =>
+                                      updateDaySchedule('open', firstPeriod.open, e.target.value, true)
+                                    }
+                                    className="h-7 rounded border border-slate-200 px-1.5 text-[11px]"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Official Verification Source Entry */}
+                    <div className="space-y-2 pt-2 border-t border-slate-200">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          Official Verification Sources ({formState.operatingSchedule.verification.sources.length})
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-[10px] font-bold"
+                          onClick={() => {
+                            const todayIso = new Date().toISOString().slice(0, 10);
+                            const newSource: ScheduleVerificationSource = {
+                              title: `${formState.name || 'Official Site'} Schedule`,
+                              publisher: formState.name || 'Official Operator',
+                              url: 'https://',
+                              sourceType: 'Official Museum / Institution Website',
+                              checkedDate: todayIso,
+                              supportedClaims: [
+                                'global_visitor_access_policy',
+                                'interior_access_policy',
+                                'interior_regular_schedule',
+                                'exterior_grounds_access_policy',
+                                'exterior_grounds_regular_schedule',
+                                'exterior_street_visibility',
+                              ],
+                            };
+                            updateOperatingSchedule(prev => ({
+                              ...prev,
+                              verification: {
+                                ...prev.verification,
+                                lastVerifiedDate: todayIso,
+                                sources: [...prev.verification.sources, newSource],
+                              },
+                            }));
+                          }}
+                        >
+                          <Plus size={12} className="mr-1" /> Add Official Source
+                        </Button>
+                      </div>
+
+                      {formState.operatingSchedule.verification.sources.map((src, sIdx) => (
+                        <div
+                          key={sIdx}
+                          className="rounded-md bg-white p-2.5 border border-slate-200 space-y-2 text-xs"
+                        >
+                          <div className="grid gap-2 md:grid-cols-2">
+                            <Input
+                              value={src.title}
+                              placeholder="Source Title"
+                              className="h-8 text-xs"
+                              onChange={e => {
+                                const val = e.target.value;
+                                updateOperatingSchedule(prev => ({
+                                  ...prev,
+                                  verification: {
+                                    ...prev.verification,
+                                    sources: prev.verification.sources.map((item, idx) =>
+                                      idx === sIdx ? { ...item, title: val } : item
+                                    ),
+                                  },
+                                }));
+                              }}
+                            />
+                            <Input
+                              value={src.publisher}
+                              placeholder="Official Publisher (e.g., NMP, RAFI)"
+                              className="h-8 text-xs"
+                              onChange={e => {
+                                const val = e.target.value;
+                                updateOperatingSchedule(prev => ({
+                                  ...prev,
+                                  verification: {
+                                    ...prev.verification,
+                                    sources: prev.verification.sources.map((item, idx) =>
+                                      idx === sIdx ? { ...item, publisher: val } : item
+                                    ),
+                                  },
+                                }));
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={src.url}
+                              placeholder="https://official-domain.org/schedule"
+                              className="h-8 text-xs font-mono flex-1"
+                              onChange={e => {
+                                const val = e.target.value;
+                                updateOperatingSchedule(prev => ({
+                                  ...prev,
+                                  verification: {
+                                    ...prev.verification,
+                                    sources: prev.verification.sources.map((item, idx) =>
+                                      idx === sIdx ? { ...item, url: val } : item
+                                    ),
+                                  },
+                                }));
+                              }}
+                            />
+                            <Input
+                              type="date"
+                              value={src.checkedDate}
+                              className="h-8 text-xs w-36"
+                              onChange={e => {
+                                const val = e.target.value;
+                                updateOperatingSchedule(prev => ({
+                                  ...prev,
+                                  verification: {
+                                    ...prev.verification,
+                                    lastVerifiedDate: val,
+                                    sources: prev.verification.sources.map((item, idx) =>
+                                      idx === sIdx ? { ...item, checkedDate: val } : item
+                                    ),
+                                  },
+                                }));
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-500"
+                              onClick={() => {
+                                updateOperatingSchedule(prev => ({
+                                  ...prev,
+                                  verification: {
+                                    ...prev.verification,
+                                    sources: prev.verification.sources.filter((_, idx) => idx !== sIdx),
+                                  },
+                                }));
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
                     <FormField label="Accessibility">
                       <Input value={formState.accessibilityStatus} onChange={event => updateForm('accessibilityStatus', event.target.value)} placeholder="Fully Accessible" />
                     </FormField>
+                    <FormField label="Entrance Fee / Admission">
+                      <Input value={formState.entranceFee} onChange={event => updateForm('entranceFee', event.target.value)} placeholder="e.g. Free Admission, ₱50, Estimated Fee: ₱50–₱100" />
+                    </FormField>
                   </div>
-                  <FormField label="Entrance Fee / Admission">
-                    <Input value={formState.entranceFee} onChange={event => updateForm('entranceFee', event.target.value)} placeholder="e.g. Free Admission, ₱50, Estimated Fee: ₱50–₱100" />
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Enter the known admission fee or an estimated price with a note. Example: Free Admission, ₱50, Estimated Fee: ₱50–₱100. Leave blank if unavailable.
-                    </p>
-                  </FormField>
                   <div className="grid gap-4 md:grid-cols-3">
                     <ToggleField label="Active in public app" checked={formState.isActive} onChange={value => updateForm('isActive', value)} />
                     <ToggleField label="Must-visit highlight" checked={formState.isMustVisit} onChange={value => updateForm('isMustVisit', value)} />

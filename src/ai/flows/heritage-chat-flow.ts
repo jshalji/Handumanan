@@ -5,8 +5,20 @@
 
 import { ai, hasGoogleAiApiKey } from '@/ai/genkit';
 import { z } from 'genkit';
-import { DEPRECATED_HERITAGE_SITE_IDS, HERITAGE_SITES, hasExplicitHeritageIntent } from '@/lib/heritage-data';
-import { getSiteAvailability, isSiteOpenForVisit, hasVerifiedVisitingHours } from '@/lib/site-availability';
+import {
+  DEPRECATED_HERITAGE_SITE_IDS,
+  getAdmissionDisplay,
+  HERITAGE_SITES,
+  hasExplicitHeritageIntent,
+} from '@/lib/heritage-data';
+import {
+  evaluateSiteOperatingStatus,
+  getSiteAvailability,
+  hasAnyVerifiedOpenSubFacility,
+  hasVerifiedVisitingHours,
+  isSiteEligibleForDirectoryOrTour,
+  isSiteOpenForVisit,
+} from '@/lib/site-availability';
 import { isTechnicalRouteRequest } from '@/lib/chat-markdown';
 import {
   extractValidatedGroundingSources,
@@ -214,6 +226,8 @@ function normalizeDirectorySite(site: DirectorySiteInput): HeritageSiteRecord | 
       : 'Non-Demolished',
     accessibilityStatus: site.accessibilityStatus || 'Accessibility details are not yet available.',
     entranceFee: site.entranceFee || undefined,
+    admissionInfo: (site as any).admissionInfo,
+    operatingSchedule: (site as any).operatingSchedule,
   };
 }
 
@@ -256,7 +270,7 @@ function getStopCountForHours(hours: number): number {
 }
 
 function getBalancedRouteSites(stopCount: number, sites: HeritageSiteRecord[]) {
-  const activeSites = sites.filter(site => isSiteOpenForVisit(site));
+  const activeSites = sites.filter(site => isSiteEligibleForDirectoryOrTour(site));
   const selected = [];
   const usedIds = new Set<string>();
   const usedCities = new Set<string>();
@@ -627,6 +641,9 @@ function getClosedSitesResponse(query: string, sites: HeritageSiteRecord[], limi
     .map(site => ({ site, availability: getSiteAvailability(site) }))
     .filter(({ availability }) => !availability.isOpen)
     .sort((a, b) => {
+      const aConfirmedClosed = a.availability.triState === false ? 0 : 1;
+      const bConfirmedClosed = b.availability.triState === false ? 0 : 1;
+      if (aConfirmedClosed !== bConfirmedClosed) return aConfirmedClosed - bConfirmedClosed;
       if (a.site.city !== b.site.city) return a.site.city.localeCompare(b.site.city);
       return a.site.name.localeCompare(b.site.name);
     });
@@ -661,7 +678,7 @@ function getOpenSitesResponse(query: string, sites: HeritageSiteRecord[], limit 
     .filter(site => matchesGeographicConstraint(site, geo))
     .filter(site => !category || site.category === category);
   const openSites = scopedSites
-    .filter(site => isSiteOpenForVisit(site))
+    .filter(site => isSiteOpenForVisit(site) || hasAnyVerifiedOpenSubFacility(site))
     .sort((a, b) => {
       if (a.city !== b.city) return a.city.localeCompare(b.city);
       if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
@@ -751,7 +768,7 @@ function findBestSiteForRouteEndpoint(query: string, excludedIds = new Set<strin
   if (!query) return null;
 
   const match = sites
-    .filter(site => isSiteOpenForVisit(site) && !excludedIds.has(site.id))
+    .filter(site => isSiteEligibleForDirectoryOrTour(site) && !excludedIds.has(site.id))
     .map(site => ({ site, score: scoreSiteMatch(site, query) }))
     .filter(result => result.score >= 20)
     .sort((a, b) => b.score - a.score || compareRatingDescending(a.site.rating, b.site.rating))[0];
@@ -761,7 +778,7 @@ function findBestSiteForRouteEndpoint(query: string, excludedIds = new Set<strin
 
 function findRepresentativeSiteForCity(city: string, excludedIds = new Set<string>(), sites: HeritageSiteRecord[] = HERITAGE_SITES) {
   return sites
-    .filter(site => isSiteOpenForVisit(site) && site.city === city && !excludedIds.has(site.id))
+    .filter(site => isSiteEligibleForDirectoryOrTour(site) && site.city === city && !excludedIds.has(site.id))
     .sort((a, b) => {
       if (a.isMustVisit !== b.isMustVisit) return a.isMustVisit ? -1 : 1;
       return compareRatingDescending(a.rating, b.rating) || a.name.localeCompare(b.name);
@@ -886,7 +903,7 @@ function getNearbySites(userLocation: GeoPoint, query: string, limit = 5, sites:
   const category = getCategoryFromQuery(query);
 
   return sites
-    .filter(site => isSiteOpenForVisit(site) && Boolean(getVerifiedCoordinates(site)))
+    .filter(site => isSiteEligibleForDirectoryOrTour(site) && Boolean(getVerifiedCoordinates(site)))
     .filter(site => !city || site.city === city)
     .filter(site => !category || site.category === category)
     .map(site => ({
@@ -1060,7 +1077,7 @@ function getStrongMatchingSites(query: string, limit = 3, sites: HeritageSiteRec
   const normalizedQuery = normalizeSearchText(query);
 
   return sites
-    .filter(site => !requireOpen || isSiteOpenForVisit(site))
+    .filter(site => !requireOpen || isSiteEligibleForDirectoryOrTour(site))
     .filter(site => {
       if (entities.includes(site.id)) return true;
       const normName = normalizeSearchText(site.name);
@@ -1361,18 +1378,21 @@ function getSiteFactResponse(
     : '';
 
   if (/\b(fee|fees|entrance|admission|ticket|tickets|price|prices|cost|pay|free|how much)\b/.test(normalizedQuery)) {
-    const rawFee = site.entranceFee?.trim();
-    const isEstimate = rawFee ? (rawFee.toLowerCase().includes('estimate') || rawFee.toLowerCase().includes('estimated')) : false;
-
+    const admission = getAdmissionDisplay(site);
     let feeText = '';
-    if (rawFee && isEstimate) {
-      feeText = `Handumanan lists an estimated entrance fee of "${rawFee}" for ${site.name}. Since this is an estimate, please confirm current prices with the site or local government unit before visiting.`;
-    } else if (rawFee === 'Free Admission') {
-      feeText = `Handumanan's listed entrance fee for ${site.name} is Free Admission (please confirm directly if visiting for special events).`;
-    } else if (rawFee) {
-      feeText = `The listed entrance fee for ${site.name} in Handumanan's directory is ${rawFee} (confirm current pricing on-site before visiting).`;
+
+    if (admission.status === 'free') {
+      feeText = admission.isVerified
+        ? `Handumanan lists **Free Admission** for ${site.name} (${admission.displayLabel}).${admission.notes ? ` ${admission.notes}` : ''}`
+        : `Handumanan's directory notes ${admission.displayLabel} for ${site.name} (unverified; please confirm directly before visiting).`;
+    } else if (admission.status === 'paid') {
+      feeText = admission.isVerified
+        ? `Verified admission rates for ${site.name} are: **${admission.displayLabel}**.`
+        : `The listed admission fee for ${site.name} in Handumanan's directory is ${admission.displayLabel} (confirm current pricing on-site before visiting).`;
+    } else if (admission.status === 'unverified') {
+      feeText = `Admission fee information for ${site.name} is currently **unverified** (${admission.displayLabel}). Please confirm current rates directly with the site.`;
     } else {
-      feeText = `Handumanan currently does not have a confirmed entrance fee for ${site.name} in the directory. Admission details should be confirmed directly with the site or local government unit.`;
+      feeText = `Admission information is **not available** for ${site.name} in Handumanan's directory. Please confirm directly with the site or local government unit before visiting.`;
     }
 
     return {
@@ -1457,23 +1477,43 @@ function getSiteFactResponse(
   if (/\b(open|closed|available|hours|time|schedule|when|sunday|sundays)\b/.test(normalizedQuery)) {
     const asksLiveNow = /\b(right\s+now|currently|open\s+now|at\s+the\s+moment)\b/.test(normalizedQuery);
     const asksSunday = /\bsundays?\b/.test(normalizedQuery);
-    const hoursLower = (site.visitingHours || '').toLowerCase();
+    const evaluation = evaluateSiteOperatingStatus(site);
+    const displayHours = evaluation.displaySummary || site.visitingHours || 'none';
+    const hoursLower = displayHours.toLowerCase();
     const sundayNote = asksSunday
-      ? hoursLower.includes('sunday') || hoursLower.includes('daily') || hoursLower.includes('24/7')
-        ? `Based on its published schedule (${site.visitingHours}), ${site.name} is listed as open on Sundays.`
+      ? evaluation.interiorEvaluation.scheduleVerified &&
+        site.operatingSchedule?.interiorAccess?.verifiedDays?.includes('sunday')
+        ? `Based on its verified schedule (${displayHours}), ${site.name} is open on Sundays.`
         : hoursLower.includes('monday to saturday') || hoursLower.includes('monday to friday') || hoursLower.includes('closed on sunday')
-          ? `Based on its published schedule (${site.visitingHours}), ${site.name} is not listed as open on Sundays.`
-          : `Handumanan lists ${site.visitingHours || 'unverified hours'} for ${site.name}, which does not explicitly confirm Sunday hours.`
+          ? `Based on its published schedule (${displayHours}), ${site.name} is not listed as open on Sundays (Sunday status is not specified or closed).`
+          : `Handumanan lists ${displayHours} for ${site.name}, which does not explicitly confirm Sunday hours.`
       : '';
 
-    const statusNote = !hoursVerified
-      ? `Handumanan's directory does not have verified visiting hours for ${site.name} (listed: ${site.visitingHours || 'none'}), so I cannot confirm whether it is open.`
-      : asksLiveNow
-        ? `I cannot verify live, real-time opening status right now, as Handumanan only stores published directory schedules. For ${site.name}, the listed visiting hours are ${site.visitingHours}.`
-        : sundayNote ||
-          (siteAvailability.isOpen
-            ? `Handumanan lists visiting hours for ${site.name} as ${site.visitingHours}.`
-            : `Based on Handumanan's directory schedule, ${site.name} is ${siteAvailability.reason} (listed hours: ${site.visitingHours}).${alternativeText}`);
+    const subFacilityNotes =
+      evaluation.subFacilityEvaluations.length > 0
+        ? ` Component schedules: ${evaluation.subFacilityEvaluations
+            .map(sub => `${sub.subFacilityName} (${sub.calculatedStatus} — ${sub.reason})`)
+            .join('; ')}.`
+        : '';
+
+    let statusNote = '';
+    if (evaluation.scheduleVerified && !evaluation.policyVerified) {
+      statusNote = `Handumanan's directory has a verified operating schedule for ${site.name} (${displayHours}), but its public walk-in visitor access policy is currently unverified (${evaluation.verificationStatusLabel}), so I cannot confirm open walk-in availability right now.${subFacilityNotes}`;
+    } else if (!hoursVerified) {
+      const discrepancyNote =
+        evaluation.calculatedStatus === 'Requires Confirmation'
+          ? ` Official source note: ${evaluation.statusDetailMessage}`
+          : '';
+      statusNote = `Handumanan's directory does not have verified visiting hours for ${site.name} (listed: ${site.visitingHours || 'none'}), so I cannot confirm whether it is open.${discrepancyNote}${subFacilityNotes}`;
+    } else if (asksLiveNow) {
+      statusNote = `I cannot verify live, real-time gate changes independently, as Handumanan evaluates published verified directory schedules in Asia/Manila time (${evaluation.calculatedStatus}: ${evaluation.statusDetailMessage}). For ${site.name}, the listed visiting hours are ${displayHours}.${subFacilityNotes}`;
+    } else {
+      statusNote =
+        sundayNote ||
+        (siteAvailability.isOpen
+          ? `Handumanan lists verified visiting hours for ${site.name} as ${displayHours} (current Asia/Manila status: ${evaluation.calculatedStatus}).${subFacilityNotes}`
+          : `Based on Handumanan's directory schedule, ${site.name} is ${siteAvailability.reason} (listed hours: ${displayHours}).${alternativeText}${subFacilityNotes}`);
+    }
     return {
       text: `${statusNote} Please verify current hours directly with the site or local office before visiting.`,
       suggestedSiteIds: factCardIds,
@@ -1935,7 +1975,7 @@ function getComparisonResponse(
       `How **${siteA.name}** and **${siteB.name}** differ:\n\n` +
       `- **${siteA.name}** (${siteA.category}): ${summarizeRole(siteA)}\n` +
       `- **${siteB.name}** (${siteB.category}): ${summarizeRole(siteB)}\n\n` +
-      `Directory details — **${siteA.name}**: ${siteA.entranceFee || 'Free/Unspecified'} (${siteA.visitingHours}); **${siteB.name}**: ${siteB.entranceFee || 'Free/Unspecified'} (${siteB.visitingHours}).`,
+      `Directory details — **${siteA.name}**: ${getAdmissionDisplay(siteA).displayLabel} (${siteA.visitingHours}); **${siteB.name}**: ${getAdmissionDisplay(siteB).displayLabel} (${siteB.visitingHours}).`,
     suggestedSiteIds: [siteA.id, siteB.id],
   };
 }
@@ -2043,7 +2083,12 @@ function getNearbySitesForReference(
     .filter(site => {
       if (site.id === targetSite.id) return false;
       if (!getVerifiedCoordinates(site)) return false;
-      if (openNowOnly && (!hasVerifiedVisitingHours(site) || !isSiteOpenForVisit(site))) return false;
+      if (
+        openNowOnly &&
+        !((hasVerifiedVisitingHours(site) && isSiteOpenForVisit(site)) || hasAnyVerifiedOpenSubFacility(site))
+      ) {
+        return false;
+      }
       return true;
     })
     .map(site => ({
@@ -2072,7 +2117,7 @@ function getNearbySitesForReference(
 
 function getNearbySitesForPoint(point: GeoPoint & { name: string; city: string }, sites: HeritageSiteRecord[], limit = 4): HeritageChatOutput {
   const nearbyList = sites
-    .filter(site => isSiteOpenForVisit(site) && Boolean(getVerifiedCoordinates(site)))
+    .filter(site => isSiteEligibleForDirectoryOrTour(site) && Boolean(getVerifiedCoordinates(site)))
     .map(site => ({
       site,
       distanceKm: calculateStraightLineDistanceKm(point, getVerifiedCoordinates(site)!),
@@ -2187,12 +2232,21 @@ function formatValidatedSiteRecommendations(
 
   const listText = finalCandidates
     .map((s, i) => {
-      const hoursText = s.visitingHours ? `Listed hours: ${s.visitingHours}` : 'Listed hours: Unverified';
-      const statusLabel = !hasVerifiedVisitingHours(s)
-        ? 'hours unverified'
-        : isSiteOpenForVisit(s)
-          ? 'currently open'
-          : 'currently closed';
+      const evalStatus = evaluateSiteOperatingStatus(s);
+      const hoursText = s.visitingHours
+        ? `Listed hours: ${s.visitingHours}`
+        : `Listed hours: ${evalStatus.displaySummary || 'Unverified'}`;
+      const statusLabel = evalStatus.isOpen === true
+        ? evalStatus.isClosingSoon
+          ? 'closing soon'
+          : 'currently open'
+        : evalStatus.subFacilityEvaluations.some(sub => sub.isOpen === true)
+          ? 'sub-facility open'
+          : evalStatus.isOpen === false
+            ? 'currently closed'
+            : evalStatus.calculatedStatus === 'Requires Confirmation'
+              ? 'requires confirmation'
+              : 'hours unverified';
       const feeText = s.entranceFee ? ` · Listed fee: ${s.entranceFee}` : '';
       return `${i + 1}. **${s.name}** (${s.city}) — ${s.category} · ${hoursText} (${statusLabel})${feeText}`;
     })
@@ -2824,7 +2878,7 @@ const searchSitesTool = ai.defineTool(
 function buildDirectoryBrief(sites: HeritageSiteRecord[], validatedCandidates?: HeritageSiteRecord[]) {
   const source = validatedCandidates && validatedCandidates.length > 0
     ? validatedCandidates
-    : sites.filter(site => isSiteOpenForVisit(site));
+    : sites.filter(site => isSiteEligibleForDirectoryOrTour(site));
 
   return source
     .sort((a, b) => {
@@ -2857,7 +2911,7 @@ function sanitizeChatOutput(
     const allowedIds =
       validatedCandidates && validatedCandidates.length > 0
         ? new Set(validatedCandidates.map(s => s.id))
-        : new Set(sites.filter(site => isSiteOpenForVisit(site)).map(site => site.id));
+        : new Set(sites.filter(site => isSiteEligibleForDirectoryOrTour(site)).map(site => site.id));
 
     suggestedSiteIds = Array.from(new Set(output.suggestedSiteIds || []))
       .filter(id => allowedIds.has(id))

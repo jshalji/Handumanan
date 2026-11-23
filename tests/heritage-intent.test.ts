@@ -467,15 +467,23 @@ test('Test I: Broad Cebu question gives informative overview and Handumanan cove
   assert.match(res.text, /Cebu City.*Mandaue City.*Lapu-Lapu City.*Talisay City/i);
 });
 
-test('Test N: Specific combined factual question on Casa Gorordo reports recorded 19th-century note and admits missing builder/exact year', async () => {
-  const res = await chatWithHeritageBot({
-    history: [{ role: 'user', content: [{ text: 'When was Casa Gorordo built, and who built it?' }] }],
-    directorySites: TEST_CORPUS,
+test('Test N: Specific combined factual question on Casa Gorordo reports recorded 19th-century note and admits missing builder/exact year', async (t) => {
+  t.mock.timers.enable({
+    apis: ['Date'],
+    now: new Date('2026-11-23T14:00:00+08:00'),
   });
+  try {
+    const res = await chatWithHeritageBot({
+      history: [{ role: 'user', content: [{ text: 'When was Casa Gorordo built, and who built it?' }] }],
+      directorySites: TEST_CORPUS,
+    });
 
-  assert.deepEqual(res.suggestedSiteIds, ['cebu-casa-gorordo']);
-  assert.match(res.text, /19th-century/i);
-  assert.match(res.text, /doesn't include verified designer, architect, or builder/i);
+    assert.deepEqual(res.suggestedSiteIds, ['cebu-casa-gorordo']);
+    assert.match(res.text, /19th-century/i);
+    assert.match(res.text, /doesn't include verified designer, architect, or builder/i);
+  } finally {
+    t.mock.timers.reset();
+  }
 });
 
 test('Test O: Topic switching overrides previous site context', async () => {
@@ -902,13 +910,16 @@ test('Scenario 4, 5, 6, 7, 8, 9, 10: Location, negative category, outside scope,
   assert.equal(s9.suggestedSiteIds?.length, 3);
 
   // Scenario 10: Location + category + free filter, then change only location
+  const freeChurchCorpus = TEST_CORPUS.map(s =>
+    s.id === 'llc-shrine' || s.id === 'cebu-cathedral' ? { ...s, entranceFee: 'Free' } : s
+  );
   const s10Turn1 = await chatWithHeritageBot({
     history: [{ role: 'user', content: [{ text: 'Show me free churches in Cebu City.' }] }],
-    directorySites: TEST_CORPUS,
+    directorySites: freeChurchCorpus,
   });
   assert.ok((s10Turn1.suggestedSiteIds?.length ?? 0) > 0);
   for (const id of s10Turn1.suggestedSiteIds ?? []) {
-    const site = TEST_CORPUS.find(s => s.id === id);
+    const site = freeChurchCorpus.find(s => s.id === id);
     assert.equal(site?.city, 'Cebu City');
     assert.equal(site?.category, 'Churches & Religious Heritage Sites');
     assert.match(String(site?.entranceFee || ''), /^free\b/i);
@@ -920,11 +931,11 @@ test('Scenario 4, 5, 6, 7, 8, 9, 10: Location, negative category, outside scope,
       { role: 'model', content: [{ text: s10Turn1.text }] },
       { role: 'user', content: [{ text: 'Change the location to Lapu-Lapu City.' }] },
     ],
-    directorySites: TEST_CORPUS,
+    directorySites: freeChurchCorpus,
   });
   assert.ok((s10Turn2.suggestedSiteIds?.length ?? 0) > 0);
   for (const id of s10Turn2.suggestedSiteIds ?? []) {
-    const site = TEST_CORPUS.find(s => s.id === id);
+    const site = freeChurchCorpus.find(s => s.id === id);
     assert.equal(site?.city, 'Lapu-Lapu City');
     assert.equal(site?.category, 'Churches & Religious Heritage Sites');
     assert.match(String(site?.entranceFee || ''), /^free\b/i);
@@ -1018,9 +1029,12 @@ test('Pre-Final Part 3 (Categories A–I): Broad general knowledge, geography, f
 
 test('Pre-Final Part 4 (Scenarios 3, 5, 6, 8, 9, 10): Multi-turn filter chaining, historical follow-up simplification, topic switch, correction, mixed intent, and 10-turn conversation', async () => {
   // Scenario 3: "Show me free heritage sites." -> "Exclude museums." -> "Only churches." -> "Make it two."
+  const freeChurchCorpus = TEST_CORPUS.map(s =>
+    s.id === 'cebu-cathedral' ? { ...s, entranceFee: 'Free' } : s
+  );
   const f1 = await chatWithHeritageBot({
     history: [{ role: 'user', content: [{ text: 'Show me free heritage sites.' }] }],
-    directorySites: TEST_CORPUS,
+    directorySites: freeChurchCorpus,
   });
   const f2 = await chatWithHeritageBot({
     history: [
@@ -1028,7 +1042,7 @@ test('Pre-Final Part 4 (Scenarios 3, 5, 6, 8, 9, 10): Multi-turn filter chaining
       { role: 'model', content: [{ text: f1.text }] },
       { role: 'user', content: [{ text: 'Exclude museums.' }] },
     ],
-    directorySites: TEST_CORPUS,
+    directorySites: freeChurchCorpus,
   });
   const f3 = await chatWithHeritageBot({
     history: [
@@ -1038,7 +1052,7 @@ test('Pre-Final Part 4 (Scenarios 3, 5, 6, 8, 9, 10): Multi-turn filter chaining
       { role: 'model', content: [{ text: f2.text }] },
       { role: 'user', content: [{ text: 'Only churches.' }] },
     ],
-    directorySites: TEST_CORPUS,
+    directorySites: freeChurchCorpus,
   });
   const f4 = await chatWithHeritageBot({
     history: [
@@ -1050,11 +1064,11 @@ test('Pre-Final Part 4 (Scenarios 3, 5, 6, 8, 9, 10): Multi-turn filter chaining
       { role: 'model', content: [{ text: f3.text }] },
       { role: 'user', content: [{ text: 'Make it two.' }] },
     ],
-    directorySites: TEST_CORPUS,
+    directorySites: freeChurchCorpus,
   });
   assert.equal(f4.suggestedSiteIds?.length, 2);
   for (const id of f4.suggestedSiteIds ?? []) {
-    const site = TEST_CORPUS.find(s => s.id === id);
+    const site = freeChurchCorpus.find(s => s.id === id);
     assert.equal(site?.category, 'Churches & Religious Heritage Sites');
     assert.match(String(site?.entranceFee || ''), /^free\b/i);
   }
@@ -1729,9 +1743,32 @@ test('Phase 2 Test A & B: Direct heritage facts, conservative dates, honest miss
 });
 
 test('Phase 2 Test C: Multiple free sites respect requested count even when some free sites are currently closed', async () => {
+  const closedSource = {
+    title: 'Official Temporary Closure Notice',
+    publisher: 'Cebu Heritage Office',
+    url: 'https://official.example.org/closure',
+    sourceType: 'Official LGU / Tourism Portal' as const,
+    checkedDate: '2026-11-23',
+    supportedClaims: ['global_visitor_access_policy' as const],
+  };
+
   const closedFreeCorpus = TEST_CORPUS.map(site =>
     site.city === 'Cebu City' && /^free\b/i.test(String(site.entranceFee || ''))
-      ? { ...site, visitingHours: 'Temporarily Unavailable / Closed' }
+      ? {
+          ...site,
+          visitingHours: 'Temporarily Unavailable / Closed',
+          operatingSchedule: site.operatingSchedule
+            ? {
+                ...site.operatingSchedule,
+                visitorAccessStatus: 'Temporarily Closed' as const,
+                verification: {
+                  ...site.operatingSchedule.verification,
+                  visitorAccessStatusVerified: true,
+                  visitorAccessStatusSources: [closedSource],
+                },
+              }
+            : undefined,
+        }
       : site
   );
 
@@ -1749,30 +1786,38 @@ test('Phase 2 Test C: Multiple free sites respect requested count even when some
   assert.match(res.text, /currently closed/i);
 });
 
-test('Phase 2 Test D: Open-now filtering applies only when requested and never treats missing/unverified hours as open', async () => {
-  const { getSiteAvailability, hasVerifiedVisitingHours } = await import('../src/lib/site-availability');
-
-  const unverifiedSite = { ...TEST_CORPUS[0], id: 'test-unverified', name: 'Unverified Test Site', visitingHours: 'Requires Verification' };
-  const emptyHoursSite = { ...TEST_CORPUS[0], id: 'test-empty-hours', name: 'Empty Hours Site', visitingHours: '' };
-
-  assert.equal(hasVerifiedVisitingHours(unverifiedSite), false);
-  assert.equal(getSiteAvailability(unverifiedSite).isOpen, false);
-  assert.equal(hasVerifiedVisitingHours(emptyHoursSite), false);
-  assert.equal(getSiteAvailability(emptyHoursSite).isOpen, false);
-
-  const mixedCorpus = [
-    ...TEST_CORPUS.map(s =>
-      s.id === 'cebu-fort-san-pedro' ? { ...s, visitingHours: 'Requires Verification' } : s
-    ),
-  ];
-
-  const openRes = await chatWithHeritageBot({
-    history: [{ role: 'user', content: [{ text: 'Show me heritage sites in Cebu City that are currently open.' }] }],
-    directorySites: mixedCorpus,
+test('Phase 2 Test D: Open-now filtering applies only when requested and never treats missing/unverified hours as open', async (t) => {
+  t.mock.timers.enable({
+    apis: ['Date'],
+    now: new Date('2026-11-23T14:00:00+08:00'),
   });
+  try {
+    const { getSiteAvailability, hasVerifiedVisitingHours } = await import('../src/lib/site-availability');
 
-  assert.ok((openRes.suggestedSiteIds ?? []).length > 0);
-  assert.ok(!(openRes.suggestedSiteIds ?? []).includes('cebu-fort-san-pedro'));
+    const unverifiedSite = { ...TEST_CORPUS[0], id: 'test-unverified', name: 'Unverified Test Site', visitingHours: 'Requires Verification' };
+    const emptyHoursSite = { ...TEST_CORPUS[0], id: 'test-empty-hours', name: 'Empty Hours Site', visitingHours: '' };
+
+    assert.equal(hasVerifiedVisitingHours(unverifiedSite), false);
+    assert.equal(getSiteAvailability(unverifiedSite).isOpen, false);
+    assert.equal(hasVerifiedVisitingHours(emptyHoursSite), false);
+    assert.equal(getSiteAvailability(emptyHoursSite).isOpen, false);
+
+    const mixedCorpus = [
+      ...TEST_CORPUS.map(s =>
+        s.id === 'cebu-fort-san-pedro' ? { ...s, visitingHours: 'Requires Verification' } : s
+      ),
+    ];
+
+    const openRes = await chatWithHeritageBot({
+      history: [{ role: 'user', content: [{ text: 'Show me heritage sites in Cebu City that are currently open.' }] }],
+      directorySites: mixedCorpus,
+    });
+
+    assert.ok((openRes.suggestedSiteIds ?? []).length > 0);
+    assert.ok(!(openRes.suggestedSiteIds ?? []).includes('cebu-fort-san-pedro'));
+  } finally {
+    t.mock.timers.reset();
+  }
 });
 
 test('Phase 2 Test E: Top-5 ranking explains basis and nearby reference uses coordinate distance', async () => {
@@ -1868,9 +1913,9 @@ test('Phase 2.1: Free-sites query with closed-exclusion wording returns 4 free s
 test('Phase 2.1: Explicit closed-only vs open-now filtering and outside-hours wording', async () => {
   const { getSiteAvailability } = await import('../src/lib/site-availability');
 
-  const outsideHoursSite = { ...TEST_CORPUS[0], visitingHours: 'Monday to Sunday, 8:00 AM - 7:00 PM' };
+  const verifiedMuseum = TEST_CORPUS.find(s => s.id === 'cebu-national-museum')!;
   const lateNight = new Date('2026-11-17T15:30:00Z'); // 11:30 PM Asia/Manila
-  const avail = getSiteAvailability(outsideHoursSite, lateNight);
+  const avail = getSiteAvailability(verifiedMuseum, lateNight);
   assert.equal(avail.isOpen, false);
   assert.match(avail.reason, /Currently closed/i);
   assert.doesNotMatch(avail.reason, /unavailable/i);
@@ -1879,7 +1924,32 @@ test('Phase 2.1: Explicit closed-only vs open-now filtering and outside-hours wo
     history: [{ role: 'user', content: [{ text: 'Which heritage sites in Cebu City are currently closed?' }] }],
     directorySites: [
       ...TEST_CORPUS.map(s =>
-        s.id === 'cebu-fort-san-pedro' ? { ...s, visitingHours: 'Temporarily Unavailable / Closed' } : s
+        s.id === 'cebu-fort-san-pedro'
+          ? {
+              ...s,
+              visitingHours: 'Temporarily Unavailable / Closed',
+              operatingSchedule: s.operatingSchedule
+                ? {
+                    ...s.operatingSchedule,
+                    visitorAccessStatus: 'Temporarily Closed' as const,
+                    verification: {
+                      ...s.operatingSchedule.verification,
+                      visitorAccessStatusVerified: true,
+                      visitorAccessStatusSources: [
+                        {
+                          title: 'Official Temporary Closure Notice',
+                          publisher: 'Cebu City Heritage Office',
+                          url: 'https://official.example.org/fort-closure',
+                          sourceType: 'Official LGU / Tourism Portal' as const,
+                          checkedDate: '2026-11-23',
+                          supportedClaims: ['global_visitor_access_policy' as const],
+                        },
+                      ],
+                    },
+                  }
+                : undefined,
+            }
+          : s
       ),
     ],
   });

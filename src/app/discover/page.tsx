@@ -5,10 +5,23 @@ import Image from 'next/image';
 import { useState, useEffect, useMemo, useCallback, Suspense, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { DEPRECATED_HERITAGE_SITE_IDS, HeritageSite, HERITAGE_SITES, isSiteVisibleToUser } from '@/lib/heritage-data';
+import {
+  DEPRECATED_HERITAGE_SITE_IDS,
+  HeritageSite,
+  HERITAGE_SITES,
+  isSiteVisibleToUser,
+  mergeAdminSitesWithStatic,
+} from '@/lib/heritage-data';
 import { calculateDistance, getCurrentLocation, watchCurrentLocation, type EvaluatedLocation } from '@/lib/location-utils';
 import { getRouteMulti, RouteStep, getRoute, type TravelMode } from '@/lib/routing-service';
-import { getSiteAvailability, hasVerifiedVisitingHours, isSiteOpenForVisit } from '@/lib/site-availability';
+import {
+  evaluateSiteOperatingStatus,
+  getSiteAvailability,
+  hasAnyVerifiedOpenSubFacility,
+  hasVerifiedVisitingHours,
+  isSiteEligibleForDirectoryOrTour,
+  isSiteOpenForVisit,
+} from '@/lib/site-availability';
 import {
   isSiteOpenAtDateTime,
   resolveDiscoverFutureCompatibleSites,
@@ -252,41 +265,22 @@ function ExploreRouteContent() {
   const sitesQuery = useMemoFirebase(() => db ? collection(db, 'heritageSites') : null, [db]);
   const { data: dbSites, isLoading: isSitesLoading } = useCollection(sitesQuery);
 
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(new Date());
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const allSites = useMemo(() => {
-    const deprecatedIds = new Set(DEPRECATED_HERITAGE_SITE_IDS);
-    const sitesById = new Map(HERITAGE_SITES.map(site => [site.id, site as any]));
-
-    dbSites?.forEach(dbSite => {
-      if (!dbSite?.id || deprecatedIds.has(dbSite.id)) return;
-      const existingSite = sitesById.get(dbSite.id) || {};
-      const coordinates = dbSite.coordinates || (
-        dbSite.latitude !== undefined && dbSite.longitude !== undefined
-          ? { lat: dbSite.latitude, lng: dbSite.longitude }
-          : existingSite.coordinates
-      );
-      sitesById.set(dbSite.id, {
-        ...existingSite,
-        ...dbSite,
-        rating: undefined,
-        coordinates,
-        tags: Array.isArray(dbSite.tags) ? dbSite.tags : (Array.isArray(existingSite.tags) ? existingSite.tags : []),
-      } as any);
-    });
-
-    return Array.from(sitesById.values())
-      .map(site => ({
-        ...site,
-        verificationStatus: site.verificationStatus || 'Pending Verification',
-      }))
-      .filter(site => (
-        !deprecatedIds.has(site.id) &&
-        site.isActive !== false &&
-        site.status !== 'Inactive' &&
-        isSiteVisibleToUser(site, userRole)
-      ));
+    return mergeAdminSitesWithStatic(dbSites, userRole);
   }, [dbSites, userRole]);
 
-  const availableSites = useMemo(() => allSites.filter(site => isSiteOpenForVisit(site)), [allSites]);
+  const availableSites = useMemo(
+    () => allSites.filter(site => isSiteOpenForVisit(site, now) || hasAnyVerifiedOpenSubFacility(site, now)),
+    [allSites, now]
+  );
 
   // LOCAL STORAGE SYNC
   useEffect(() => {
@@ -345,11 +339,11 @@ function ExploreRouteContent() {
       if (DEPRECATED_HERITAGE_SITE_IDS.includes(id)) return false;
       const site = allSites.find(candidate => candidate.id === id);
       if (!site) return false;
-      return allowClosed ? true : isSiteOpenForVisit(site);
+      return allowClosed ? true : isSiteEligibleForDirectoryOrTour(site, now);
     });
     localStorage.setItem('handumanan_draft_itinerary', JSON.stringify(cleanIds));
     setItineraryIds(cleanIds);
-  }, [allSites]);
+  }, [allSites, now]);
 
   // LOAD SAVED TRIP FROM URL PARAM
   const itineraryIdParam = searchParams.get('itineraryId');
@@ -523,8 +517,10 @@ function ExploreRouteContent() {
 
     focusSingleSite(site, { openExplorer: true, updateSearch: true });
 
-    const availability = getSiteAvailability(site);
-    if ((action === 'add' || action === 'route') && !availability.isOpen) {
+    const availability = getSiteAvailability(site, now);
+    const isConfirmedClosed =
+      availability.triState === false && !hasAnyVerifiedOpenSubFacility(site, now);
+    if ((action === 'add' || action === 'route') && isConfirmedClosed) {
       const alternatives = getNearbyOpenAlternatives(site, 3);
       setSelectedCity(site.city || null);
       setSelectedCategory(null);
@@ -533,13 +529,13 @@ function ExploreRouteContent() {
         focusSingleSite(alternatives[0], { openExplorer: true, updateSearch: true });
         toast({
           title: "Site Closed",
-          description: `${site.name} is closed. Showing nearby open alternatives like ${alternatives[0].name}.`,
+          description: `${site.name} is currently closed (${availability.reason}). Showing nearby open alternatives like ${alternatives[0].name}.`,
           variant: "destructive"
         });
       } else {
         toast({
           title: "Site Closed",
-          description: `${site.name} is closed. ${availability.reason}`,
+          description: `${site.name} is currently closed. ${availability.reason}`,
           variant: "destructive"
         });
       }
@@ -661,11 +657,15 @@ function ExploreRouteContent() {
   }, [selectedCity, selectedCategory, userLocation, searchQuery, allSites]);
 
   const getDiscoverSiteAvailabilityStatus = useCallback((site: any): 'open' | 'closed' | 'unverified' => {
-    const availability = getSiteAvailability(site);
-    if (availability.isOpen) return 'open';
-    if (!hasVerifiedVisitingHours(site)) return 'unverified';
-    return 'closed';
-  }, []);
+    const evalStatus = evaluateSiteOperatingStatus(site, now);
+    if (evalStatus.isOpen === true || evalStatus.subFacilityEvaluations.some(sub => sub.isOpen === true)) {
+      return 'open';
+    }
+    if (evalStatus.isOpen === false) {
+      return 'closed';
+    }
+    return 'unverified';
+  }, [now]);
 
   const exploreSites = useMemo(() => {
     return filteredAndSortedSites
@@ -914,21 +914,25 @@ function ExploreRouteContent() {
     const isRemoving = itineraryIds.includes(id);
     if (!isRemoving) {
       const selectedSite = allSites.find(site => site.id === id);
-      if (selectedSite && !isSiteOpenForVisit(selectedSite)) {
-        const alternatives = getNearbyOpenAlternatives(selectedSite, 3);
-        setSelectedCity(selectedSite.city || null);
-        setSelectedCategory(null);
-        if (alternatives.length > 0) {
-          focusSingleSite(alternatives[0], { updateSearch: true, openExplorer: true });
+      if (selectedSite) {
+        const evalStatus = evaluateSiteOperatingStatus(selectedSite, now);
+        const hasOpenSub = evalStatus.subFacilityEvaluations.some(sub => sub.isOpen === true);
+        if (evalStatus.isOpen === false && !hasOpenSub) {
+          const alternatives = getNearbyOpenAlternatives(selectedSite, 3);
+          setSelectedCity(selectedSite.city || null);
+          setSelectedCategory(null);
+          if (alternatives.length > 0) {
+            focusSingleSite(alternatives[0], { updateSearch: true, openExplorer: true });
+          }
+          toast({
+            title: "Site Closed",
+            description: alternatives.length > 0
+              ? `${selectedSite.name} is currently closed (${evalStatus.statusDetailMessage}). Try nearby open sites like ${alternatives.map(site => site.name).join(', ')}.`
+              : `${selectedSite.name} is currently closed (${evalStatus.statusDetailMessage}). No nearby open alternative was found with the current directory data.`,
+            variant: "destructive"
+          });
+          return;
         }
-        toast({
-          title: "Site Closed",
-          description: alternatives.length > 0
-            ? `${selectedSite.name} is closed. Try nearby open sites like ${alternatives.map(site => site.name).join(', ')}.`
-            : `${selectedSite.name} is closed. No nearby open alternative was found with the current directory data.`,
-          variant: "destructive"
-        });
-        return;
       }
     }
 
@@ -1632,15 +1636,23 @@ function ExploreRouteContent() {
                       </div>
                     ) : (
                       (selectedCity ? selectedCitySites : exploreSites.slice(0, 15)).map(site => {
+                        const evalStatus = evaluateSiteOperatingStatus(site, now);
+                        const hasOpenSub = evalStatus.subFacilityEvaluations.some(sub => sub.isOpen === true);
                         const statusLabel =
-                          site.availabilityStatus === 'open'
-                            ? 'Open Now'
-                            : site.availabilityStatus === 'closed'
-                              ? 'Closed'
-                              : 'Hours Unverified';
+                          evalStatus.isOpen === true
+                            ? evalStatus.calculatedStatus
+                            : hasOpenSub
+                              ? 'Sub-Facility Open'
+                              : evalStatus.isOpen === false
+                                ? evalStatus.calculatedStatus
+                                : evalStatus.calculatedStatus === 'Requires Confirmation'
+                                  ? 'Requires Confirmation'
+                                  : 'Hours Unverified';
                         const statusBadgeClass =
                           site.availabilityStatus === 'open'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            ? evalStatus.isClosingSoon
+                              ? 'bg-amber-50 text-amber-800 border-amber-300'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : site.availabilityStatus === 'closed'
                               ? 'bg-rose-50 text-rose-700 border-rose-200'
                               : 'bg-amber-50 text-amber-700 border-amber-200';
