@@ -373,7 +373,11 @@ export interface HeritageSite {
   entranceFee?: string;
 }
 
-export const DEPRECATED_HERITAGE_SITE_IDS = ['llc-happyworld'];
+export const DEPRECATED_HERITAGE_SITE_IDS = [
+  'llc-happyworld',
+  'cebu-provincial-capitol',
+  'fuente-osmeña-circle',
+];
 
 const BASE_HERITAGE_SITES: HeritageSite[] = [
   // --- CEBU CITY ---
@@ -3282,6 +3286,21 @@ export const HERITAGE_SITES: HeritageSite[] = BASE_HERITAGE_SITES.map(site => {
   };
 });
 
+export function normalizeVerificationStatus(rawStatus: unknown): VerificationStatus {
+  const trimmed = typeof rawStatus === 'string' ? rawStatus.trim() : '';
+  const lower = trimmed.toLowerCase();
+  if (trimmed === 'LGU Verified' || lower === 'lgu verified' || lower === 'verified') {
+    return 'LGU Verified';
+  }
+  if (trimmed === 'Needs Revision' || lower === 'needs revision') {
+    return 'Needs Revision';
+  }
+  if (trimmed === 'Rejected' || lower === 'rejected') {
+    return 'Rejected';
+  }
+  return 'Pending Verification';
+}
+
 export function normalizeHeritageSite(
   site: Partial<HeritageSite> & Record<string, any>,
   staticFallback?: HeritageSite | null
@@ -3342,7 +3361,7 @@ export function normalizeHeritageSite(
     coordinates,
     isMustVisit: Boolean(merged.isMustVisit),
     needsVerification: Boolean(merged.needsVerification),
-    verificationStatus: (merged.verificationStatus as VerificationStatus) || 'Pending Verification',
+    verificationStatus: normalizeVerificationStatus(merged.verificationStatus),
     verifiedBy: merged.verifiedBy || undefined,
     verifiedByUid: merged.verifiedByUid || undefined,
     verifiedAt: merged.verifiedAt || undefined,
@@ -3463,12 +3482,41 @@ export function getSiteById(id: string) {
 
 export function isSiteVisibleToUser(
   site: Partial<HeritageSite> | null | undefined,
-  userRole?: string | null
+  _userRole?: string | null
 ): boolean {
   if (!site) return false;
-  if (userRole === 'admin' || userRole === 'lgu') return true;
-  const status = site.verificationStatus || 'Pending Verification';
-  return status !== 'Rejected' && status !== 'Needs Revision';
+  if (site.id && DEPRECATED_HERITAGE_SITE_IDS.includes(String(site.id))) {
+    return false;
+  }
+  if (site.isActive === false || site.status === 'Inactive') {
+    return false;
+  }
+  const status = normalizeVerificationStatus(site.verificationStatus);
+  return status === 'Pending Verification' || status === 'LGU Verified';
+}
+
+export interface ExploreVerificationBadge {
+  status: 'LGU Verified';
+  label: 'LGU Verified';
+  tone: 'green';
+}
+
+export function getExploreVerificationBadge(
+  site: Partial<HeritageSite> | null | undefined,
+  userRole?: string | null
+): ExploreVerificationBadge | null {
+  if (!isSiteVisibleToUser(site, userRole)) {
+    return null;
+  }
+  const status = normalizeVerificationStatus(site?.verificationStatus);
+  if (status === 'LGU Verified') {
+    return {
+      status: 'LGU Verified',
+      label: 'LGU Verified',
+      tone: 'green',
+    };
+  }
+  return null;
 }
 
 export function searchSites(
@@ -3485,6 +3533,9 @@ export function searchSites(
     if (!isSiteVisibleToUser(site, userRole)) return false;
 
     const name = (site?.name || '').toLowerCase();
+    const cityText = (site?.city || '').toLowerCase();
+    const locationText = (site?.location || '').toLowerCase();
+    const categoryText = (site?.category || '').toLowerCase();
     const description = (site?.description || '').toLowerCase();
     const overview = (site?.overview || '').toLowerCase();
     const significance = (site?.significance || '').toLowerCase();
@@ -3492,6 +3543,9 @@ export function searchSites(
 
     const matchesQuery = !q || (
       name.includes(q) ||
+      cityText.includes(q) ||
+      locationText.includes(q) ||
+      categoryText.includes(q) ||
       description.includes(q) ||
       overview.includes(q) ||
       significance.includes(q) ||

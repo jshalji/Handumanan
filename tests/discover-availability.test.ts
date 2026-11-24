@@ -4,10 +4,14 @@ import {
   ALL_DAYS_OF_WEEK,
   DEPRECATED_HERITAGE_SITE_IDS,
   getAdmissionDisplay,
+  getExploreVerificationBadge,
   getSiteById,
   HERITAGE_SITES,
+  isSiteVisibleToUser,
+  mergeAdminSitesWithStatic,
   normalizeHeritageSite,
   normalizeOperatingSchedule,
+  searchSites,
   type HeritageSite,
   type OperatingSchedule,
   type ScheduleVerificationSource,
@@ -979,4 +983,154 @@ test('Admission accuracy across all 42 heritage sites distinguishes free, paid, 
   assert.equal(mergedRizalAdm.isVerified, false);
   assert.equal(mergedRizalAdm.subFacilities?.length, 2);
   assert.equal(mergedRizal.entranceFee, staticRizal.admissionInfo?.displayLabel);
+});
+
+test('Scenario #34: Verification status visibility rules — Pending Verification & LGU Verified visible, Needs Revision & Rejected hidden, Inactive hidden, and unverify/reverify preserves data without duplicates', () => {
+  const staticCross = getSiteById('cebu-cross')!;
+
+  // 1. LGU Verified and active site appears in the public Site Directory & search (by name, city, location, or category)
+  const verifiedOverride = {
+    id: 'mandaue-presidencia',
+    verificationStatus: 'LGU Verified',
+    verifiedBy: 'LGU Reviewer',
+  };
+  const verifiedList = mergeAdminSitesWithStatic([verifiedOverride], null);
+  assert.equal(verifiedList.length, 42);
+  const verifiedPresidencia = verifiedList.find(s => s.id === 'mandaue-presidencia')!;
+  assert.ok(verifiedPresidencia);
+  assert.equal(verifiedPresidencia.verificationStatus, 'LGU Verified');
+  assert.deepEqual(getExploreVerificationBadge(verifiedPresidencia), {
+    status: 'LGU Verified',
+    label: 'LGU Verified',
+    tone: 'green',
+  });
+  assert.equal(isSiteVisibleToUser(verifiedPresidencia, null), true);
+  assert.equal(isSiteVisibleToUser(verifiedPresidencia, 'user'), true);
+  assert.equal(
+    searchSites('Mandaue Presidencia', 'All', 'All', null, verifiedList).some(s => s.id === 'mandaue-presidencia'),
+    true
+  );
+  assert.equal(
+    searchSites('Mandaue City', 'All', 'All', null, verifiedList).some(s => s.id === 'mandaue-presidencia'),
+    true
+  );
+  assert.equal(
+    searchSites('Poblacion, Mandaue City', 'All', 'All', null, verifiedList).some(s => s.id === 'mandaue-presidencia'),
+    true
+  );
+
+  // 2. Removing LGU Verified status (resetting to Pending Verification or clearing) keeps the site visible and preserves fields
+  for (const statusAfterUnverify of ['Pending Verification', ''] as const) {
+    const pendingList = mergeAdminSitesWithStatic(
+      [{ id: 'cebu-cross', verificationStatus: statusAfterUnverify }],
+      null
+    );
+    assert.equal(pendingList.length, 42, `Site count must remain 42 for status "${statusAfterUnverify}"`);
+    const pendingCross = pendingList.find(s => s.id === 'cebu-cross')!;
+    assert.ok(pendingCross);
+    assert.equal(pendingCross.verificationStatus, 'Pending Verification');
+    assert.equal(getExploreVerificationBadge(pendingCross), null);
+    assert.equal(isSiteVisibleToUser(pendingCross, null), true);
+    assert.equal(isSiteVisibleToUser(pendingCross, 'user'), true);
+    assert.equal(
+      searchSites('Magellan', 'Cebu City', 'All', null, pendingList).some(s => s.id === 'cebu-cross'),
+      true
+    );
+
+    // Unrelated site information is preserved
+    assert.equal(pendingCross.name, staticCross.name);
+    assert.equal(pendingCross.description, staticCross.description);
+    assert.equal(pendingCross.imageUrl, staticCross.imageUrl);
+    assert.deepEqual(pendingCross.coordinates, staticCross.coordinates);
+    assert.equal(pendingCross.isActive, true);
+    assert.equal(pendingCross.status, 'Active');
+  }
+
+  // 3. Needs Revision and Rejected sites are hidden from public listings, search, and public detail views
+  for (const hiddenStatus of ['Needs Revision', 'Rejected'] as const) {
+    const hiddenList = mergeAdminSitesWithStatic(
+      [{ id: 'cebu-cross', verificationStatus: hiddenStatus }],
+      null
+    );
+    assert.equal(hiddenList.length, 41, `Site with status "${hiddenStatus}" must be hidden from public directory`);
+    assert.equal(hiddenList.some(s => s.id === 'cebu-cross'), false);
+    assert.equal(
+      isSiteVisibleToUser({ ...staticCross, verificationStatus: hiddenStatus }, null),
+      false
+    );
+    assert.equal(
+      getExploreVerificationBadge({ ...staticCross, verificationStatus: hiddenStatus }),
+      null
+    );
+    assert.equal(
+      isSiteVisibleToUser({ ...staticCross, verificationStatus: hiddenStatus }, 'user'),
+      false
+    );
+    assert.equal(
+      searchSites('Magellan', 'Cebu City', 'All', null, [
+        { ...staticCross, verificationStatus: hiddenStatus },
+      ]).length,
+      0
+    );
+  }
+
+  // 4. Re-verifying the site does not create duplicate records, and legacy duplicate Firestore IDs are excluded
+  const reverifiedList = mergeAdminSitesWithStatic(
+    [
+      { id: 'cebu-cross', verificationStatus: 'LGU Verified' },
+      { id: 'cebu-provincial-capitol', name: 'Cebu Provincial Capitol', verificationStatus: 'LGU Verified' },
+      { id: 'fuente-osmeña-circle', name: 'Fuente Osmeña Circle', verificationStatus: 'LGU Verified' },
+    ],
+    null
+  );
+  assert.equal(reverifiedList.length, 42);
+  assert.equal(reverifiedList.filter(s => s.id === 'cebu-cross').length, 1);
+  assert.equal(reverifiedList.find(s => s.id === 'cebu-cross')?.verificationStatus, 'LGU Verified');
+  assert.equal(reverifiedList.some(s => s.id === 'cebu-provincial-capitol'), false);
+  assert.equal(reverifiedList.some(s => s.id === 'fuente-osmeña-circle'), false);
+  assert.equal(reverifiedList.filter(s => s.name === 'Cebu Provincial Capitol').length, 1);
+  assert.equal(reverifiedList.filter(s => s.name === 'Fuente Osmeña Circle').length, 1);
+
+  // 5. Intentionally unpublished or inactive sites are hidden even if LGU Verified or Pending Verification
+  const inactiveByFlag = mergeAdminSitesWithStatic(
+    [{ id: 'cebu-cross', isActive: false, verificationStatus: 'LGU Verified' }],
+    null
+  );
+  assert.equal(inactiveByFlag.length, 41);
+  assert.equal(inactiveByFlag.some(s => s.id === 'cebu-cross'), false);
+  assert.equal(
+    isSiteVisibleToUser({ id: 'cebu-cross', isActive: false, verificationStatus: 'LGU Verified' }, null),
+    false
+  );
+  assert.equal(
+    getExploreVerificationBadge({ id: 'cebu-cross', isActive: false, verificationStatus: 'LGU Verified' }),
+    null
+  );
+
+  const inactiveByStatus = mergeAdminSitesWithStatic(
+    [{ id: 'cebu-cross', status: 'Inactive', verificationStatus: 'Pending Verification' }],
+    null
+  );
+  assert.equal(inactiveByStatus.length, 41);
+  assert.equal(inactiveByStatus.some(s => s.id === 'cebu-cross'), false);
+  assert.equal(
+    isSiteVisibleToUser({ id: 'cebu-cross', status: 'Inactive', verificationStatus: 'Pending Verification' }, null),
+    false
+  );
+  assert.equal(
+    getExploreVerificationBadge({ id: 'cebu-cross', status: 'Inactive', verificationStatus: 'Pending Verification' }),
+    null
+  );
+
+  // 6. Generic badge resolution across all 42 heritage sites without hardcoding site IDs
+  for (const site of HERITAGE_SITES) {
+    assert.equal(getExploreVerificationBadge({ ...site, verificationStatus: 'Pending Verification' }), null);
+    assert.deepEqual(getExploreVerificationBadge({ ...site, verificationStatus: 'LGU Verified' }), {
+      status: 'LGU Verified',
+      label: 'LGU Verified',
+      tone: 'green',
+    });
+    assert.equal(getExploreVerificationBadge({ ...site, verificationStatus: 'Needs Revision' }), null);
+    assert.equal(getExploreVerificationBadge({ ...site, verificationStatus: 'Rejected' }), null);
+  }
 });

@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Navbar } from '@/components/layout/Navbar';
-import { HERITAGE_SITES, DEPRECATED_HERITAGE_SITE_IDS, isSiteVisibleToUser } from '@/lib/heritage-data';
+import { mergeAdminSitesWithStatic } from '@/lib/heritage-data';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Compass, MapPin, ArrowRight, Search, Sparkles } from 'lucide-react';
@@ -26,37 +26,8 @@ export default function Home() {
   const { data: dbSites } = useCollection(sitesQuery);
 
   const featuredSites = useMemo(() => {
-    const deprecatedIds = new Set(DEPRECATED_HERITAGE_SITE_IDS);
-    const sitesById = new Map(HERITAGE_SITES.map(site => [site.id, site as any]));
-
-    dbSites?.forEach(dbSite => {
-      if (!dbSite?.id || deprecatedIds.has(dbSite.id)) return;
-      const existingSite = sitesById.get(dbSite.id) || {};
-      const coordinates = dbSite.coordinates || (
-        dbSite.latitude !== undefined && dbSite.longitude !== undefined
-          ? { lat: dbSite.latitude, lng: dbSite.longitude }
-          : existingSite.coordinates
-      );
-      sitesById.set(dbSite.id, {
-        ...existingSite,
-        ...dbSite,
-        coordinates,
-        tags: Array.isArray(dbSite.tags) ? dbSite.tags : (Array.isArray(existingSite.tags) ? existingSite.tags : []),
-      } as any);
-    });
-
-    return Array.from(sitesById.values())
-      .map(site => ({
-        ...site,
-        verificationStatus: site.verificationStatus || 'Pending Verification',
-      }))
-      .filter(site => (
-        !deprecatedIds.has(site.id) &&
-        site.isActive !== false &&
-        site.status !== 'Inactive' &&
-        isSiteVisibleToUser(site, userRole) &&
-        site.isMustVisit
-      ))
+    return mergeAdminSitesWithStatic(dbSites, userRole)
+      .filter(site => site.isMustVisit)
       .slice(0, 3);
   }, [dbSites, userRole]);
 
@@ -131,13 +102,6 @@ export default function Home() {
                       <Badge variant="secondary" className="border-none bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-primary shadow-sm backdrop-blur-md">
                         {site.category.split(' & ')[0]}
                       </Badge>
-                    </div>
-                    <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5">
-                      {site.verificationStatus === 'LGU Verified' && (
-                        <Badge className="border-none bg-emerald-600 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-white shadow-md flex items-center gap-1">
-                          LGU Verified
-                        </Badge>
-                      )}
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>

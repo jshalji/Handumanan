@@ -92,8 +92,8 @@ function StarRatingDisplay({ summary }: { summary: ReturnType<typeof getRatingSu
               star <= rounded
                 ? 'fill-amber-400 text-amber-400'
                 : star - 0.5 === rounded
-                ? 'fill-amber-400/50 text-amber-400'
-                : 'text-slate-300'
+                  ? 'fill-amber-400/50 text-amber-400'
+                  : 'text-slate-300'
             )}
           />
         ))}
@@ -174,7 +174,7 @@ export default function SitePlacePanel({
           className="object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/25 to-transparent" />
-        
+
         {/* Floating Close Button */}
         <button
           type="button"
@@ -194,11 +194,6 @@ export default function SitePlacePanel({
             {site.isMustVisit && (
               <span className="rounded-full bg-accent px-2.5 py-1 text-[8px] font-black uppercase tracking-widest text-white shadow-sm">
                 Must Visit
-              </span>
-            )}
-            {site.verificationStatus === 'LGU Verified' && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/90 px-2.5 py-1 text-[8px] font-black uppercase tracking-widest text-white shadow-sm backdrop-blur-sm">
-                <CheckCircle2 size={10} /> Verified
               </span>
             )}
           </div>
@@ -278,14 +273,14 @@ export default function SitePlacePanel({
             <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-900">
               <Info size={15} className="text-primary" /> Overview
             </div>
-            
+
             <p className={cn(
               "text-xs leading-relaxed text-slate-600 transition-all",
               !isOverviewExpanded && "line-clamp-3"
             )}>
               {site.overview || site.description}
             </p>
-            
+
             {(site.overview || site.description || '').length > 140 && (
               <button
                 type="button"
@@ -331,7 +326,7 @@ export default function SitePlacePanel({
                       )}
                     >
                       {operatingEval.isOpen !== true &&
-                      operatingEval.subFacilityEvaluations.some(sub => sub.isOpen === true)
+                        operatingEval.subFacilityEvaluations.some(sub => sub.isOpen === true)
                         ? 'Sub-Facility Open'
                         : operatingEval.calculatedStatus}
                     </span>

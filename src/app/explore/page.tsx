@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import {
   getAdmissionDisplay,
+  getExploreVerificationBadge,
   searchSites,
   HeritageSite,
   mergeAdminSitesWithStatic,
@@ -70,6 +71,7 @@ function SiteCard({
 }) {
   const imageSources = getSiteImageSources(site);
   const mainCategory = (site.category || 'Heritage Site').split(' & ')[0];
+  const verificationBadge = getExploreVerificationBadge(site);
   const operatingEval = useMemo(
     () => (now ? evaluateSiteOperatingStatus(site, now) : null),
     [site, now]
@@ -114,11 +116,15 @@ function SiteCard({
           <Badge variant="secondary" className="max-w-[55%] truncate border-none bg-white/95 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-primary shadow-xs backdrop-blur-md">
             {mainCategory}
           </Badge>
-          <div className="flex flex-wrap items-center gap-1">
-            {site.verificationStatus === 'LGU Verified' && (
-              <Badge className="border-none bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-xs flex items-center gap-1">
-                <CheckCircle2 size={10} className="shrink-0" />
-                <span className="truncate">LGU Verified</span>
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            {verificationBadge && (
+              <Badge
+                data-testid="site-verification-badge"
+                data-verification-status={verificationBadge.status}
+                className="border border-emerald-500/80 bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-xs"
+              >
+                <CheckCircle2 size={10} className="mr-1 shrink-0" />
+                {verificationBadge.label}
               </Badge>
             )}
             {site.isMustVisit && (
@@ -306,16 +312,16 @@ export default function ExplorePage() {
   }, [writeExploreState]);
 
   const mergedSites = useMemo(() => {
-    return mergeAdminSitesWithStatic(isHydrated ? dbSites : null, isHydrated ? userRole : undefined);
-  }, [dbSites, userRole, isHydrated]);
+    return mergeAdminSitesWithStatic(dbSites, userRole);
+  }, [dbSites, userRole]);
 
   const filteredSites = useMemo(() => {
-    return searchSites(searchQuery, city, category, isHydrated ? userRole : undefined, mergedSites);
-  }, [searchQuery, city, category, userRole, mergedSites, isHydrated]);
+    return searchSites(searchQuery, city, category, userRole, mergedSites);
+  }, [searchQuery, city, category, userRole, mergedSites]);
 
   const totalSites = useMemo(() => {
-    return searchSites('', 'All', 'All', isHydrated ? userRole : undefined, mergedSites).length;
-  }, [userRole, mergedSites, isHydrated]);
+    return searchSites('', 'All', 'All', userRole, mergedSites).length;
+  }, [userRole, mergedSites]);
 
   const hasActiveFilters = Boolean(searchQuery || city !== 'All' || category !== 'All');
 

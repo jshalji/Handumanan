@@ -34,7 +34,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { DEPRECATED_HERITAGE_SITE_IDS, HERITAGE_SITES, HeritageSite, VerificationStatus } from '@/lib/heritage-data';
+import {
+  DEPRECATED_HERITAGE_SITE_IDS,
+  HERITAGE_SITES,
+  HeritageSite,
+  normalizeHeritageSite,
+  VerificationStatus,
+} from '@/lib/heritage-data';
 import { SafeImage } from '@/components/ui/safe-image';
 
 type FilterTab = 'All' | 'Pending Verification' | 'LGU Verified' | 'Needs Revision' | 'Rejected';
@@ -42,43 +48,10 @@ type FilterTab = 'All' | 'Pending Verification' | 'LGU Verified' | 'Needs Revisi
 const CITIES = ['Cebu City', 'Mandaue City', 'Talisay City', 'Lapu-Lapu City'];
 
 function normalizeLguSite(site: any, dbOverride?: any): HeritageSite & { _source: string } {
-  const merged = { ...(site || {}), ...(dbOverride || {}) };
-  const rawCoords = merged.coordinates || { lat: merged.latitude, lng: merged.longitude };
-  const latitude = Number(rawCoords?.lat);
-  const longitude = Number(rawCoords?.lng);
-
+  const staticFallback = dbOverride && site && site !== dbOverride ? site : undefined;
+  const normalized = normalizeHeritageSite(dbOverride || site || {}, staticFallback);
   return {
-    ...merged,
-    id: merged.id,
-    name: merged.name || 'Untitled Heritage Site',
-    description: merged.description || 'No directory description available.',
-    overview: merged.overview || merged.description || 'No detailed overview provided.',
-    significance: merged.significance || 'Historical significance details not specified.',
-    category: merged.category || 'Historical Landmarks & Monuments',
-    location: merged.location || 'Location address unspecified',
-    city: merged.city || 'Cebu City',
-    visitingHours: merged.visitingHours || 'Visiting hours unspecified',
-    imageUrl: merged.imageUrl || '',
-    galleryImages: Array.isArray(merged.galleryImages) ? merged.galleryImages : [],
-    rating: Number.isFinite(Number(merged.rating)) ? Number(merged.rating) : undefined,
-    tags: Array.isArray(merged.tags) ? merged.tags : [],
-    coordinates: {
-      lat: Number.isFinite(latitude) ? latitude : 0,
-      lng: Number.isFinite(longitude) ? longitude : 0,
-    },
-    isMustVisit: Boolean(merged.isMustVisit),
-    needsVerification: Boolean(merged.needsVerification),
-    // CRITICAL: Default strictly to 'Pending Verification' if not set in Firestore
-    verificationStatus: (merged.verificationStatus as VerificationStatus) || 'Pending Verification',
-    verifiedBy: merged.verifiedBy || undefined,
-    verifiedByUid: merged.verifiedByUid || undefined,
-    verifiedAt: merged.verifiedAt || undefined,
-    verificationNotes: merged.verificationNotes || undefined,
-    isActive: merged.isActive !== false,
-    status: merged.status === 'Inactive' ? 'Inactive' : 'Active',
-    demolitionStatus: merged.demolitionStatus || 'Non-Demolished',
-    accessibilityStatus: merged.accessibilityStatus || 'Accessibility details unspecified.',
-    entranceFee: merged.entranceFee || undefined,
+    ...normalized,
     _source: dbOverride ? 'Firestore Override' : 'Built-in Static Record',
   };
 }
@@ -221,8 +194,10 @@ export default function LguDashboardPage() {
 
     const isSelectedInspectSite = Boolean(selectedSite && selectedSite.id === site.id);
     const feeTrimmed = isSelectedInspectSite ? editingFee.trim() : '';
+    const existingFeeTrimmed = String(site?.entranceFee || '').trim();
+    const hasFeeChanged = isSelectedInspectSite && feeTrimmed !== existingFeeTrimmed;
 
-    if (isSelectedInspectSite) {
+    if (hasFeeChanged) {
       if (feeTrimmed.length > 200) {
         toast({ title: 'Invalid Fee Text', description: 'Fee description must be 200 characters or fewer.', variant: 'destructive' });
         return;
@@ -244,7 +219,7 @@ export default function LguDashboardPage() {
         verifiedByUid: user.uid,
         verifiedAt: new Date().toISOString(),
         verificationNotes: notes.trim(),
-        ...(isSelectedInspectSite ? { entranceFee: feeTrimmed } : {}),
+        ...(hasFeeChanged ? { entranceFee: feeTrimmed } : {}),
       };
 
       await setDoc(siteRef, updatePayload, { merge: true });
@@ -609,7 +584,7 @@ export default function LguDashboardPage() {
                             >
                               <Eye size={14} className="mr-1" /> Inspect
                             </Button>
-                            {site.verificationStatus !== 'LGU Verified' && (
+                            {site.verificationStatus !== 'LGU Verified' ? (
                               <Button
                                 size="sm"
                                 className="h-8 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
@@ -617,6 +592,16 @@ export default function LguDashboardPage() {
                                 disabled={isUpdatingStatus}
                               >
                                 <CheckCircle2 size={14} className="mr-1" /> Verify
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 rounded-md border-amber-300 text-amber-800 hover:bg-amber-50 font-bold text-xs"
+                                onClick={() => executeVerificationAction(site, 'Pending Verification')}
+                                disabled={isUpdatingStatus}
+                              >
+                                <Clock size={14} className="mr-1" /> Unverify
                               </Button>
                             )}
                           </div>
@@ -741,7 +726,18 @@ export default function LguDashboardPage() {
                 <Button variant="outline" onClick={() => setIsInspectDialogOpen(false)} disabled={isUpdatingStatus}>
                   Close Inspection
                 </Button>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {selectedSite.verificationStatus !== 'Pending Verification' && (
+                    <Button
+                      variant="outline"
+                      className="border-slate-300 text-slate-700 hover:bg-slate-100 font-bold"
+                      onClick={() => executeVerificationAction(selectedSite, 'Pending Verification')}
+                      disabled={isUpdatingStatus}
+                    >
+                      <Clock size={16} className="mr-1.5" />
+                      {selectedSite.verificationStatus === 'LGU Verified' ? 'Remove LGU Verified' : 'Set Pending'}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     className="border-amber-300 text-amber-800 hover:bg-amber-50 font-bold"
@@ -758,14 +754,16 @@ export default function LguDashboardPage() {
                   >
                     <XCircle size={16} className="mr-1.5" /> Reject
                   </Button>
-                  <Button
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                    onClick={() => executeVerificationAction(selectedSite, 'LGU Verified')}
-                    disabled={isUpdatingStatus}
-                  >
-                    {isUpdatingStatus ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <CheckCircle2 size={16} className="mr-1.5" />}
-                    Mark LGU Verified
-                  </Button>
+                  {selectedSite.verificationStatus !== 'LGU Verified' && (
+                    <Button
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                      onClick={() => executeVerificationAction(selectedSite, 'LGU Verified')}
+                      disabled={isUpdatingStatus}
+                    >
+                      {isUpdatingStatus ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <CheckCircle2 size={16} className="mr-1.5" />}
+                      Mark LGU Verified
+                    </Button>
+                  )}
                 </div>
               </DialogFooter>
             </>

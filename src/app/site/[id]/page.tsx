@@ -189,14 +189,11 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
           <div className="bg-amber-50 p-6 rounded-full text-amber-600 mb-6 shadow-sm border border-amber-200/60">
             <AlertCircle size={48} />
           </div>
-          <Badge variant="outline" className="bg-amber-100/80 text-amber-800 border-amber-300 font-black uppercase text-[10px] tracking-widest px-4 py-1.5 mb-4">
-            {site.verificationStatus === 'Rejected' ? 'Site Verification Rejected' : 'Under LGU Review'}
-          </Badge>
           <h2 className="text-3xl md:text-4xl font-headline font-bold mb-3 text-slate-900">
             Site Unavailable
           </h2>
           <p className="text-slate-600 max-w-md mb-8 text-sm md:text-base leading-relaxed">
-            {site.name} is currently {site.verificationStatus === 'Rejected' ? 'rejected' : 'under review'} by the Local Government Unit (LGU) and is not available for public viewing.
+            This heritage site is currently not available for public viewing.
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Button asChild className="rounded-2xl h-12 px-8 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20">
@@ -342,21 +339,6 @@ export default function SiteDetailPage({ params }: { params: Promise<{ id: strin
                   </div>
                   {site.isMustVisit && (
                     <Badge variant="secondary" className="bg-accent text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1">Must Visit</Badge>
-                  )}
-                  {site.verificationStatus === 'LGU Verified' && (
-                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1 flex items-center gap-1 shadow-sm">
-                      <CheckCircle2 size={12} /> LGU Verified
-                    </Badge>
-                  )}
-                  {site.verificationStatus === 'Rejected' && (
-                    <Badge className="bg-red-600 text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1 flex items-center gap-1 shadow-sm">
-                      <AlertCircle size={12} /> Rejected
-                    </Badge>
-                  )}
-                  {site.verificationStatus === 'Needs Revision' && (
-                    <Badge className="bg-orange-500 text-white border-none text-[10px] font-black uppercase tracking-widest px-3 py-1 flex items-center gap-1 shadow-sm">
-                      <AlertCircle size={12} /> Needs Revision
-                    </Badge>
                   )}
                 </div>
                 <h1 className="font-headline text-3xl sm:text-4xl md:text-5xl font-bold text-slate-900 leading-tight">

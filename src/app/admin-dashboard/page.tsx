@@ -60,6 +60,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   ALL_DAYS_OF_WEEK,
   buildDefaultUnverifiedOperatingSchedule,
+  DEPRECATED_HERITAGE_SITE_IDS,
   HERITAGE_SITES,
   isSiteVisibleToUser,
   normalizeOperatingSchedule,
@@ -753,12 +754,16 @@ export default function AdminDashboardPage() {
   const { data: dbSites, isLoading: isSitesLoading, error: sitesError } = useCollection(sitesQuery);
 
   const directorySites = useMemo(() => {
+    const deprecatedIds = new Set(DEPRECATED_HERITAGE_SITE_IDS);
     const sitesById = new Map(
-      HERITAGE_SITES.map(site => [site.id, { ...site, _recordSource: 'Built-in directory' } as any])
+      HERITAGE_SITES.filter(site => !deprecatedIds.has(site.id)).map(site => [
+        site.id,
+        { ...site, _recordSource: 'Built-in directory' } as any,
+      ])
     );
 
     (dbSites || []).forEach((site: any) => {
-      if (!site?.id) return;
+      if (!site?.id || deprecatedIds.has(site.id)) return;
       const existingSite = sitesById.get(site.id);
       sitesById.set(site.id, {
         ...normalizeSiteRecord(site, existingSite),
@@ -895,7 +900,15 @@ export default function AdminDashboardPage() {
   }
 
   const updateForm = (field: keyof SiteFormState, value: string | boolean | OperatingSchedule) => {
-    setFormState(prev => ({ ...prev, [field]: value }));
+    setFormState(prev => {
+      const next = { ...prev, [field]: value };
+      if (field === 'status') {
+        next.isActive = value === 'Active';
+      } else if (field === 'isActive') {
+        next.status = value === true ? 'Active' : 'Inactive';
+      }
+      return next;
+    });
   };
 
   const updateOperatingSchedule = (updater: (prev: OperatingSchedule) => OperatingSchedule) => {

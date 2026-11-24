@@ -41,7 +41,7 @@ import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@
 import { collection, doc, query, orderBy, limit } from 'firebase/firestore';
 import { usePathname, useRouter } from 'next/navigation';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { HERITAGE_SITES, isSiteVisibleToUser, hasExplicitHeritageIntent } from '@/lib/heritage-data';
+import { HERITAGE_SITES, isSiteVisibleToUser, hasExplicitHeritageIntent, mergeAdminSitesWithStatic } from '@/lib/heritage-data';
 import { getCurrentLocation } from '@/lib/location-utils';
 import { SafeImage } from '@/components/ui/safe-image';
 import { getSiteImageSources } from '@/lib/site-images';
@@ -563,38 +563,7 @@ export function HeritageChatBot() {
   const { data: dbSites } = useCollection(sitesQuery);
 
   const directorySites = useMemo(() => {
-    const sitesById = new Map(HERITAGE_SITES.map(site => [site.id, site as any]));
-
-    dbSites?.forEach((site: any) => {
-      if (!site?.id) return;
-      if (site.isActive === false || site.status === 'Inactive') {
-        sitesById.delete(site.id);
-        return;
-      }
-      const existingSite = sitesById.get(site.id) || {};
-      const coordinates = site.coordinates || (
-        site.latitude !== undefined && site.longitude !== undefined
-          ? { lat: site.latitude, lng: site.longitude }
-          : existingSite.coordinates
-      );
-      sitesById.set(site.id, {
-        ...existingSite,
-        ...site,
-        coordinates,
-        tags: Array.isArray(site.tags) ? site.tags : (Array.isArray(existingSite.tags) ? existingSite.tags : []),
-      });
-    });
-
-    return Array.from(sitesById.values())
-      .map(site => ({
-        ...site,
-        verificationStatus: site.verificationStatus || 'Pending Verification',
-      }))
-      .filter(site => (
-        site.isActive !== false &&
-        site.status !== 'Inactive' &&
-        isSiteVisibleToUser(site, null)
-      ));
+    return mergeAdminSitesWithStatic(dbSites, null);
   }, [dbSites]);
 
   const directorySitesForChat = useMemo(() => (
